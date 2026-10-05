@@ -3,6 +3,9 @@
   "name": "axyro-sim-lab",
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-05",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "axyro.qhel.dev", "custom_domain": true }],
   "assets": {
     "directory": "./dist/web",
     "binding": "ASSETS",
@@ -18,7 +21,8 @@
     "consumers": [{ "queue": "axyro-events", "max_batch_timeout": 1 }]
   },
   "vars": {
-    "ACCESS_TEAM_DOMAIN": "REPLACE_WITH_YOUR_TEAM.cloudflareaccess.com",
-    "ACCESS_AUD": "REPLACE_WITH_ACCESS_APP_AUD"
+    "ACCESS_TEAM_DOMAIN": "bitter-cake-9de8.cloudflareaccess.com",
+    "ACCESS_AUD": "REPLACE_WITH_ACCESS_APP_AUD",
+    "BOOTSTRAP_OWNER_EMAIL": "ezequiel@identy.cloud"
   }
 }

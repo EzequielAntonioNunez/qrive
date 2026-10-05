@@ -33,9 +33,9 @@ pnpm smoke
 
 ## Cloudflare
 
-Los recursos de AXYRO en la cuenta de desarrollo son `axyro-db` (D1, EU), `axyro-files` (R2, EU) y `axyro-events` (Queue). `wrangler.jsonc` contiene el ID público de D1. Las credenciales deben mantenerse fuera de Git. El Worker remoto usa Cloudflare Access; configura `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` y `BOOTSTRAP_OWNER_EMAIL` antes del despliegue. Sin esos valores, la API remota rechaza el acceso.
+Los recursos de AXYRO en la cuenta de desarrollo son `axyro-db` (D1, EU), `axyro-files` (R2, EU) y `axyro-events` (Queue). `wrangler.jsonc` contiene el ID público de D1 y reserva el dominio `axyro.qhel.dev` para el Worker. Las credenciales deben mantenerse fuera de Git. La URL `workers.dev` y las URL de vista previa están desactivadas para que el despliegue se sirva por el dominio protegido. El Worker remoto usa Cloudflare Access con el equipo `bitter-cake-9de8.cloudflareaccess.com`; antes del despliegue, crea una aplicación Access para todo `axyro.qhel.dev` con una política de acceso limitada al propietario y sustituye `ACCESS_AUD` por el identificador `aud` de esa aplicación. Sin ese valor, la API remota rechaza el acceso.
 
-El token utilizado para desarrollo debe permitir migraciones D1, Workers y configuración de Access. La cola actual se creó sin jurisdicción porque la API de Queues rechazó la opción `eu`; sus mensajes llevan IDs seudónimos y eventos, sin nombres ni correos.
+El token utilizado para desarrollo debe permitir migraciones D1, Workers y configuración de Access. Para conectar el dominio personalizado, Cloudflare requiere `Workers Routes Write` limitado a la zona `qhel.dev`; para crear la aplicación y sus políticas, requiere `Access: Apps and Policies Write`. La cola actual se creó sin jurisdicción porque la API de Queues rechazó la opción `eu`; sus mensajes llevan IDs seudónimos y eventos, sin nombres ni correos.
 
 ## Contrato de API
 
