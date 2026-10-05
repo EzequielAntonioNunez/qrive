@@ -30,6 +30,33 @@ export function createApp(demo = false) {
   });
   app.get('/api/me', c => c.json({ identity: c.get('identity'), demo }));
   app.get('/api/scenarios', c => c.json({ scenarios: [negotiationScenario] }));
+  app.get('/api/memberships', async c => {
+    const identity = c.get('identity');
+    if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
+    const rows = await c.env.DB.prepare(`SELECT users.id, users.email, users.display_name AS name, memberships.role
+      FROM memberships JOIN users ON users.id = memberships.user_id WHERE memberships.tenant_id = ? ORDER BY users.display_name`)
+      .bind(identity.tenantId).all();
+    return c.json({ members: rows.results });
+  });
+  app.post('/api/memberships', async c => {
+    const identity = c.get('identity');
+    if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
+    const body = await c.req.json() as { email?: unknown; name?: unknown; role?: unknown };
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    const role = body.role;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !name || name.length > 100 || !['instructor', 'participant'].includes(String(role))) throw new DomainError('Miembro no válido.');
+    let user = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first<{ id: string }>();
+    if (!user) {
+      const id = crypto.randomUUID();
+      await c.env.DB.prepare('INSERT INTO users (id,email,display_name,created_at) VALUES (?,?,?,?)').bind(id, email, name, new Date().toISOString()).run();
+      user = { id };
+    }
+    await c.env.DB.prepare('INSERT INTO memberships (tenant_id,user_id,role) VALUES (?,?,?) ON CONFLICT(tenant_id,user_id) DO UPDATE SET role=excluded.role')
+      .bind(identity.tenantId, user.id, role).run();
+    await audit(c.env, identity, null, 'member_upserted', { userId: user.id, role });
+    return c.json({ member: { id: user.id, email, name, role } }, 201);
+  });
   app.get('/api/sessions', async c => {
     const rows = await c.env.DB.prepare('SELECT id, scenario_id AS scenarioId, status, created_at AS createdAt, completed_at AS completedAt FROM sessions WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 50').bind(c.get('identity').tenantId).all();
     return c.json({ sessions: rows.results });
@@ -83,7 +110,7 @@ async function room(env: Env, tenantId: string, id: string, body: unknown): Prom
   return stub.fetch('https://room.internal/', { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
 }
 
-async function audit(env: Env, identity: Identity, sessionId: string, action: string, detail: Record<string, unknown>): Promise<void> {
+async function audit(env: Env, identity: Identity, sessionId: string | null, action: string, detail: Record<string, unknown>): Promise<void> {
   await env.DB.prepare('INSERT INTO audit_log (id,tenant_id,actor_id,session_id,action,at,detail_json) VALUES (?,?,?,?,?,?,?)')
     .bind(crypto.randomUUID(), identity.tenantId, identity.id, sessionId, action, new Date().toISOString(), JSON.stringify(detail)).run();
 }

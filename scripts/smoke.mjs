@@ -2,10 +2,10 @@ const base = process.env.AXYRO_API_URL ?? 'http://127.0.0.1:8787';
 const runs = Number(process.env.SMOKE_RUNS ?? '5');
 if (!Number.isInteger(runs) || runs < 1 || runs > 100) throw new Error('SMOKE_RUNS debe estar entre 1 y 100');
 
-async function api(path, role = 'instructor', body) {
+async function api(path, role = 'instructor', body, tenant = 'demo') {
   const response = await fetch(`${base}/api${path}`, {
     method: body ? 'POST' : 'GET',
-    headers: { 'content-type': 'application/json', 'x-demo-user': role },
+    headers: { 'content-type': 'application/json', 'x-demo-user': role, 'x-demo-tenant': tenant },
     body: body ? JSON.stringify(body) : undefined
   });
   const data = await response.json();
@@ -20,6 +20,12 @@ async function command(id, role, type, extra = {}) {
 async function oneRun() {
   const created = await api('/sessions', 'instructor', {});
   const id = created.state.id;
+  try {
+    await api(`/sessions/${id}`, 'instructor', undefined, 'other');
+    throw new Error(`Aislamiento entre organizaciones roto en ${id}`);
+  } catch (error) {
+    if (!String(error).includes('404')) throw error;
+  }
   await command(id, 'participant', 'join');
   await command(id, 'participant', 'decide', { optionId: 'ask-data' });
   await command(id, 'instructor', 'advance');

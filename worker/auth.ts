@@ -13,15 +13,17 @@ function configuredDomain(value?: string): string | null {
 
 export async function identityFor(c: Context<AuthContext>, demo: boolean): Promise<Identity | null> {
   if (demo) {
+    const other = c.req.header('x-demo-tenant') === 'other';
+    const tenantId = other ? 'demo-other' : 'demo';
     const participant = c.req.header('x-demo-user') === 'participant';
-    const id = participant ? 'demo-participant' : 'demo-instructor';
-    const email = participant ? 'participant@demo.local' : 'instructor@demo.local';
+    const id = `${tenantId}-${participant ? 'participant' : 'instructor'}`;
+    const email = `${participant ? 'participant' : 'instructor'}@${tenantId}.local`;
     const name = participant ? 'Participante demo' : 'Instructor demo';
     const now = new Date().toISOString();
-    await c.env.DB.prepare('INSERT OR IGNORE INTO tenants (id,name,created_at) VALUES (?,?,?)').bind('demo', 'Organización demo', now).run();
+    await c.env.DB.prepare('INSERT OR IGNORE INTO tenants (id,name,created_at) VALUES (?,?,?)').bind(tenantId, other ? 'Otra organización demo' : 'Organización demo', now).run();
     await c.env.DB.prepare('INSERT OR IGNORE INTO users (id,email,display_name,created_at) VALUES (?,?,?,?)').bind(id, email, name, now).run();
-    await c.env.DB.prepare('INSERT OR IGNORE INTO memberships (tenant_id,user_id,role) VALUES (?,?,?)').bind('demo', id, participant ? 'participant' : 'instructor').run();
-    return { id, name, email, role: participant ? 'participant' : 'instructor', tenantId: 'demo' };
+    await c.env.DB.prepare('INSERT OR IGNORE INTO memberships (tenant_id,user_id,role) VALUES (?,?,?)').bind(tenantId, id, participant ? 'participant' : 'instructor').run();
+    return { id, name, email, role: participant ? 'participant' : 'instructor', tenantId };
   }
   const domain = configuredDomain(c.env.ACCESS_TEAM_DOMAIN);
   const audience = c.env.ACCESS_AUD;
