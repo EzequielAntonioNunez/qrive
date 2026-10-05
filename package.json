@@ -1,0 +1,33 @@
+{
+  "name": "axyro-sim-lab",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@12.9.1",
+  "scripts": {
+    "dev:api": "wrangler dev --config wrangler.local.jsonc --local --ip 127.0.0.1 --port 8787 --persist-to ./.local-state",
+    "dev:web": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build && wrangler deploy --dry-run --outdir dist/worker",
+    "test": "vitest run",
+    "db:local": "wrangler d1 migrations apply axyro-db --config wrangler.local.jsonc --local --persist-to ./.local-state",
+    "smoke": "node scripts/smoke.mjs",
+    "check": "pnpm test && pnpm build"
+  },
+  "dependencies": {
+    "hono": "4.13.13",
+    "jose": "6.1.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261005.1",
+    "@types/node": "26.6.4",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "typescript": "7.0.2",
+    "vite": "8.3.2",
+    "vitest": "4.0.13",
+    "wrangler": "4.147.0"
+  }
+}

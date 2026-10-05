@@ -1,0 +1,42 @@
+# AXYRO SIM / DECISION
+
+Primer corte ejecutable del escenario **Negociación con proveedor**. Incluye un panel web para instructor y participante, API Hono en Cloudflare Workers, estado de sesión en Durable Objects, datos en D1 y eventos persistidos a través de Queues.
+
+La definición de alcance está en [AXYRO_MVP_ARCHITECTURE_FINAL_v1.1.md](./AXYRO_MVP_ARCHITECTURE_FINAL_v1.1.md). VR, personajes IA y RAG avanzado pertenecen a fases posteriores.
+
+## Desarrollo local
+
+Requiere Node.js 24 y pnpm 12.
+
+```powershell
+pnpm install
+pnpm db:local
+pnpm dev:api
+```
+
+En otra terminal:
+
+```powershell
+pnpm dev:web
+```
+
+Abre `http://127.0.0.1:5173`. El selector local alterna entre instructor y participante. Los datos locales persisten en `.local-state/`, ignorado por Git.
+
+## Verificación
+
+```powershell
+pnpm check
+pnpm smoke
+```
+
+`pnpm smoke` necesita la API local en marcha. `SMOKE_RUNS=50` permite ejecutar la puerta de calidad de 50 simulaciones internas.
+
+## Cloudflare
+
+Los recursos de AXYRO en la cuenta de desarrollo son `axyro-db` (D1, EU), `axyro-files` (R2, EU) y `axyro-events` (Queue). `wrangler.jsonc` contiene el ID público de D1. Las credenciales deben mantenerse fuera de Git. El Worker remoto usa Cloudflare Access; configura `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` y `BOOTSTRAP_OWNER_EMAIL` antes del despliegue. Sin esos valores, la API remota rechaza el acceso.
+
+El token utilizado para desarrollo debe permitir migraciones D1, Workers y configuración de Access. La cola actual se creó sin jurisdicción porque la API de Queues rechazó la opción `eu`; sus mensajes llevan IDs seudónimos y eventos, sin nombres ni correos.
+
+## Contrato de API
+
+`GET /api/scenarios`, `GET/POST /api/sessions`, `GET /api/sessions/:id`, `POST /api/sessions/:id/commands` y `GET /api/sessions/:id/events`. Los comandos incluyen un `id` para idempotencia. Los roles y la organización se resuelven en el servidor; la identidad demo solo existe en `wrangler.local.jsonc`.

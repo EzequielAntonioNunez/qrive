@@ -1,0 +1,24 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "axyro-sim-lab",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-05",
+  "assets": {
+    "directory": "./dist/web",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [{ "binding": "DB", "database_name": "axyro-db", "database_id": "a6f26406-0082-4f70-8550-63535822a104", "migrations_dir": "migrations" }],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "axyro-files", "jurisdiction": "eu" }],
+  "durable_objects": { "bindings": [{ "name": "SESSIONS", "class_name": "SessionRoom" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SessionRoom"] }],
+  "queues": {
+    "producers": [{ "binding": "EVENTS", "queue": "axyro-events" }],
+    "consumers": [{ "queue": "axyro-events", "max_batch_timeout": 1 }]
+  },
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "REPLACE_WITH_YOUR_TEAM.cloudflareaccess.com",
+    "ACCESS_AUD": "REPLACE_WITH_ACCESS_APP_AUD"
+  }
+}
