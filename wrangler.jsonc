@@ -22,7 +22,7 @@
   },
   "vars": {
     "ACCESS_TEAM_DOMAIN": "bitter-cake-9de8.cloudflareaccess.com",
-    "ACCESS_AUD": "REPLACE_WITH_ACCESS_APP_AUD",
+    "ACCESS_AUD": "6fd0a707bbd54441a54f781ad7bb2bf2ef8ea45d1af058a126e277c753cb8797",
     "BOOTSTRAP_OWNER_EMAIL": "ezequiel@identy.cloud"
   }
 }
