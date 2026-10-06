@@ -20,6 +20,12 @@ export function AvatarStage({ phaseId, paused }: { phaseId: string; paused: bool
     setSpeaking(false);
     return () => { window.speechSynthesis?.cancel(); };
   }, [phaseId]);
+  useEffect(() => {
+    if (paused && speaking) {
+      window.speechSynthesis?.cancel();
+      setSpeaking(false);
+    }
+  }, [paused, speaking]);
 
   function toggleVoice() {
     if (!('speechSynthesis' in window)) { setVoiceError('Este navegador no dispone de voz.'); return; }
