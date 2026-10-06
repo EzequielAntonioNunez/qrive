@@ -77,7 +77,7 @@ export function validateScenario(value: unknown): Scenario {
     if (phase.timeoutRiskDelta !== undefined) result.timeoutRiskDelta = int(phase.timeoutRiskDelta, `${path}.timeoutRiskDelta`, 0, 50);
     return result;
   });
-  return {
+  const scenario: Scenario = {
     id: id(data.id, 'id'),
     version: int(data.version, 'version', 1, 100000),
     title: text(data.title, 'title', 120),
@@ -86,6 +86,16 @@ export function validateScenario(value: unknown): Scenario {
     initialMeters: meters(data.initialMeters, 'initialMeters', 0, 100),
     phases
   };
+  if (data.meterLabels !== undefined) {
+    const labels = data.meterLabels as Record<string, unknown> | null;
+    if (!labels || typeof labels !== 'object') throw new ScenarioError('meterLabels: objeto con relationship, margin y risk.');
+    scenario.meterLabels = {
+      relationship: text(labels.relationship, 'meterLabels.relationship', 24),
+      margin: text(labels.margin, 'meterLabels.margin', 24),
+      risk: text(labels.risk, 'meterLabels.risk', 24)
+    };
+  }
+  return scenario;
 }
 
 export { meterNames };

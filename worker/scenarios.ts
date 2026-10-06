@@ -1,14 +1,17 @@
-import { negotiationScenario, type Scenario } from '../shared/simulation';
+import { catalogScenarios, type Scenario } from '../shared/simulation';
 import { ScenarioError, validateScenario } from '../shared/scenario';
 import type { Env } from './types';
 
 export interface ScenarioSummary { id: string; version: number; title: string; summary: string; phases: number; catalog: boolean }
 
-/** Publica el escenario de catálogo incluido en el código si esa versión aún no existe en D1. */
+/** Publica los escenarios de catálogo incluidos en el código si esa versión aún no existe en D1. */
 export async function ensureCatalog(env: Env): Promise<void> {
-  const scenario = validateScenario(negotiationScenario);
-  await env.DB.prepare('INSERT OR IGNORE INTO scenarios (id,version,tenant_id,title,definition_json,created_by,created_at) VALUES (?,?,NULL,?,?,?,?)')
-    .bind(scenario.id, scenario.version, scenario.title, JSON.stringify(scenario), 'system', new Date().toISOString()).run();
+  const now = new Date().toISOString();
+  await env.DB.batch(catalogScenarios.map(item => {
+    const scenario = validateScenario(item);
+    return env.DB.prepare('INSERT OR IGNORE INTO scenarios (id,version,tenant_id,title,definition_json,created_by,created_at) VALUES (?,?,NULL,?,?,?,?)')
+      .bind(scenario.id, scenario.version, scenario.title, JSON.stringify(scenario), 'system', now);
+  }));
 }
 
 /** Última versión de cada escenario visible para la organización (catálogo + propios). */

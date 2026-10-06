@@ -35,7 +35,15 @@ export interface Scenario {
   summary: string;
   character: { name: string };
   initialMeters: Meters;
+  /** Nombre visible de cada indicador en este escenario. Sin valor: Relación, Margen y Riesgo. */
+  meterLabels?: Record<MeterName, string>;
   phases: Phase[];
+}
+
+export const defaultMeterLabels: Record<MeterName, string> = { relationship: 'Relación', margin: 'Margen', risk: 'Riesgo' };
+
+export function meterLabels(scenario: Scenario): Record<MeterName, string> {
+  return scenario.meterLabels ?? defaultMeterLabels;
 }
 
 export type SessionStatus = 'active' | 'paused' | 'complete';
@@ -163,6 +171,66 @@ export const negotiationScenario: Scenario = {
     }
   ]
 };
+
+/**
+ * Escenario principal del catálogo UFV: decisiones prácticas sobre IA generativa en el trabajo académico.
+ * La valoración `quality` es de la decisión según la política de uso responsable, nunca de la persona.
+ */
+export const aiPracticesScenario: Scenario = {
+  id: 'ia-buenas-practicas',
+  version: 1,
+  title: 'Uso responsable de la IA en la universidad',
+  summary: 'Decide cómo aplicar la IA generativa en situaciones reales del trabajo académico: datos personales, verificación de resultados y evaluación justa.',
+  character: { name: 'Elena Vega' },
+  initialMeters: { relationship: 50, margin: 50, risk: 50 },
+  meterLabels: { relationship: 'Confianza', margin: 'Productividad', risk: 'Riesgo' },
+  phases: [
+    {
+      id: 'datos-personales',
+      title: 'Datos personales',
+      briefing: 'Elena coordina la calidad académica del grado. Tiene las notas y los comentarios de 120 alumnos en una hoja de cálculo y quiere un informe individual para cada uno antes del viernes.',
+      characterLine: 'Tengo las notas y los comentarios de todos los alumnos en una hoja de cálculo. Si la pego en un chat de inteligencia artificial, nos redacta los informes en un momento. ¿Lo hacemos así?',
+      timeLimitSec: 180,
+      timeoutRiskDelta: 8,
+      options: [
+        { id: 'anonimizar', label: 'Anonimizar los datos y usar solo la herramienta de IA autorizada por la universidad.', consequence: 'Ahorras tiempo sin exponer datos personales: cumples el RGPD y la política de la universidad.', effects: { relationship: 8, margin: 6, risk: -14 }, skill: 'risk', quality: 'best' },
+        { id: 'pegar-todo', label: 'Pegar la hoja completa en un chat de IA público.', consequence: 'Los datos de los alumnos salen a un servicio externo sin base legal: es una brecha de confidencialidad.', effects: { relationship: -15, margin: 8, risk: 25 }, skill: 'risk', quality: 'poor' },
+        { id: 'a-mano', label: 'Renunciar a la IA y redactar todos los informes a mano.', consequence: 'No hay riesgo, pero pierdes días de trabajo que una IA bien usada te habría ahorrado.', effects: { relationship: 2, margin: -12, risk: -4 }, skill: 'preparation', quality: 'acceptable' }
+      ]
+    },
+    {
+      id: 'verificacion',
+      title: 'Verificación',
+      briefing: 'La IA ha resumido la nueva normativa de evaluación con tres referencias legales. El resumen se enviará al claustro esta tarde.',
+      characterLine: 'La inteligencia artificial me ha preparado un resumen de la nueva normativa con tres referencias legales. Suena muy convincente. ¿Lo enviamos tal cual al claustro?',
+      timeLimitSec: 180,
+      timeoutRiskDelta: 8,
+      options: [
+        { id: 'contrastar', label: 'Comprobar cada referencia en la fuente oficial antes de enviarlo.', consequence: 'Detectas una referencia inventada y la corriges: el documento que llega al claustro es fiable.', effects: { relationship: 10, margin: 4, risk: -14 }, skill: 'preparation', quality: 'best' },
+        { id: 'enviar', label: 'Enviarlo tal cual: la IA suele acertar.', consequence: 'Una de las referencias no existe. El claustro pierde la confianza en el documento.', effects: { relationship: -18, margin: 6, risk: 20 }, skill: 'risk', quality: 'poor' },
+        { id: 'autoverificar', label: 'Pedir a la misma IA que confirme que las referencias son correctas.', consequence: 'La IA confirma sus propios errores: sigues sin una verificación real.', effects: { relationship: -6, margin: 4, risk: 12 }, skill: 'preparation', quality: 'poor' },
+        { id: 'borrador', label: 'Enviarlo como borrador generado con IA pendiente de revisión.', consequence: 'Eres transparente, pero trasladas a otros una verificación que te corresponde.', effects: { relationship: 2, margin: 2, risk: 4 }, skill: 'negotiation', quality: 'acceptable' }
+      ]
+    },
+    {
+      id: 'evaluacion',
+      title: 'Evaluación justa',
+      briefing: 'Un detector señala que un trabajo de fin de grado tiene un 80 % de probabilidad de estar escrito con IA. La guía docente permite usar IA si se declara.',
+      characterLine: 'Un detector dice que este trabajo tiene un ochenta por ciento de probabilidad de estar hecho con inteligencia artificial. ¿Lo suspendemos directamente?',
+      timeLimitSec: 180,
+      timeoutRiskDelta: 10,
+      options: [
+        { id: 'dialogar', label: 'Revisar el trabajo, hablar con el alumno y aplicar la guía docente.', consequence: 'Decides con evidencias y con garantías: el detector es un indicio, no una prueba.', effects: { relationship: 12, margin: 4, risk: -14 }, skill: 'negotiation', quality: 'best' },
+        { id: 'suspender', label: 'Suspender basándote solo en el detector.', consequence: 'Los detectores se equivocan con frecuencia: arriesgas una decisión injusta y una reclamación.', effects: { relationship: -20, margin: 2, risk: 22 }, skill: 'risk', quality: 'poor' },
+        { id: 'ignorar', label: 'Ignorarlo: no hay forma de saberlo.', consequence: 'Evitas el conflicto, pero la guía docente queda sin aplicar.', effects: { relationship: -6, margin: 0, risk: 10 }, skill: 'negotiation', quality: 'poor' }
+      ]
+    }
+  ]
+};
+
+/** Escenarios incluidos en el código y publicados en D1; el primero es el que se usa por defecto. */
+export const catalogScenarios: Scenario[] = [aiPracticesScenario, negotiationScenario];
+export const defaultScenario = aiPracticesScenario;
 
 export function clampMeter(value: number): number {
   return Math.max(0, Math.min(100, value));

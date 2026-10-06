@@ -27,11 +27,12 @@ async function oneRun() {
     if (!String(error).includes('404')) throw error;
   }
   await command(id, 'participant', 'join');
-  await command(id, 'participant', 'decide', { optionId: 'ask-data' });
+  // Escenario por defecto: «Uso responsable de la IA en la universidad».
+  await command(id, 'participant', 'decide', { optionId: 'anonimizar' });
   await command(id, 'instructor', 'advance');
-  await command(id, 'participant', 'decide', { optionId: 'three-year-eight' });
+  await command(id, 'participant', 'decide', { optionId: 'contrastar' });
   await command(id, 'instructor', 'advance');
-  await command(id, 'participant', 'decide', { optionId: 'milestones' });
+  await command(id, 'participant', 'decide', { optionId: 'dialogar' });
   const completed = await command(id, 'instructor', 'complete');
   if (completed.state.status !== 'complete' || completed.report.decisions !== 3 || completed.report.score < 60) throw new Error(`Resultado incorrecto en ${id}`);
   const readBack = await api(`/sessions/${id}`);

@@ -43,7 +43,7 @@ export async function identityFor(c: Context<AuthContext>, demo: boolean): Promi
       const tenantId = crypto.randomUUID();
       const now = new Date().toISOString();
       await c.env.DB.batch([
-        c.env.DB.prepare('INSERT INTO tenants (id,name,created_at) VALUES (?,?,?)').bind(tenantId, 'AXYRO', now),
+        c.env.DB.prepare('INSERT INTO tenants (id,name,created_at) VALUES (?,?,?)').bind(tenantId, 'Universidad Francisco de Vitoria', now),
         c.env.DB.prepare('INSERT INTO users (id,email,display_name,created_at) VALUES (?,?,?,?)').bind(userId, email, email, now),
         c.env.DB.prepare('INSERT INTO memberships (tenant_id,user_id,role) VALUES (?,?,?)').bind(tenantId, userId, 'instructor')
       ]);

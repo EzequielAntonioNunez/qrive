@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { DomainError, type Command } from '../shared/engine';
 import { ScenarioError } from '../shared/scenario';
+import { defaultScenario } from '../shared/simulation';
 import { getScenario, listScenarios, publishScenario } from './scenarios';
 import { identityFor, type Identity, type AuthContext } from './auth';
 import type { Env } from './types';
@@ -87,7 +88,7 @@ export function createApp(demo = false) {
     const identity = c.get('identity');
     if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
     const body = await c.req.json().catch(() => ({})) as { scenarioId?: unknown };
-    const scenarioId = typeof body.scenarioId === 'string' ? body.scenarioId : 'supplier-negotiation';
+    const scenarioId = typeof body.scenarioId === 'string' ? body.scenarioId : defaultScenario.id;
     const scenario = await getScenario(c.env, identity.tenantId, scenarioId);
     if (!scenario) return c.json({ error: 'Escenario no encontrado.' }, 404);
     const id = crypto.randomUUID();

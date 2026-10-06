@@ -1,15 +1,15 @@
 /**
- * Modo demo en navegador: emula la API de AXYRO con el mismo motor (shared/engine) y guarda el estado
+ * Modo demo en navegador: emula la API del simulador con el mismo motor (shared/engine) y guarda el estado
  * en el navegador. Solo se incluye al compilar con VITE_STANDALONE=1; el build normal no lo contiene.
  */
 import { applyCommand, createSession, DomainError, expireTimer, type Actor, type Command } from '../shared/engine';
-import { negotiationScenario, performanceReport, type SessionState } from '../shared/simulation';
+import { catalogScenarios, defaultScenario, performanceReport, type SessionState } from '../shared/simulation';
 import { ScenarioError, validateScenario } from '../shared/scenario';
 
 type Member = { id: string; email: string; name: string; role: 'instructor' | 'participant' };
 type Store = { sessions: SessionState[]; members: Member[] };
 
-const KEY = 'axyro-standalone-v1';
+const KEY = 'ufv-simulador-v2';
 const actors: Record<'instructor' | 'participant', Actor & { email: string; tenantId: string }> = {
   instructor: { id: 'demo-instructor', name: 'Instructor demo', role: 'instructor', email: 'instructor@demo.local', tenantId: 'demo' },
   participant: { id: 'demo-participant', name: 'Participante demo', role: 'participant', email: 'participante@demo.local', tenantId: 'demo' }
@@ -18,15 +18,15 @@ const actors: Record<'instructor' | 'participant', Actor & { email: string; tena
 function seed(): Store {
   // Una sesión de ejemplo ya terminada, para que el debriefing tenga contenido desde el primer momento.
   const t = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60000).toISOString();
-  let state = createSession(crypto.randomUUID(), 'demo', actors.instructor, t(30));
+  let state = createSession(crypto.randomUUID(), 'demo', actors.instructor, t(30), defaultScenario);
   const run = (command: Command, actor: Actor, at: string) => { state = applyCommand(state, command, actor, at).state; };
   run({ id: 'seed-join', type: 'join' }, actors.participant, t(29));
-  run({ id: 'seed-d1', type: 'decide', optionId: 'ask-data' }, actors.participant, t(27));
+  run({ id: 'seed-d1', type: 'decide', optionId: 'anonimizar' }, actors.participant, t(27));
   run({ id: 'seed-a1', type: 'advance' }, actors.instructor, t(25));
-  run({ id: 'seed-d2', type: 'decide', optionId: 'accept-twelve' }, actors.participant, t(22));
-  run({ id: 'seed-i1', type: 'incident', note: 'El proveedor alternativo retira su oferta', riskDelta: 5 }, actors.instructor, t(21));
+  run({ id: 'seed-d2', type: 'decide', optionId: 'borrador' }, actors.participant, t(22));
+  run({ id: 'seed-i1', type: 'incident', note: 'Un alumno pregunta si puede usar IA en el trabajo final', riskDelta: 5 }, actors.instructor, t(21));
   run({ id: 'seed-a2', type: 'advance' }, actors.instructor, t(20));
-  run({ id: 'seed-d3', type: 'decide', optionId: 'milestones' }, actors.participant, t(18));
+  run({ id: 'seed-d3', type: 'decide', optionId: 'dialogar' }, actors.participant, t(18));
   run({ id: 'seed-end', type: 'complete' }, actors.instructor, t(17));
   return { sessions: [state], members: [actors.instructor, actors.participant].map(({ id, email, name, role }) => ({ id, email, name, role })) };
 }
@@ -53,15 +53,19 @@ async function handle(path: string, init: RequestInit | undefined, role: 'instru
   // Los temporizadores vencen al consultar, igual que haría la alarma del Durable Object.
   store.sessions = store.sessions.map(state => expireTimer(state, now).state);
   if (path === '/me') return json({ identity: { id: actor.id, name: actor.name, role, tenantId: 'demo' }, demo: true, standalone: true, flags: { phase_timers: true } });
-  if (path === '/scenarios') return json({ scenarios: [{ id: negotiationScenario.id, version: negotiationScenario.version, title: negotiationScenario.title, summary: negotiationScenario.summary, phases: negotiationScenario.phases.length, catalog: true }] });
-  if (path.startsWith('/scenarios/')) return json({ scenario: validateScenario(negotiationScenario) });
+  if (path === '/scenarios') return json({ scenarios: catalogScenarios.map(item => ({ id: item.id, version: item.version, title: item.title, summary: item.summary, phases: item.phases.length, catalog: true })) });
+  if (path.startsWith('/scenarios/')) {
+    const scenario = catalogScenarios.find(item => item.id === decodeURIComponent(path.slice('/scenarios/'.length)));
+    return scenario ? json({ scenario: validateScenario(scenario) }) : json({ error: 'Escenario no encontrado.' }, 404);
+  }
   if (path === '/sessions' && method === 'GET') {
     save(store);
     return json({ sessions: [...store.sessions].reverse().map(state => ({ id: state.id, status: statusOf(state), createdAt: state.createdAt, scenarioId: state.scenario.id })) });
   }
   if (path === '/sessions' && method === 'POST') {
     if (role !== 'instructor') return json({ error: 'Acción reservada al instructor.' }, 403);
-    const state = createSession(crypto.randomUUID(), 'demo', actor, now);
+    const scenario = catalogScenarios.find(item => item.id === body.scenarioId) ?? defaultScenario;
+    const state = createSession(crypto.randomUUID(), 'demo', actor, now, scenario);
     store.sessions.push(state); save(store);
     return json(payload(state), 201);
   }

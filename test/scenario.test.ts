@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { validateScenario } from '../shared/scenario';
-import { negotiationScenario } from '../shared/simulation';
+import { catalogScenarios, defaultScenario, meterLabels, negotiationScenario } from '../shared/simulation';
 import { applyCommand, createSession, type Actor } from '../shared/engine';
 
 const clone = () => structuredClone(negotiationScenario) as unknown as Record<string, any>;
@@ -8,6 +8,23 @@ const clone = () => structuredClone(negotiationScenario) as unknown as Record<st
 describe('scenario definitions', () => {
   it('accepts the catalog scenario unchanged', () => {
     expect(validateScenario(negotiationScenario)).toEqual(negotiationScenario);
+  });
+
+  it('publishes every catalog scenario, with the AI practices one as default and unique phase ids', () => {
+    for (const scenario of catalogScenarios) expect(validateScenario(scenario)).toEqual(scenario);
+    expect(defaultScenario.id).toBe('ia-buenas-practicas');
+    expect(meterLabels(defaultScenario)).toEqual({ relationship: 'Confianza', margin: 'Productividad', risk: 'Riesgo' });
+    expect(meterLabels(negotiationScenario).relationship).toBe('Relación');
+    // Unity busca la locución por id de fase, así que no pueden repetirse entre escenarios del catálogo.
+    const phaseIds = catalogScenarios.flatMap(scenario => scenario.phases.map(phase => phase.id));
+    expect(new Set(phaseIds).size).toBe(phaseIds.length);
+    for (const phase of defaultScenario.phases) expect(phase.options.filter(option => option.quality === 'best')).toHaveLength(1);
+  });
+
+  it('rejects incomplete meter labels', () => {
+    const labels = clone();
+    labels.meterLabels = { relationship: 'Confianza', margin: 'Productividad' };
+    expect(() => validateScenario(labels)).toThrow('meterLabels.risk');
   });
 
   it('rejects duplicated ids, out-of-range effects and missing character lines with a precise path', () => {
