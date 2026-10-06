@@ -17,3 +17,5 @@ UserSettings/
 *.csproj
 *.sln
 *.slnx
+.vscode/
+assets/avatar/build/

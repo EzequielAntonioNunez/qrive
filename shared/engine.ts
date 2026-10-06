@@ -83,7 +83,7 @@ export function applyCommand(state: SessionState, command: Command, actor: Actor
     } else if (command.type === 'set-meter') {
       if (!['relationship', 'margin', 'risk'].includes(command.meter) || !Number.isInteger(command.value) || command.value < 0 || command.value > 100) throw new DomainError('Valor no válido.');
       next.meters[command.meter] = command.value;
-      emit('incident', { meter: command.meter, value: command.value });
+      emit('meter_changed', { meter: command.meter, value: command.value });
     }
   }
   next.processedCommands.push(command.id);

@@ -2,6 +2,8 @@
 
 Primer corte ejecutable del escenario **Negociación con proveedor**. Incluye un panel web para instructor y participante, API Hono en Cloudflare Workers, estado de sesión en Durable Objects, datos en D1 y eventos persistidos a través de Queues.
 
+La demostración visual incorpora a **Elena Vega**, un avatar Rive original con estados de reposo y habla. En la web, «Modo presentación» amplía la escena y «Escuchar intervención» reproduce el diálogo en español con la voz del navegador. El panel del instructor también permite ver participantes, dar de alta miembros internos y ajustar indicadores; la cronología registra cada ajuste.
+
 La definición de alcance está en [AXYRO_MVP_ARCHITECTURE_FINAL_v1.1.md](./AXYRO_MVP_ARCHITECTURE_FINAL_v1.1.md). VR, personajes IA y RAG avanzado pertenecen a fases posteriores.
 
 ## Desarrollo local
@@ -22,6 +24,14 @@ pnpm dev:web
 
 Abre `http://127.0.0.1:5173`. El selector local alterna entre instructor y participante. Los datos locales persisten en `.local-state/`, ignorado por Git.
 
+## Avatar y demostración Unity
+
+El arte editable vive en `assets/avatar/scene.rml`. Su archivo `.riv` compilado está versionado en `web/public/avatar.riv` y `unity/AXYRO.Simulation/Assets/AXYRO/avatar.riv`. Si editas el arte con la CLI de Rive, ejecuta `powershell -File scripts/build-avatar.ps1` para actualizar ambos clientes.
+
+El proyecto `unity/AXYRO.Simulation` usa Unity **6000.3.25f1** y el paquete Rive para Unity **v0.5.1**. Abre `Assets/Scenes/AXYRO Avatar Demo.unity` y pulsa Play. Las teclas `1`, `2` y `3` cambian la fase; espacio o el botón de la escena reproducen el audio y activan la animación de habla. Los tres WAV se generaron con la voz española local mediante `scripts/generate-avatar-voice.ps1` y están incluidos en el proyecto. La compilación Windows se guarda en `unity/AXYRO.Simulation/Build/`, ignorada por Git.
+
+La voz web depende de las voces disponibles en el navegador. La animación de boca responde al estado de reproducción; todavía no representa fonemas individuales. La escena Unity comparte el personaje y los diálogos del escenario, pero la conexión de decisiones con la API de sesiones queda para la siguiente integración.
+
 ## Verificación
 
 ```powershell
@@ -37,7 +47,7 @@ Los recursos de AXYRO en la cuenta de desarrollo son `axyro-db` (D1, EU), `axyro
 
 Entorno cloud de desarrollo: <https://axyro.qhel.dev/>. Se requiere iniciar sesión mediante Cloudflare Access.
 
-El token utilizado para desarrollo debe permitir migraciones D1, Workers y configuración de Access. Para conectar el dominio personalizado, Cloudflare requiere `Workers Routes Write` limitado a la zona `qhel.dev`; para crear la aplicación y sus políticas, requiere `Access: Apps and Policies Write`. La cola actual se creó sin jurisdicción porque la API de Queues rechazó la opción `eu`; sus mensajes llevan IDs seudónimos y eventos, sin nombres ni correos.
+El token de desarrollo permite desplegar con `Workers Editor`, aplicar migraciones D1 y gestionar Queues/R2; `Workers Routes Write` está limitado a `qhel.dev`. La aplicación Access y sus políticas se administran por separado en el panel. La cola actual se creó sin jurisdicción porque la API de Queues rechazó la opción `eu`; sus mensajes llevan IDs seudónimos y eventos, sin nombres ni correos.
 
 ## Contrato de API
 

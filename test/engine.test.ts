@@ -21,4 +21,13 @@ describe('session authorization and command behavior', () => {
     expect(applyCommand(decided, { id: 'decide-0001', type: 'decide', optionId: 'ask-data' }, participant, start).events).toEqual([]);
     expect(() => applyCommand(decided, { id: 'decide-0002', type: 'decide', optionId: 'accept-increase' }, participant, start)).toThrow('Ya has decidido');
   });
+
+  it('records instructor meter adjustments as their own auditable event', () => {
+    const state = createSession('session', 'tenant', instructor, start);
+    const result = applyCommand(state, { id: 'meter-0001', type: 'set-meter', meter: 'risk', value: 35 }, instructor, start);
+    expect(result.state.meters.risk).toBe(35);
+    expect(result.events).toMatchObject([{ type: 'meter_changed', detail: { meter: 'risk', value: 35 } }]);
+    expect(() => applyCommand(state, { id: 'meter-0002', type: 'set-meter', meter: 'risk', value: 101 }, instructor, start)).toThrow('Valor no válido');
+    expect(() => applyCommand(state, { id: 'meter-0003', type: 'set-meter', meter: 'risk', value: 35 }, participant, start)).toThrow('reservada');
+  });
 });

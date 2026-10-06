@@ -43,7 +43,7 @@ export interface Decision {
 
 export interface SimEvent {
   seq: number;
-  type: 'session_started' | 'participant_joined' | 'decision' | 'phase_advanced' | 'paused' | 'resumed' | 'incident' | 'completed';
+  type: 'session_started' | 'participant_joined' | 'decision' | 'phase_advanced' | 'paused' | 'resumed' | 'incident' | 'meter_changed' | 'completed';
   at: string;
   actorId: string;
   detail: Record<string, string | number | boolean>;

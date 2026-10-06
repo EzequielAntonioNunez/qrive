@@ -1,0 +1,41 @@
+<Rive version="1" kind="fragment">
+  <Artboard defaultStateMachineId="0:100" width="520" height="520" name="AXYRO Guide" id="0:2">
+    <!-- Objects are drawn front to back in Rive. -->
+    <Shape x="260" y="273" name="Mouth" id="0:20"><Ellipse width="36" height="8" name="Path"/><Fill name="Fill"><SolidColor colorValue="FF502D39" name="Color"/></Fill></Shape>
+    <Shape x="215" y="230" name="Left pupil"><Ellipse width="8" height="10" name="Path"/><Fill name="Fill"><SolidColor colorValue="FF293144" name="Color"/></Fill></Shape>
+    <Shape x="305" y="230" name="Right pupil"><Ellipse width="8" height="10" name="Path"/><Fill name="Fill"><SolidColor colorValue="FF293144" name="Color"/></Fill></Shape>
+    <Shape x="215" y="228" name="Left eye" id="0:21"><Ellipse width="33" height="18" name="Path"/><Fill name="Fill"><SolidColor colorValue="FFFFF7EF" name="Color"/></Fill></Shape>
+    <Shape x="305" y="228" name="Right eye" id="0:22"><Ellipse width="33" height="18" name="Path"/><Fill name="Fill"><SolidColor colorValue="FFFFF7EF" name="Color"/></Fill></Shape>
+    <Shape x="214" y="205" name="Left eyebrow"><Rectangle width="42" height="7" cornerRadiusTL="3" name="Path"/><Fill name="Fill"><SolidColor colorValue="FF2E2B3C" name="Color"/></Fill></Shape>
+    <Shape x="306" y="205" name="Right eyebrow"><Rectangle width="42" height="7" cornerRadiusTL="3" name="Path"/><Fill name="Fill"><SolidColor colorValue="FF2E2B3C" name="Color"/></Fill></Shape>
+    <Shape x="260" y="250" name="Nose"><Ellipse width="13" height="7" name="Path"/><Fill name="Fill"><SolidColor colorValue="FFAD6F62" name="Color"/></Fill></Shape>
+    <Shape x="166" y="244" name="Left ear"><Ellipse width="27" height="51" name="Path"/><Fill name="Fill"><SolidColor colorValue="FFCE9379" name="Color"/></Fill></Shape>
+    <Shape x="354" y="244" name="Right ear"><Ellipse width="27" height="51" name="Path"/><Fill name="Fill"><SolidColor colorValue="FFCE9379" name="Color"/></Fill></Shape>
+    <Shape x="260" y="135" name="Hair sweep" rotation="-0.1"><Ellipse width="186" height="84" name="Path"/><Fill name="Fill"><SolidColor colorValue="FF2B293A" name="Color"/></Fill></Shape>
+    <Shape x="260" y="213" name="Face"><Ellipse width="187" height="222" name="Path"/><Fill name="Fill"><LinearGradient startX="-90" startY="-100" endX="95" endY="110" name="Skin"><GradientStop colorValue="FFE6AF8E" position="0"/><GradientStop colorValue="FFB9776A" position="1"/></LinearGradient></Fill></Shape>
+    <Shape x="260" y="160" name="Hair cap"><Ellipse width="195" height="140" name="Path"/><Fill name="Fill"><SolidColor colorValue="FF252538" name="Color"/></Fill></Shape>
+    <Shape x="260" y="340" name="Neck"><Rectangle width="66" height="90" cornerRadiusTL="26" name="Path"/><Fill name="Fill"><SolidColor colorValue="FFB97969" name="Color"/></Fill></Shape>
+    <Shape x="260" y="490" name="Shirt"><Triangle width="120" height="165" rotation="3.14159" name="Path"/><Fill name="Fill"><SolidColor colorValue="FFE5D4CA" name="Color"/></Fill></Shape>
+    <Shape x="260" y="465" name="Jacket" id="0:23"><Ellipse width="360" height="255" name="Path"/><Fill name="Fill"><LinearGradient startX="-170" startY="-120" endX="170" endY="130" name="Fabric"><GradientStop colorValue="FF495371" position="0"/><GradientStop colorValue="FF202A43" position="1"/></LinearGradient></Fill></Shape>
+    <Shape x="260" y="428" name="Halo"><Ellipse width="445" height="445" name="Path"/><Stroke thickness="3" name="Line"><SolidColor colorValue="555ED9CF" name="Color"/></Stroke></Shape>
+    <StateMachine name="Avatar" id="0:100">
+      <StateMachineBool name="speaking" id="0:101"/>
+      <StateMachineLayer name="Breathing" id="0:102">
+        <EntryState><StateTransition stateToId="0:103"/></EntryState>
+        <AnimationState animationId="0:200" id="0:103"/>
+      </StateMachineLayer>
+      <StateMachineLayer name="Voice" id="0:110">
+        <EntryState><StateTransition stateToId="0:111"/></EntryState>
+        <AnimationState animationId="0:201" id="0:111"><StateTransition stateToId="0:112" duration="130"><TransitionBoolCondition inputId="0:101" opValue="equal"/></StateTransition></AnimationState>
+        <AnimationState animationId="0:202" id="0:112"><StateTransition stateToId="0:111" duration="130"><TransitionBoolCondition inputId="0:101" opValue="notEqual"/></StateTransition></AnimationState>
+      </StateMachineLayer>
+    </StateMachine>
+    <LinearAnimation loopValue="loop" duration="180" name="Breathing" id="0:200">
+      <KeyedObject objectId="0:23"><KeyedProperty propertyKey="14"><KeyFrameDouble value="465"/><KeyFrameDouble value="460" frame="90"/><KeyFrameDouble value="465" frame="180"/></KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:21"><KeyedProperty propertyKey="17"><KeyFrameDouble value="1"/><KeyFrameDouble value="1" frame="100"/><KeyFrameDouble value="0.1" frame="104"/><KeyFrameDouble value="1" frame="111"/><KeyFrameDouble value="1" frame="180"/></KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:22"><KeyedProperty propertyKey="17"><KeyFrameDouble value="1"/><KeyFrameDouble value="1" frame="100"/><KeyFrameDouble value="0.1" frame="104"/><KeyFrameDouble value="1" frame="111"/><KeyFrameDouble value="1" frame="180"/></KeyedProperty></KeyedObject>
+    </LinearAnimation>
+    <LinearAnimation loopValue="loop" duration="30" name="Quiet" id="0:201"><KeyedObject objectId="0:20"><KeyedProperty propertyKey="17"><KeyFrameDouble value="1"/></KeyedProperty></KeyedObject></LinearAnimation>
+    <LinearAnimation loopValue="loop" duration="36" name="Talking" id="0:202"><KeyedObject objectId="0:20"><KeyedProperty propertyKey="17"><KeyFrameDouble value="1"/><KeyFrameDouble value="2.6" frame="6"/><KeyFrameDouble value="1.2" frame="12"/><KeyFrameDouble value="3" frame="19"/><KeyFrameDouble value="1.5" frame="26"/><KeyFrameDouble value="1" frame="36"/></KeyedProperty></KeyedObject></LinearAnimation>
+  </Artboard>
+</Rive>
