@@ -77,11 +77,12 @@ function fakeSessions() {
     idFromName: (name: string) => name,
     get: (name: string) => ({
       fetch: async (_url: string, init: RequestInit) => {
-        const body = JSON.parse(String(init.body)) as { op: string };
+        const body = JSON.parse(String(init.body)) as { op: string; command?: { type: string }; actor?: { id: string } };
         calls.push({ name, op: body.op });
         if (name.includes('boom')) throw new Error('fallo interno simulado');
         if (body.op === 'purge') return Response.json({ purged: true });
-        return Response.json({ state: { id: name.split(':')[1] }, report: { score: 0 } });
+        const joined = body.op === 'command' && body.command?.type === 'join' && body.actor?.id;
+        return Response.json({ state: { id: name.split(':')[1], events: joined ? [{ seq: 2, type: 'participant_joined', at: NEWER, actorId: body.actor!.id, detail: { participantId: body.actor!.id } }] : [] }, report: { score: 0 } });
       }
     }),
     jurisdiction: (value: string) => { jurisdictions.push(value); return namespace; }
@@ -143,6 +144,18 @@ const OWNER = 'owner@identy.cloud';
 const ALUMNA = 'alumna@ufv.es';
 const OTRO = 'otro@other.org';
 const MEMBER_UNAVAILABLE = 'Ese correo no se puede dar de alta en esta organización.';
+
+describe('límite de acceso por código', () => {
+  it('bloquea el sexto intento consecutivo aunque el limitador de borde no responda', async () => {
+    const { call, db } = setup();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      expect((await call('POST', '/api/auth/login', { body: { email: 'prueba@example.com', code: '000000' } })).status).toBe(401);
+    }
+    expect((await call('POST', '/api/auth/login', { body: { email: 'prueba@example.com', code: '000000' } })).status).toBe(429);
+    expect(db.prepare('SELECT MAX(attempts) AS n FROM access_login_limits').get()).toEqual({ n: 6 });
+    expect((await call('POST', '/api/auth/login', { body: { email: 'otra@example.com', code: '000000' } })).status).toBe(401);
+  });
+});
 
 describe('códigos personales de seis cifras', () => {
   it('emite un código único y permite entrar sin Cloudflare Access; registra cada uso', async () => {
@@ -402,6 +415,19 @@ describe('autorización de sesiones', () => {
     expect(asProf.sessions.map(item => item.id)).toEqual(['s-boom', 's-huerfana', 's-owner', 's-prof']);
     const asAlumna = await (await call('GET', '/api/sessions', { as: ALUMNA })).json() as { sessions: { id: string }[] };
     expect(asAlumna.sessions.map(item => item.id)).toEqual(['s-prof']);
+  });
+
+  it('muestra la sesión inmediatamente después de unirse, antes de que procese la cola', async () => {
+    const { call, db } = withSessions();
+    db.prepare("INSERT INTO sessions (id,tenant_id,instructor_id,scenario_id,scenario_version,status,created_at) VALUES (?,?,?,'x',1,'active',?)")
+      .run('s-nueva', 'ufv', 'u-prof', NEWER);
+    const before = await (await call('GET', '/api/sessions', { as: ALUMNA })).json() as { sessions: { id: string }[] };
+    expect(before.sessions.some(session => session.id === 's-nueva')).toBe(false);
+    const joined = await call('POST', '/api/sessions/s-nueva/commands', { as: ALUMNA, body: { id: 'join-nueva-0001', type: 'join' } });
+    expect(joined.status).toBe(200);
+    const after = await (await call('GET', '/api/sessions', { as: ALUMNA })).json() as { sessions: { id: string }[] };
+    expect(after.sessions.some(session => session.id === 's-nueva')).toBe(true);
+    expect(db.prepare("SELECT detail_json FROM simulation_events WHERE session_id = 's-nueva'").get()).toEqual({ detail_json: '{"participantId":"u-alumna"}' });
   });
 
   it('el participante puede leer una sesión de su organización por id, pero no sus eventos', async () => {

@@ -25,6 +25,25 @@ export async function hashAccessCode(env: Pick<Env, 'ACCESS_CODE_PEPPER'>, code:
   return [...new Uint8Array(signature)].map(byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
+/** Ventana de 60 segundos en D1: cada incremento es atómico incluso con peticiones simultáneas. */
+export async function consumeLoginAttempt(env: Env, email: string, ip: string, now = new Date()): Promise<boolean> {
+  const at = now.toISOString();
+  const cutoff = new Date(now.getTime() - 60_000).toISOString();
+  const consume = async (scope: string): Promise<number> => {
+    const keyHash = await hashAccessCode(env, scope);
+    const row = await env.DB.prepare(`INSERT INTO access_login_limits (key_hash,window_start,attempts) VALUES (?,?,1)
+      ON CONFLICT(key_hash) DO UPDATE SET
+        attempts = CASE WHEN window_start <= ? THEN 1 ELSE attempts + 1 END,
+        window_start = CASE WHEN window_start <= ? THEN ? ELSE window_start END
+      RETURNING attempts`).bind(keyHash, at, cutoff, cutoff, at).first<{ attempts: number }>();
+    if (!row) throw new Error('No se pudo contar el intento de acceso.');
+    return row.attempts;
+  };
+  const emailAttempts = await consume(`email:${email}`);
+  if (emailAttempts > 5) return false;
+  return (await consume(`ip:${ip}`)) <= 120;
+}
+
 /** Solo se muestra una vez al docente. La base de datos recibe únicamente el hash. */
 export async function issueCode(env: Env, tenantId: string, userId: string): Promise<{ code: string; id: string }> {
   for (let attempt = 0; attempt < 20; attempt++) {
@@ -114,6 +133,7 @@ export async function pruneAuth(env: Env, now = new Date()): Promise<void> {
   const auditDays = Math.max(1, Number.parseInt(env.AUDIT_RETENTION_DAYS ?? '730', 10) || 730);
   await env.DB.batch([
     env.DB.prepare('DELETE FROM access_sessions WHERE expires_at < ?').bind(now.toISOString()),
-    env.DB.prepare('DELETE FROM access_code_uses WHERE at < ?').bind(new Date(now.getTime() - auditDays * 86400000).toISOString())
+    env.DB.prepare('DELETE FROM access_code_uses WHERE at < ?').bind(new Date(now.getTime() - auditDays * 86400000).toISOString()),
+    env.DB.prepare('DELETE FROM access_login_limits WHERE window_start < ?').bind(new Date(now.getTime() - 86400000).toISOString())
   ]);
 }

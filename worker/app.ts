@@ -2,13 +2,14 @@ import { Hono, type Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { DomainError, type Command } from '../shared/engine';
 import { ScenarioError } from '../shared/scenario';
-import { defaultScenario } from '../shared/simulation';
+import { defaultScenario, type SimEvent } from '../shared/simulation';
 import { getScenario, listScenarios, publishScenario } from './scenarios';
 import { allowedDomain, identityFor, isOwnerEmail, normalizeEmail, organizationTenant, type Identity, type AuthContext } from './auth';
 import type { Env } from './types';
 import { flags } from './flags';
 import { serveSimulator } from './simulator';
-import { codeSummaries, issueCode, pruneAuth, revokeCodes, signInWithCode, signOut } from './access-codes';
+import { codeSummaries, consumeLoginAttempt, issueCode, pruneAuth, revokeCodes, signInWithCode, signOut } from './access-codes';
+import { queueSafeEvent } from './room';
 
 /** Error con código HTTP explícito (400 cuerpo no válido, 403, 404, 409...). */
 export class HttpError extends Error {
@@ -142,8 +143,10 @@ export function createApp(demo = false) {
     const rejected = csrfRejection(c.req.raw);
     if (rejected) return c.json({ error: rejected }, 403);
     const body = await readJson(c) as { email?: unknown; code?: unknown };
+    const email = normalizeEmail(body?.email) ?? 'invalid';
+    if (!await consumeLoginAttempt(c.env, email, c.req.header('cf-connecting-ip') ?? 'unknown'))
+      return c.json({ error: 'Demasiados intentos. Espera un minuto.' }, 429);
     if (c.env.AUTH_LIMITER) {
-      const email = normalizeEmail(body?.email) ?? 'invalid';
       const { success } = await c.env.AUTH_LIMITER.limit({ key: email });
       if (!success) return c.json({ error: 'Demasiados intentos. Espera un minuto.' }, 429);
     }
@@ -385,6 +388,17 @@ export function createApp(demo = false) {
     const command = parseCommand(await readJson(c));
     // La respuesta también pasa por roomPayload: el participante recibe solo su vista filtrada.
     const response = await room(c.env, identity.tenantId, id, { op: 'command', tenantId: identity.tenantId, actor: identity, command, client: clientKind(c.req.header('x-axyro-client')) });
+    // La cola persiste eventos de forma asíncrona. Registrar la unión también aquí evita que el listado del
+    // participante omita la sesión justo después de entrar; el consumidor usa INSERT OR IGNORE sobre (session_id, seq).
+    if (response.ok && command.type === 'join') {
+      const payload = await response.clone().json() as { state?: { events?: SimEvent[] } };
+      const joined = payload.state?.events?.find(event => event.type === 'participant_joined' && event.actorId === identity.id);
+      if (joined) {
+        const event = queueSafeEvent(joined);
+        await c.env.DB.prepare('INSERT OR IGNORE INTO simulation_events (tenant_id,session_id,seq,type,at,actor_id,detail_json) VALUES (?,?,?,?,?,?,?)')
+          .bind(identity.tenantId, id, event.seq, event.type, event.at, event.actorId, JSON.stringify(event.detail)).run();
+      }
+    }
     if (response.ok && command.type !== 'join' && command.type !== 'decide') await audit(c.env, identity, id, command.type, {});
     return response;
   });

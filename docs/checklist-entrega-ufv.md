@@ -30,11 +30,11 @@ Responsables: **Dev** (equipo de desarrollo), **UFV-SI** (Servicios Informático
 ### Acceso e identidad
 
 - [x] Pantalla propia de acceso con correo y código personal de seis cifras comprobada en producción. (Dev)
-- [ ] Códigos únicos por usuario, revocación, límite de intentos y auditoría de accesos comprobados en producción: emisión y auditoría verificadas; falta probar revocación y límite con una cuenta de prueba. (Dev)
+- [x] Códigos únicos por usuario, revocación inmediata de la sesión, límite de cinco intentos por correo y minuto y auditoría de accesos comprobados en producción con cuentas de prueba. (Dev)
 - [x] Cloudflare Access retirado del dominio para que la infraestructura sea transparente al usuario. (Dev)
 - [ ] Propietario inicial de la organización con una cuenta de la UFV (hoy es una cuenta externa de desarrollo, guardada como secreto del despliegue). (Dev, UFV-SI)
 - [ ] Docentes del piloto dados de alta por el propietario y con código personal. (Dev)
-- [ ] Prueba de aislamiento: un usuario sin código recibe «Acceso no autorizado»; un participante no puede controlar ni exportar sesiones y no ve datos de sus compañeros. (Dev)
+- [x] Prueba de aislamiento: un usuario sin código recibe «Acceso no autorizado»; un participante no puede crear, exportar ni borrar sesiones y no ve decisiones ni resultados de sus compañeros. (Dev)
 
 ### Datos y privacidad (implementación)
 
