@@ -15,6 +15,7 @@ function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [payload, setPayload] = useState<SessionPayload | null>(null);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [busy, setBusy] = useState(false);
   const [incident, setIncident] = useState('');
 
@@ -32,7 +33,8 @@ function App() {
       setDemo(who.demo);
       setSessions(listing.sessions);
       if (selected) setPayload(await api<SessionPayload>(`/sessions/${selected}`));
-    } catch (cause) { setError(String(cause)); }
+      setLoadError('');
+    } catch (cause) { setLoadError(String(cause)); }
   }, [api, selected]);
 
   useEffect(() => { void refresh(); const timer = window.setInterval(() => void refresh(), 2500); return () => window.clearInterval(timer); }, [refresh]);
@@ -78,7 +80,7 @@ function App() {
     </aside>
     <main className="main">
       <header className="topbar"><div><span className="eyebrow">AXYRO SIM / DECISION · V0.1</span><h1>Centro de simulación</h1></div><span className="environment">{demo ? 'ENTORNO LOCAL' : 'ENTORNO CLOUD'}</span></header>
-      {error && <div className="error" role="alert">{error}</div>}
+      {(error || loadError) && <div className="error" role="alert">{error || loadError}</div>}
       {!state ? <div className="empty"><div className="empty-icon">◈</div><h2>Una negociación, muchas consecuencias</h2><p>Selecciona una sesión o crea una nueva para explorar el escenario de proveedor estratégico.</p>{identity?.role === 'instructor' && <button className="primary" onClick={create} disabled={busy}>Crear sesión</button>}</div> : <>
         <div className="overview"><div><span className="eyebrow">SESIÓN {state.id.slice(0, 8).toUpperCase()}</span><h2>{state.scenario.title}</h2><p>{state.scenario.summary}</p></div><span className={`status ${state.status}`}>{state.status === 'complete' ? 'Finalizada' : state.status === 'paused' ? 'Pausada' : 'En curso'}</span></div>
         <div className="grid"><section className="panel scene"><div className="panel-top"><span className="eyebrow">FASE {state.phaseIndex + 1} DE {state.scenario.phases.length}</span><span className="phase-line"><i style={{ width: `${((state.phaseIndex + 1) / state.scenario.phases.length) * 100}%` }}/></span></div><h3>{phase?.title}</h3><p className="briefing">{phase?.briefing}</p>
