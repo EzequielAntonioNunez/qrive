@@ -2,7 +2,9 @@
 
 Primer corte ejecutable del escenario **Negociación con proveedor**. Incluye un panel web para instructor y participante, API Hono en Cloudflare Workers, estado de sesión en Durable Objects, datos en D1 y eventos persistidos a través de Queues.
 
-La demostración visual incorpora a **Elena Vega**, un avatar Rive original con estados de reposo y habla. En la web, «Modo presentación» amplía la escena y «Escuchar intervención» reproduce el diálogo en español con la voz del navegador. El panel del instructor también permite ver participantes, dar de alta miembros internos y ajustar indicadores; la cronología registra cada ajuste.
+El panel web permite ver participantes, dar de alta miembros internos y ajustar indicadores; la cronología registra cada ajuste. La escena «Elena Vega» que aparece actualmente en web y Unity es un **prototipo visual de exploración**, no la experiencia de simulación objetivo. No debe presentarse como el avatar final del MVP.
+
+Según la arquitectura v1.1, **Unity** debe ser el cliente de simulación y hacerse cargo del personaje, renderizado, animación, audio, interacción y ejecución local. **Rive** debe servir al HUD, estados, feedback y transiciones dentro de Unity, con reutilización opcional de componentes de interfaz en web. **React** es principalmente la consola del instructor y administración. Falta sustituir el retrato Rive por un personaje producido y animado en Unity y conectar ese cliente a las sesiones y decisiones de la API antes de considerar terminada la etapa Simulation Core.
 
 La definición de alcance está en [AXYRO_MVP_ARCHITECTURE_FINAL_v1.1.md](./AXYRO_MVP_ARCHITECTURE_FINAL_v1.1.md). VR, personajes IA y RAG avanzado pertenecen a fases posteriores.
 
@@ -26,7 +28,7 @@ Abre `http://127.0.0.1:5173`. El selector local alterna entre instructor y parti
 
 ## Avatar y demostración Unity
 
-El arte editable vive en `assets/avatar/scene.rml`. Su archivo `.riv` compilado está versionado en `web/public/avatar.riv` y `unity/AXYRO.Simulation/Assets/AXYRO/avatar.riv`. Si editas el arte con la CLI de Rive, ejecuta `powershell -File scripts/build-avatar.ps1` para actualizar ambos clientes.
+El arte editable del prototipo vive en `assets/avatar/scene.rml`. Su archivo `.riv` compilado está versionado en `web/public/avatar.riv` y `unity/AXYRO.Simulation/Assets/AXYRO/avatar.riv`. Si editas este prototipo con la CLI de Rive, ejecuta `powershell -File scripts/build-avatar.ps1` para actualizar ambos clientes. El archivo no representa el personaje definitivo de Unity.
 
 El proyecto `unity/AXYRO.Simulation` usa Unity **6000.3.25f1** y el paquete Rive para Unity **v0.5.1**. Abre `Assets/Scenes/AXYRO Avatar Demo.unity` y pulsa Play. Las teclas `1`, `2` y `3` cambian la fase; espacio o el botón de la escena reproducen el audio y activan la animación de habla. Los tres WAV se generaron con la voz española local mediante `scripts/generate-avatar-voice.ps1` y están incluidos en el proyecto. La compilación Windows se guarda en `unity/AXYRO.Simulation/Build/`, ignorada por Git.
 
