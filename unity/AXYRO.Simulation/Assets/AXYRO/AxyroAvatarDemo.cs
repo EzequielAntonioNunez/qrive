@@ -207,7 +207,7 @@ namespace Axyro
             if (index == phase)
             {
                 if (phaseTitle != null) phaseTitle.text = PhaseHeading();
-                if (dialogue != null) dialogue.text = $"“{scripts[phase]}”";
+                if (dialogue != null) dialogue.text = scripts[phase];
             }
         }
 
@@ -220,7 +220,7 @@ namespace Axyro
             SetSpeaking(false);
             phase = next;
             if (phaseTitle != null) phaseTitle.text = PhaseHeading();
-            if (dialogue != null) dialogue.text = $"“{scripts[phase]}”";
+            if (dialogue != null) dialogue.text = scripts[phase];
             RefreshPlayButton();
             // En una sesión, el personaje plantea cada situación nada más empezar: no hace falta pulsar nada.
             if (autoSpeak != null) StopCoroutine(autoSpeak);

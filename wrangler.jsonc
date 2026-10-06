@@ -31,8 +31,7 @@
     "FEATURE_FLAGS": "{\"phase_timers\":true,\"ai_characters\":false,\"realtime_websocket\":false}",
     "ACCESS_TEAM_DOMAIN": "bitter-cake-9de8.cloudflareaccess.com",
     "ACCESS_AUD": "6fd0a707bbd54441a54f781ad7bb2bf2ef8ea45d1af058a126e277c753cb8797",
-    // Necesario para el primer arranque. Debería ser un secreto (`wrangler secret put BOOTSTRAP_OWNER_EMAIL`) y salir de aquí.
-    "BOOTSTRAP_OWNER_EMAIL": "ezequiel@identy.cloud",
+    // BOOTSTRAP_OWNER_EMAIL (propietario inicial) es un secreto: `pnpm exec wrangler secret put BOOTSTRAP_OWNER_EMAIL`.
     // Autoalta como participante de cualquier cuenta de estos dominios que pase Cloudflare Access.
     // Organización: DEFAULT_TENANT_ID si se define; si no, aquella en la que BOOTSTRAP_OWNER_EMAIL es instructor.
     "ALLOWED_EMAIL_DOMAINS": "ufv.es",

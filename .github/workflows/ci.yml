@@ -17,9 +17,12 @@ jobs:
       - run: pnpm check
 
   # Cada push a main que pasa la verificación se despliega en axyro.qhel.dev.
+  # Se activa con la variable de repositorio CLOUDFLARE_DEPLOY=true (Settings > Secrets and variables > Actions > Variables)
+  # una vez creados los secretos CLOUDFLARE_API_TOKEN y CLOUDFLARE_ACCOUNT_ID. Sin ella el job queda omitido, no fallido;
+  # mientras tanto se despliega con `pnpm deploy:cloud`.
   deploy:
     needs: verify
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUDFLARE_DEPLOY == 'true'
     runs-on: ubuntu-latest
     concurrency:
       group: deploy-production

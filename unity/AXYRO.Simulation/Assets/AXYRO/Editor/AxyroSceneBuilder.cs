@@ -541,15 +541,14 @@ public static class AxyroSceneBuilder
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
         scaler.matchWidthOrHeight = 0.5f;
 
-        // Panel translúcido para que el texto se lea sobre la escena 3D.
-        Image("Panel", canvasObject.transform, new Color(0f, 0.10f, 0.20f, 0.80f), new Vector2(.52f, 0f), new Vector2(1f, 1f));
-        Image("Accent line", canvasObject.transform, Mint, new Vector2(.55f, .868f), new Vector2(.95f, .871f));
+        // Diseño minimalista: la escena 3D ocupa toda la pantalla y nada compite con VictorIA. Subtítulos abajo
+        // mientras habla; las opciones (con un velo suave detrás) solo aparecen cuando termina de plantear la situación.
 
-        // Marca del cliente: logo UFV arriba a la izquierda, sobre la escena.
+        // Marca del cliente: logo UFV discreto arriba a la izquierda.
         var logo = LoadSprite("Assets/AXYRO/Brand/ufv-logo-white.png");
         if (logo != null)
         {
-            var logoImage = Image("Logo UFV", canvasObject.transform, Color.white, new Vector2(.03f, .885f), new Vector2(.20f, .965f));
+            var logoImage = Image("Logo UFV", canvasObject.transform, Color.white, new Vector2(.025f, .905f), new Vector2(.135f, .965f));
             logoImage.sprite = logo;
             logoImage.preserveAspect = true;
         }
@@ -560,7 +559,8 @@ public static class AxyroSceneBuilder
 
         var panelObject = new GameObject("Rive HUD", typeof(RectTransform));
         panelObject.transform.SetParent(canvasObject.transform, false);
-        Stretch(panelObject.GetComponent<RectTransform>(), new Vector2(.62f, .885f), new Vector2(.95f, .965f));
+        // Indicador Rive (habla / escucha) junto al nombre, encima de los subtítulos.
+        Stretch(panelObject.GetComponent<RectTransform>(), new Vector2(.15f, .213f), new Vector2(.30f, .257f));
         panelObject.SetActive(false);
         var panel = panelObject.AddComponent<RivePanel>();
         var renderer = panelObject.AddComponent<RiveCanvasRenderer>();
@@ -581,52 +581,66 @@ public static class AxyroSceneBuilder
         widgetData.ApplyModifiedPropertiesWithoutUndo();
         panelObject.SetActive(true);
 
-        var characterName = Text("Name", canvasObject.transform, "VictorIA", 40, White, new Vector2(.55f, .78f), new Vector2(.95f, .86f));
-        var phase = Text("Phase", canvasObject.transform, "SITUACIÓN 1 DE 3", 14, Mint, new Vector2(.55f, .74f), new Vector2(.95f, .78f));
-        var dialogue = Text("Dialogue", canvasObject.transform, "", 20, White, new Vector2(.55f, .56f), new Vector2(.95f, .73f));
-        dialogue.alignment = TextAnchor.UpperLeft;
-        dialogue.fontStyle = FontStyle.Italic;
-        var buttonObject = new GameObject("Escuchar", typeof(RectTransform), typeof(Image), typeof(Button));
-        buttonObject.transform.SetParent(canvasObject.transform, false);
-        Stretch(buttonObject.GetComponent<RectTransform>(), new Vector2(.55f, .495f), new Vector2(.73f, .545f));
-        buttonObject.GetComponent<Image>().color = Mint;
-        var label = Text("Label", buttonObject.transform, "▶  Escuchar de nuevo", 14, Background, new Vector2(.04f, 0f), new Vector2(.96f, 1f));
-        label.alignment = TextAnchor.MiddleCenter;
-        var voiceStatus = Text("Micrófono", canvasObject.transform, "", 12, Mint, new Vector2(.745f, .495f), new Vector2(.97f, .545f));
-        var hint = Text("Hint", canvasObject.transform, "", 12, Muted, new Vector2(.55f, .01f), new Vector2(.97f, .045f));
-        var choices = Text("Choices", canvasObject.transform, "", 17, White, new Vector2(.55f, .06f), new Vector2(.95f, .47f));
-        choices.alignment = TextAnchor.UpperLeft;
-        // Estado de la sesión sobre la escena 3D: fondo translúcido y sombra para leerse aunque detrás haya luz.
-        Image("Fondo estado", canvasObject.transform, new Color(0f, 0.10f, 0.20f, 0.6f), new Vector2(.025f, .842f), new Vector2(.27f, .882f)).raycastTarget = false;
-        var connection = Text("Connection", canvasObject.transform, "Modo demostración", 13, White, new Vector2(.035f, .845f), new Vector2(.265f, .88f));
+        // Estado y fase en una línea discreta arriba; sin paneles.
+        var connection = Text("Connection", canvasObject.transform, "Modo demostración", 13, White, new Vector2(.145f, .915f), new Vector2(.45f, .955f));
         var shadow = connection.gameObject.AddComponent<Shadow>();
-        shadow.effectColor = new Color(0f, 0f, 0f, 0.7f);
+        shadow.effectColor = new Color(0f, 0f, 0f, 0.75f);
         shadow.effectDistance = new Vector2(1f, -1f);
+        var phase = Text("Phase", canvasObject.transform, "1 / 3", 13, Mint, new Vector2(.55f, .915f), new Vector2(.975f, .955f));
+        phase.alignment = TextAnchor.MiddleRight;
 
-        // Tarjetas de decisión: se eligen con el ratón, con la voz («uno», «dos»…) o con las teclas 1-4.
+        // Subtítulos: lo que dice el personaje, abajo y sobre la escena.
+        var characterName = Text("Name", canvasObject.transform, "VictorIA", 16, Mint, new Vector2(.04f, .213f), new Vector2(.15f, .257f));
+        characterName.fontStyle = FontStyle.Bold;
+        Image("Fondo subtítulos", canvasObject.transform, new Color(0f, 0.06f, 0.14f, 0.62f), new Vector2(.03f, .05f), new Vector2(.57f, .205f)).raycastTarget = false;
+        var dialogue = Text("Dialogue", canvasObject.transform, "", 19, White, new Vector2(.045f, .062f), new Vector2(.555f, .193f));
+        var buttonObject = new GameObject("Repetir", typeof(RectTransform), typeof(Image), typeof(Button));
+        buttonObject.transform.SetParent(canvasObject.transform, false);
+        Stretch(buttonObject.GetComponent<RectTransform>(), new Vector2(.47f, .217f), new Vector2(.57f, .253f));
+        buttonObject.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.14f);
+        var label = Text("Label", buttonObject.transform, "▶  Repetir", 12, White, new Vector2(.06f, 0f), new Vector2(.94f, 1f));
+        label.alignment = TextAnchor.MiddleCenter;
+        label.raycastTarget = false;
+
+        // Resultado de la decisión (y avisos): una sola tarjeta compacta a la derecha.
+        var resultPanel = Image("Resultado", canvasObject.transform, new Color(0.02f, 0.12f, 0.24f, 0.86f), new Vector2(.60f, .26f), new Vector2(.97f, .70f));
+        Image("Acento", resultPanel.transform, Mint, new Vector2(0f, 0f), new Vector2(.012f, 1f)).raycastTarget = false;
+        var choices = Text("Choices", resultPanel.transform, "", 17, White, new Vector2(.06f, .06f), new Vector2(.95f, .94f));
+        choices.alignment = TextAnchor.UpperLeft;
+        // Opciones: aparecen cuando el personaje termina de plantear la situación. Ratón, voz («uno», «dos»…) o teclas 1-4.
+        var optionsGroup = new GameObject("Opciones", typeof(RectTransform));
+        optionsGroup.transform.SetParent(canvasObject.transform, false);
+        optionsGroup.transform.SetSiblingIndex(resultPanel.transform.GetSiblingIndex());
+        Stretch(optionsGroup.GetComponent<RectTransform>(), Vector2.zero, Vector2.one);
+        Image("Velo", optionsGroup.transform, new Color(0f, 0.10f, 0.20f, 0.42f), new Vector2(.58f, 0f), new Vector2(1f, 1f)).raycastTarget = false;
+        var voiceStatus = Text("Micrófono", optionsGroup.transform, "", 12, Mint, new Vector2(.60f, .05f), new Vector2(.97f, .09f));
+        var prompt = Text("Pregunta", optionsGroup.transform, "¿Qué harías?", 20, White, new Vector2(.60f, .64f), new Vector2(.97f, .70f));
+        prompt.fontStyle = FontStyle.Bold;
         var cards = new Button[4];
         var cardLabels = new Text[4];
         for (var i = 0; i < cards.Length; i++)
         {
-            var top = .47f - i * .107f;
-            var card = Image($"Opción {i + 1}", canvasObject.transform, Color.white, new Vector2(.55f, top - .095f), new Vector2(.95f, top));
+            var top = .625f - i * .112f;
+            var card = Image($"Opción {i + 1}", optionsGroup.transform, Color.white, new Vector2(.60f, top - .098f), new Vector2(.97f, top));
             var button = card.gameObject.AddComponent<Button>();
             button.targetGraphic = card;
             var colors = button.colors;
-            colors.normalColor = new Color(1f, 1f, 1f, 0.07f);
-            colors.highlightedColor = new Color(0.39f, 0.62f, 1f, 0.38f);
+            colors.normalColor = new Color(0.04f, 0.14f, 0.27f, 0.84f);
+            colors.highlightedColor = new Color(0.16f, 0.33f, 0.62f, 0.94f);
             colors.selectedColor = colors.normalColor;
-            colors.pressedColor = new Color(0.39f, 0.62f, 1f, 0.7f);
-            colors.disabledColor = new Color(1f, 1f, 1f, 0.03f);
+            colors.pressedColor = new Color(0.39f, 0.62f, 1f, 0.96f);
+            colors.disabledColor = new Color(0.04f, 0.14f, 0.27f, 0.4f);
             colors.fadeDuration = 0.12f;
             button.colors = colors;
             button.navigation = new Navigation { mode = Navigation.Mode.None };
-            Image("Borde", card.transform, new Color(0.39f, 0.62f, 1f, 0.9f), new Vector2(0f, 0f), new Vector2(.008f, 1f)).raycastTarget = false;
-            var number = Text("Número", card.transform, (i + 1).ToString(), 22, Mint, new Vector2(.02f, 0f), new Vector2(.09f, 1f));
+            // Tecla visible: el atajo se aprende sin leer ninguna ayuda.
+            var key = Image("Tecla", card.transform, new Color(0.39f, 0.62f, 1f, 0.22f), new Vector2(.025f, .24f), new Vector2(.085f, .76f));
+            key.raycastTarget = false;
+            var number = Text("Número", key.transform, (i + 1).ToString(), 18, Mint, Vector2.zero, Vector2.one);
             number.alignment = TextAnchor.MiddleCenter;
             number.fontStyle = FontStyle.Bold;
             number.raycastTarget = false;
-            cardLabels[i] = Text("Texto", card.transform, "", 16, White, new Vector2(.10f, .08f), new Vector2(.97f, .92f));
+            cardLabels[i] = Text("Texto", card.transform, "", 16, White, new Vector2(.11f, .1f), new Vector2(.97f, .9f));
             cardLabels[i].raycastTarget = false;
             cards[i] = button;
         }
@@ -641,7 +655,6 @@ public static class AxyroSceneBuilder
         demoData.FindProperty("dialogue").objectReferenceValue = dialogue;
         demoData.FindProperty("playLabel").objectReferenceValue = label;
         demoData.FindProperty("playButton").objectReferenceValue = buttonObject.GetComponent<Button>();
-        demoData.FindProperty("inputHint").objectReferenceValue = hint;
         // Todas las locuciones de Audio/: Unity elige la de cada fase por su nombre (id de fase).
         var audio = AssetDatabase.FindAssets("t:AudioClip", new[] { "Assets/AXYRO/Audio" })
             .Select(guid => AssetDatabase.LoadAssetAtPath<AudioClip>(AssetDatabase.GUIDToAssetPath(guid))).Where(clip => clip != null).ToArray();
@@ -686,6 +699,8 @@ public static class AxyroSceneBuilder
         var sessionClient = canvasObject.AddComponent<AxyroSessionClient>();
         var clientData = new SerializedObject(sessionClient);
         clientData.FindProperty("feedback").objectReferenceValue = decisionFeedback;
+        clientData.FindProperty("choicePanel").objectReferenceValue = resultPanel.gameObject;
+        clientData.FindProperty("optionsGroup").objectReferenceValue = optionsGroup;
         clientData.FindProperty("tutor").objectReferenceValue = tutor;
         clientData.FindProperty("avatar").objectReferenceValue = demo;
         clientData.FindProperty("connectionLabel").objectReferenceValue = connection;

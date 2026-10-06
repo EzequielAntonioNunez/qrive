@@ -34,7 +34,12 @@ namespace Axyro
         [SerializeField] private Text choiceList;
         [SerializeField] private Button[] cards;
         [SerializeField] private Text[] cardLabels;
+        [SerializeField] private GameObject choicePanel;
+        [SerializeField] private GameObject optionsGroup;
         [SerializeField] private AxyroDecisionFeedback feedback;
+
+        private ChoiceData[] currentOptions;
+        private ChoiceData[] shownOptions;
         [SerializeField] private AxyroTutor3D tutor;
 
         // Fase en la que este puesto acaba de enviar una decisión: la reacción (Rive + gesto de VictorIA)
@@ -72,7 +77,8 @@ namespace Axyro
         /// <summary>Selección desde el ratón o la voz (índice 0..3).</summary>
         public void SelectOption(int index)
         {
-            if (CanDecide && !commandBusy) Decide(index);
+            // Solo con las opciones a la vista: primero se escucha la situación, después se decide.
+            if (CanDecide && shownOptions != null && !commandBusy) Decide(index);
         }
 
         private void Start()
@@ -83,6 +89,8 @@ namespace Axyro
                 cards[i].onClick.AddListener(() => SelectOption(index));
             }
             ShowCards(null);
+            if (optionsGroup != null) optionsGroup.SetActive(false);
+            if (choicePanel != null) choicePanel.SetActive(false);
 
             if (WebClient) ConfigureWeb();
             else ConfigureLocal();
@@ -169,14 +177,17 @@ namespace Axyro
             CanDecide = false;
             baseLabel = null;
             state = null;
-            ShowCards(null);
+            currentOptions = null;
+            RefreshCards();
             if (connectionLabel != null) connectionLabel.text = message == NoLinkText ? "Sin sesión" : "Sin acceso a la sesión";
             if (choiceList != null) choiceList.text = message;
+            if (choicePanel != null) choicePanel.SetActive(true);
         }
 
         private void Update()
         {
             RefreshTimer();
+            RefreshCards();
             AutoDecide();
             // El teclado se mantiene como alternativa accesible al ratón y la voz.
             var keyboard = Keyboard.current;
@@ -368,7 +379,7 @@ namespace Axyro
                 shownPhase = next.phaseIndex;
             }
             avatar?.SetSessionStatus(next.status);
-            baseLabel = $"Sesión {StatusLabel(next.status)}";
+            baseLabel = StatusLabel(next.status);
             deadlineUtc = null;
             if (!string.IsNullOrEmpty(next.phaseDeadline) &&
                 DateTime.TryParse(next.phaseDeadline, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
@@ -377,7 +388,7 @@ namespace Axyro
             RefreshTimer();
 
             CanDecide = false;
-            if (choiceList == null || next.scenario?.phases == null || next.phaseIndex >= next.scenario.phases.Length) { ShowCards(null); return; }
+            if (choiceList == null || next.scenario?.phases == null || next.phaseIndex >= next.scenario.phases.Length) { currentOptions = null; RefreshCards(); return; }
             var phase = next.scenario.phases[next.phaseIndex];
             bool joined = Array.Exists(next.participants ?? Array.Empty<ParticipantData>(), person => person.userId == userId);
             bool decided = Array.Exists(next.decisions ?? Array.Empty<DecisionData>(), decision => decision.userId == userId && decision.phaseId == phase.id);
@@ -398,10 +409,10 @@ namespace Axyro
             {
                 var mine = Array.Find(next.decisions, decision => decision.userId == userId && decision.phaseId == phase.id);
                 var chosen = mine == null || phase.options == null ? null : Array.Find(phase.options, option => option.id == mine.optionId);
-                var why = chosen != null && !string.IsNullOrEmpty(chosen.rationale) ? $"\n\nPor qué: {chosen.rationale}" : "";
+                var why = chosen != null && !string.IsNullOrEmpty(chosen.rationale) ? $"\n\n<color=#9FB8DA>{chosen.rationale}</color>" : "";
                 message = chosen != null
-                    ? $"Has elegido: {chosen.label}\n\n{chosen.consequence}{why}\n\nTu docente abrirá la siguiente situación en breve."
-                    : "Decisión registrada.\n\nTu docente abrirá la siguiente situación en breve.";
+                    ? $"<b>{chosen.label}</b>\n\n{chosen.consequence}{why}\n\n<color=#649EFF>Espera a la siguiente situación.</color>"
+                    : "Decisión registrada.\n\n<color=#649EFF>Espera a la siguiente situación.</color>";
                 if (chosen != null && awaitingDecisionPhase == phase.id)
                 {
                     awaitingDecisionPhase = null;
@@ -417,7 +428,19 @@ namespace Axyro
             }
             if (alertText != null && Time.time < alertUntil) message = alertText + (message.Length > 0 ? "\n\n" + message : "");
             choiceList.text = message;
-            ShowCards(CanDecide ? phase.options : null);
+            if (choicePanel != null) choicePanel.SetActive(message.Length > 0);
+            currentOptions = CanDecide ? phase.options : null;
+            RefreshCards();
+        }
+
+        // Primero se escucha, después se decide: las opciones aparecen cuando el personaje termina de plantear la situación.
+        private void RefreshCards()
+        {
+            var options = currentOptions != null && (avatar == null || avatar.LineFinished) ? currentOptions : null;
+            if (options == shownOptions) return;
+            shownOptions = options;
+            ShowCards(options);
+            if (optionsGroup != null) optionsGroup.SetActive(options != null);
         }
 
         private void ShowCards(ChoiceData[] options)
@@ -433,9 +456,9 @@ namespace Axyro
 
         private static string StatusLabel(string status) => status switch
         {
-            "active" => "en curso",
-            "paused" => "en pausa",
-            "complete" => "completada",
+            "active" => "En curso",
+            "paused" => "En pausa",
+            "complete" => "Completada",
             _ => status
         };
 
@@ -475,7 +498,7 @@ namespace Axyro
             if (deadlineUtc.HasValue)
             {
                 seconds = Math.Max(0, (int)Math.Ceiling((deadlineUtc.Value - DateTime.UtcNow).TotalSeconds));
-                suffix = $" · quedan {seconds / 60}:{seconds % 60:00}";
+                suffix = $" · {seconds / 60}:{seconds % 60:00}";
             }
             else if (state.status == "paused" && state.phaseRemainingMs > 0)
             {
