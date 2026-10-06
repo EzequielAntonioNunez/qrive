@@ -65,11 +65,17 @@ public static class AxyroSceneBuilder
         PlayerSettings.defaultScreenHeight = 900;
         PlayerSettings.resizableWindow = true;
         PlayerSettings.allowFullscreenSwitch = true;
+        // La sesión sigue viva (temporizador, voz, sincronización) aunque el participante haga clic fuera de la ventana.
+        PlayerSettings.runInBackground = true;
+        PlayerSettings.visibleInBackground = true;
         PlayerSettings.colorSpace = ColorSpace.Linear;
+        // Lo que ve el participante (título de ventana, ejecutable) es solo de la UFV.
+        PlayerSettings.companyName = "Universidad Francisco de Vitoria";
+        PlayerSettings.productName = "Simulador UFV";
         var options = new BuildPlayerOptions
         {
             scenes = new[] { ScenePath },
-            locationPathName = "Build/AXYRO-Demo.exe",
+            locationPathName = "Build/Simulador-UFV.exe",
             target = BuildTarget.StandaloneWindows64,
             options = BuildOptions.None
         };
@@ -160,7 +166,7 @@ public static class AxyroSceneBuilder
         var slat = Lit("Lamas", Hex("#21405F"), 0.35f);
         var floor = Lit("Suelo", Hex("#121A24"), 0.4f);
         var window = new Material(Shader.Find("Universal Render Pipeline/Unlit")) { name = "Ventana" };
-        window.SetColor("_BaseColor", new Color(2.4f, 2.8f, 3.4f));
+        window.SetColor("_BaseColor", new Color(1.05f, 1.25f, 1.6f));
         SaveMaterial(window);
         var desk = Lit("Mesa", Hex("#2B2621"), 0.55f);
 
@@ -179,9 +185,9 @@ public static class AxyroSceneBuilder
     private static void BuildLighting(Transform tutor)
     {
         var head = HeadPosition(tutor.gameObject);
-        Spot("Luz principal", new Vector3(-1.5f, 2.5f, -1.9f), head, new Color(1f, 0.94f, 0.86f), 6f, 40f, LightShadows.Soft);
+        Spot("Luz principal", new Vector3(-1.5f, 2.5f, -1.9f), head, new Color(1f, 0.95f, 0.9f), 3.2f, 40f, LightShadows.Soft);
         Spot("Luz de relleno", new Vector3(1.9f, 1.6f, -2.1f), head, new Color(0.82f, 0.88f, 1f), 1.6f, 55f, LightShadows.None);
-        Spot("Contraluz", new Vector3(1.1f, 2.5f, 1.4f), head + Vector3.down * 0.15f, Hex("#9CC2FF"), 7f, 45f, LightShadows.Soft);
+        Spot("Contraluz", new Vector3(1.1f, 2.5f, 1.4f), head + Vector3.down * 0.15f, Hex("#9CC2FF"), 5f, 45f, LightShadows.Soft);
         Spot("Luz de fondo", new Vector3(0.3f, 0.6f, 2.4f), new Vector3(0.3f, 2.6f, 3.6f), Hex("#3F7BD6"), 5f, 80f, LightShadows.None);
 
         RenderSettings.ambientMode = AmbientMode.Trilight;
@@ -201,9 +207,9 @@ public static class AxyroSceneBuilder
         var tonemapping = profile.Add<Tonemapping>(true);
         tonemapping.mode.Override(TonemappingMode.ACES);
         var color = profile.Add<ColorAdjustments>(true);
-        color.postExposure.Override(0.35f);
+        color.postExposure.Override(0.1f);
         color.contrast.Override(6f);
-        color.saturation.Override(-4f);
+        color.saturation.Override(-12f);
         var bloom = profile.Add<Bloom>(true);
         bloom.threshold.Override(1.1f);
         bloom.intensity.Override(0.55f);
@@ -232,7 +238,7 @@ public static class AxyroSceneBuilder
         if (model == null) throw new InvalidOperationException($"No se pudo importar {AxyroTutorSetup.ModelPath}");
         var tutor = (GameObject)PrefabUtility.InstantiatePrefab(model);
         PrefabUtility.UnpackPrefabInstance(tutor, PrefabUnpackMode.OutermostRoot, InteractionMode.AutomatedAction);
-        tutor.name = "Elena Vega · tutor 3D";
+        tutor.name = "VictorIA · tutora 3D";
 
         var animator = tutor.GetComponent<Animator>();
         animator.runtimeAnimatorController = BuildAnimatorController();
@@ -337,7 +343,7 @@ public static class AxyroSceneBuilder
         ConfigureTexture($"{textures}/tutor_opacity_color.png", alpha: true);
 
         var body = Skin("Tutor cuerpo", $"{textures}/tutor_body_color.png", $"{textures}/tutor_body_normal.png", $"{textures}/tutor_body_specular.png", 0.32f);
-        var head = Skin("Tutor cabeza", $"{textures}/tutor_head_color.png", $"{textures}/tutor_head_normal.png", $"{textures}/tutor_head_specular.png", 0.42f);
+        var head = Skin("Tutor cabeza", $"{textures}/tutor_head_color.png", $"{textures}/tutor_head_normal.png", $"{textures}/tutor_head_specular.png", 0.34f);
         var opacity = Skin("Tutor pelo y pestañas", $"{textures}/tutor_opacity_color.png", null, null, 0.3f);
         opacity.SetFloat("_AlphaClip", 1f);
         opacity.SetFloat("_Cutoff", 0.35f);
@@ -372,7 +378,7 @@ public static class AxyroSceneBuilder
         if (specular != null)
         {
             material.SetTexture("_SpecGlossMap", AssetDatabase.LoadAssetAtPath<Texture2D>(specular));
-            material.SetColor("_SpecColor", new Color(0.35f, 0.35f, 0.35f));
+            material.SetColor("_SpecColor", new Color(0.16f, 0.16f, 0.16f));
             material.EnableKeyword("_METALLICSPECGLOSSMAP");
         }
         else
@@ -416,12 +422,25 @@ public static class AxyroSceneBuilder
         scaler.matchWidthOrHeight = 0.5f;
 
         // Panel translúcido para que el texto se lea sobre la escena 3D.
-        Image("Panel", canvasObject.transform, new Color(0f, 0.10f, 0.20f, 0.78f), new Vector2(.52f, 0f), new Vector2(1f, 1f));
-        Image("Accent line", canvasObject.transform, Mint, new Vector2(.55f, .815f), new Vector2(.94f, .818f));
+        Image("Panel", canvasObject.transform, new Color(0f, 0.10f, 0.20f, 0.80f), new Vector2(.52f, 0f), new Vector2(1f, 1f));
+        Image("Accent line", canvasObject.transform, Mint, new Vector2(.55f, .868f), new Vector2(.95f, .871f));
 
-        var panelObject = new GameObject("AXYRO · Rive HUD", typeof(RectTransform));
+        // Marca del cliente: logo UFV arriba a la izquierda, sobre la escena.
+        var logo = LoadSprite("Assets/AXYRO/Brand/ufv-logo-white.png");
+        if (logo != null)
+        {
+            var logoImage = Image("Logo UFV", canvasObject.transform, Color.white, new Vector2(.03f, .885f), new Vector2(.20f, .965f));
+            logoImage.sprite = logo;
+            logoImage.preserveAspect = true;
+        }
+        else
+        {
+            Text("Logo UFV", canvasObject.transform, "UNIVERSIDAD FRANCISCO DE VITORIA", 16, White, new Vector2(.03f, .90f), new Vector2(.40f, .96f));
+        }
+
+        var panelObject = new GameObject("Rive HUD", typeof(RectTransform));
         panelObject.transform.SetParent(canvasObject.transform, false);
-        Stretch(panelObject.GetComponent<RectTransform>(), new Vector2(.55f, .85f), new Vector2(.95f, .96f));
+        Stretch(panelObject.GetComponent<RectTransform>(), new Vector2(.62f, .885f), new Vector2(.95f, .965f));
         panelObject.SetActive(false);
         var panel = panelObject.AddComponent<RivePanel>();
         var renderer = panelObject.AddComponent<RiveCanvasRenderer>();
@@ -429,7 +448,7 @@ public static class AxyroSceneBuilder
         rendererData.FindProperty("m_initialRivePanel").objectReferenceValue = panel;
         rendererData.ApplyModifiedPropertiesWithoutUndo();
 
-        var widgetObject = new GameObject("AXYRO · Status HUD", typeof(RectTransform));
+        var widgetObject = new GameObject("Status HUD", typeof(RectTransform));
         widgetObject.transform.SetParent(panelObject.transform, false);
         Stretch(widgetObject.GetComponent<RectTransform>(), Vector2.zero, Vector2.one);
         var widget = widgetObject.AddComponent<RiveWidget>();
@@ -437,24 +456,60 @@ public static class AxyroSceneBuilder
         if (asset == null) throw new InvalidOperationException("No se pudo importar hud.riv");
         var widgetData = new SerializedObject(widget);
         widgetData.FindProperty("m_asset").objectReferenceValue = asset;
-        widgetData.FindProperty("m_artboardName").stringValue = "AXYRO HUD";
+        widgetData.FindProperty("m_artboardName").stringValue = "HUD";
         widgetData.FindProperty("m_stateMachineName").stringValue = "HUD";
         widgetData.ApplyModifiedPropertiesWithoutUndo();
         panelObject.SetActive(true);
 
-        Text("Brand", canvasObject.transform, "UFV  ·  AXYRO SIM LAB", 18, Mint, new Vector2(.55f, .79f), new Vector2(.94f, .82f));
-        Text("Name", canvasObject.transform, "Elena Vega", 52, White, new Vector2(.55f, .69f), new Vector2(.95f, .79f));
-        var phase = Text("Phase", canvasObject.transform, "FASE 1 / 3  ·  Preparación", 17, Mint, new Vector2(.55f, .62f), new Vector2(.95f, .68f));
-        var dialogue = Text("Dialogue", canvasObject.transform, "", 25, White, new Vector2(.55f, .34f), new Vector2(.95f, .61f));
+        var characterName = Text("Name", canvasObject.transform, "VictorIA", 40, White, new Vector2(.55f, .78f), new Vector2(.95f, .86f));
+        var phase = Text("Phase", canvasObject.transform, "SITUACIÓN 1 DE 3", 14, Mint, new Vector2(.55f, .74f), new Vector2(.95f, .78f));
+        var dialogue = Text("Dialogue", canvasObject.transform, "", 20, White, new Vector2(.55f, .56f), new Vector2(.95f, .73f));
+        dialogue.alignment = TextAnchor.UpperLeft;
+        dialogue.fontStyle = FontStyle.Italic;
         var buttonObject = new GameObject("Escuchar", typeof(RectTransform), typeof(Image), typeof(Button));
         buttonObject.transform.SetParent(canvasObject.transform, false);
-        Stretch(buttonObject.GetComponent<RectTransform>(), new Vector2(.55f, .22f), new Vector2(.85f, .30f));
+        Stretch(buttonObject.GetComponent<RectTransform>(), new Vector2(.55f, .495f), new Vector2(.73f, .545f));
         buttonObject.GetComponent<Image>().color = Mint;
-        var label = Text("Label", buttonObject.transform, "▶  ESCUCHAR INTERVENCIÓN", 18, Background, Vector2.zero, Vector2.one);
+        var label = Text("Label", buttonObject.transform, "▶  Escuchar de nuevo", 14, Background, new Vector2(.04f, 0f), new Vector2(.96f, 1f));
         label.alignment = TextAnchor.MiddleCenter;
-        var hint = Text("Hint", canvasObject.transform, "1 · 2 · 3 CAMBIAN LA FASE     ESPACIO REPRODUCE LA VOZ", 12, Muted, new Vector2(.55f, .01f), new Vector2(.99f, .05f));
-        var choices = Text("Choices", canvasObject.transform, "", 15, White, new Vector2(.55f, .05f), new Vector2(.96f, .21f));
-        var connection = Text("Connection", canvasObject.transform, "DEMO AUTÓNOMA", 13, Muted, new Vector2(.04f, .92f), new Vector2(.50f, .97f));
+        var voiceStatus = Text("Micrófono", canvasObject.transform, "", 12, Mint, new Vector2(.745f, .495f), new Vector2(.97f, .545f));
+        var hint = Text("Hint", canvasObject.transform, "", 12, Muted, new Vector2(.55f, .01f), new Vector2(.97f, .045f));
+        var choices = Text("Choices", canvasObject.transform, "", 17, White, new Vector2(.55f, .06f), new Vector2(.95f, .47f));
+        choices.alignment = TextAnchor.UpperLeft;
+        // Estado de la sesión sobre la escena 3D: fondo translúcido y sombra para leerse aunque detrás haya luz.
+        Image("Fondo estado", canvasObject.transform, new Color(0f, 0.10f, 0.20f, 0.6f), new Vector2(.025f, .842f), new Vector2(.27f, .882f)).raycastTarget = false;
+        var connection = Text("Connection", canvasObject.transform, "Modo demostración", 13, White, new Vector2(.035f, .845f), new Vector2(.265f, .88f));
+        var shadow = connection.gameObject.AddComponent<Shadow>();
+        shadow.effectColor = new Color(0f, 0f, 0f, 0.7f);
+        shadow.effectDistance = new Vector2(1f, -1f);
+
+        // Tarjetas de decisión: se eligen con el ratón, con la voz («uno», «dos»…) o con las teclas 1-4.
+        var cards = new Button[4];
+        var cardLabels = new Text[4];
+        for (var i = 0; i < cards.Length; i++)
+        {
+            var top = .47f - i * .107f;
+            var card = Image($"Opción {i + 1}", canvasObject.transform, Color.white, new Vector2(.55f, top - .095f), new Vector2(.95f, top));
+            var button = card.gameObject.AddComponent<Button>();
+            button.targetGraphic = card;
+            var colors = button.colors;
+            colors.normalColor = new Color(1f, 1f, 1f, 0.07f);
+            colors.highlightedColor = new Color(0.39f, 0.62f, 1f, 0.38f);
+            colors.selectedColor = colors.normalColor;
+            colors.pressedColor = new Color(0.39f, 0.62f, 1f, 0.7f);
+            colors.disabledColor = new Color(1f, 1f, 1f, 0.03f);
+            colors.fadeDuration = 0.12f;
+            button.colors = colors;
+            button.navigation = new Navigation { mode = Navigation.Mode.None };
+            Image("Borde", card.transform, new Color(0.39f, 0.62f, 1f, 0.9f), new Vector2(0f, 0f), new Vector2(.008f, 1f)).raycastTarget = false;
+            var number = Text("Número", card.transform, (i + 1).ToString(), 22, Mint, new Vector2(.02f, 0f), new Vector2(.09f, 1f));
+            number.alignment = TextAnchor.MiddleCenter;
+            number.fontStyle = FontStyle.Bold;
+            number.raycastTarget = false;
+            cardLabels[i] = Text("Texto", card.transform, "", 16, White, new Vector2(.10f, .08f), new Vector2(.97f, .92f));
+            cardLabels[i].raycastTarget = false;
+            cards[i] = button;
+        }
 
         var demo = canvasObject.AddComponent<AxyroAvatarDemo>();
         var demoData = new SerializedObject(demo);
@@ -462,23 +517,42 @@ public static class AxyroSceneBuilder
         demoData.FindProperty("hud").objectReferenceValue = widget;
         demoData.FindProperty("voice").objectReferenceValue = voice;
         demoData.FindProperty("phaseTitle").objectReferenceValue = phase;
+        demoData.FindProperty("characterName").objectReferenceValue = characterName;
         demoData.FindProperty("dialogue").objectReferenceValue = dialogue;
         demoData.FindProperty("playLabel").objectReferenceValue = label;
         demoData.FindProperty("playButton").objectReferenceValue = buttonObject.GetComponent<Button>();
         demoData.FindProperty("inputHint").objectReferenceValue = hint;
+        // Todas las locuciones de Audio/: Unity elige la de cada fase por su nombre (id de fase).
+        var audio = AssetDatabase.FindAssets("t:AudioClip", new[] { "Assets/AXYRO/Audio" })
+            .Select(guid => AssetDatabase.LoadAssetAtPath<AudioClip>(AssetDatabase.GUIDToAssetPath(guid))).Where(clip => clip != null).ToArray();
         var clips = demoData.FindProperty("lines");
-        clips.arraySize = 3;
-        string[] clipNames = { "prepare", "counteroffer", "close" };
-        for (var i = 0; i < clipNames.Length; i++)
-            clips.GetArrayElementAtIndex(i).objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>($"Assets/AXYRO/Audio/{clipNames[i]}.wav");
+        clips.arraySize = audio.Length;
+        for (var i = 0; i < audio.Length; i++) clips.GetArrayElementAtIndex(i).objectReferenceValue = audio[i];
         demoData.ApplyModifiedPropertiesWithoutUndo();
+        Debug.Log($"AXYRO_VOICE_LINES {string.Join(", ", audio.Select(clip => clip.name))}");
 
         var sessionClient = canvasObject.AddComponent<AxyroSessionClient>();
         var clientData = new SerializedObject(sessionClient);
         clientData.FindProperty("avatar").objectReferenceValue = demo;
         clientData.FindProperty("connectionLabel").objectReferenceValue = connection;
         clientData.FindProperty("choiceList").objectReferenceValue = choices;
+        var cardList = clientData.FindProperty("cards");
+        var labelList = clientData.FindProperty("cardLabels");
+        cardList.arraySize = cards.Length;
+        labelList.arraySize = cards.Length;
+        for (var i = 0; i < cards.Length; i++)
+        {
+            cardList.GetArrayElementAtIndex(i).objectReferenceValue = cards[i];
+            labelList.GetArrayElementAtIndex(i).objectReferenceValue = cardLabels[i];
+        }
         clientData.ApplyModifiedPropertiesWithoutUndo();
+
+        var voiceCommands = canvasObject.AddComponent<AxyroVoiceCommands>();
+        var voiceData = new SerializedObject(voiceCommands);
+        voiceData.FindProperty("session").objectReferenceValue = sessionClient;
+        voiceData.FindProperty("avatar").objectReferenceValue = demo;
+        voiceData.FindProperty("status").objectReferenceValue = voiceStatus;
+        voiceData.ApplyModifiedPropertiesWithoutUndo();
     }
 
     // ---------- Utilidades ----------
@@ -498,6 +572,22 @@ public static class AxyroSceneBuilder
         material.SetFloat("_Smoothness", smoothness);
         EditorUtility.SetDirty(material);
         return material;
+    }
+
+    private static Sprite LoadSprite(string path)
+    {
+        var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+        if (importer == null) return null;
+        // Una sola imagen: en modo Multiple Unity trocea el logo y solo se ve el emblema.
+        if (importer.textureType != TextureImporterType.Sprite || importer.spriteImportMode != SpriteImportMode.Single || !importer.alphaIsTransparency)
+        {
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Single;
+            importer.alphaIsTransparency = true;
+            importer.mipmapEnabled = false;
+            importer.SaveAndReimport();
+        }
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path);
     }
 
     private static void SaveMaterial(Material material)
@@ -562,7 +652,13 @@ public static class AxyroSceneBuilder
         text.color = color;
         text.alignment = TextAnchor.MiddleLeft;
         text.horizontalOverflow = HorizontalWrapMode.Wrap;
-        text.verticalOverflow = VerticalWrapMode.Overflow;
+        // Ningún texto sale de su caja: si no cabe se reduce hasta un mínimo legible y, como último recurso, se recorta.
+        // Así un texto largo nunca invade ni desplaza otros elementos.
+        text.verticalOverflow = VerticalWrapMode.Truncate;
+        text.resizeTextForBestFit = true;
+        text.resizeTextMaxSize = size;
+        text.resizeTextMinSize = Mathf.Max(9, Mathf.RoundToInt(size * 0.6f));
+        text.lineSpacing = 1.05f;
         return text;
     }
 

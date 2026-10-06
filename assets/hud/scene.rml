@@ -1,20 +1,262 @@
 <Rive version="1" kind="fragment">
-  <Artboard defaultStateMachineId="0:100" width="520" height="120" name="AXYRO HUD" id="0:2">
-    <!-- Foreground elements precede their backgrounds in Rive. -->
-    <Shape x="475" y="60" name="Voice bar 3" id="0:23"><Rectangle width="10" height="32" cornerRadiusTL="5" name="Path"/><Fill name="Fill"><SolidColor colorValue="FF9FF3D6" name="Color"/></Fill></Shape>
-    <Shape x="455" y="60" name="Voice bar 2" id="0:22"><Rectangle width="10" height="45" cornerRadiusTL="5" name="Path"/><Fill name="Fill"><SolidColor colorValue="FF9FF3D6" name="Color"/></Fill></Shape>
-    <Shape x="435" y="60" name="Voice bar 1" id="0:21"><Rectangle width="10" height="24" cornerRadiusTL="5" name="Path"/><Fill name="Fill"><SolidColor colorValue="FF9FF3D6" name="Color"/></Fill></Shape>
-    <Shape x="38" y="60" name="Signal" id="0:20"><Ellipse width="18" height="18" name="Path"/><Fill name="Fill"><SolidColor colorValue="FF9FF3D6" name="Color"/></Fill></Shape>
-    <Shape x="230" y="60" name="Track"><Rectangle width="320" height="5" cornerRadiusTL="3" name="Path"/><Fill name="Fill"><SolidColor colorValue="55477B87" name="Color"/></Fill></Shape>
-    <Shape x="90" y="60" name="Track light"><Rectangle width="40" height="5" cornerRadiusTL="3" name="Path"/><Fill name="Fill"><SolidColor colorValue="FF9FF3D6" name="Color"/></Fill></Shape>
-    <Shape x="260" y="60" name="Housing"><Rectangle width="514" height="112" cornerRadiusTL="28" name="Path"/><Fill name="Fill"><SolidColor colorValue="DD16253B" name="Color"/></Fill><Stroke thickness="2" name="Outline"><SolidColor colorValue="885C8796" name="Color"/></Stroke></Shape>
+  <!--
+    HUD de estado superpuesto en Unity (esquina superior derecha).
+    Contrato con Unity: artboard "HUD", máquina de estados "HUD",
+    entradas booleanas "speaking" (el tutor habla) y "listening" (el micrófono escucha).
+    Paleta UFV: tinta #001A33, azul #003865, acento #649EFF, blanco.
+    En Rive el primer elemento declarado se dibuja encima: el primer plano va antes que el fondo.
+  -->
+  <Artboard defaultStateMachineId="0:100" width="520" height="80" name="HUD" id="0:2">
+
+    <!-- Onda de voz: siete barras redondeadas centradas en (466, 40). -->
+    <Node x="466" y="40" opacity="0.35" name="Onda de voz" id="0:30">
+      <Shape x="-27" name="Barra 1"><Rectangle width="4" height="4" cornerRadiusTL="2" name="Trazo" id="0:31"/><Fill name="Relleno"><SolidColor colorValue="FF649EFF" name="Color"/></Fill></Shape>
+      <Shape x="-18" name="Barra 2"><Rectangle width="4" height="4" cornerRadiusTL="2" name="Trazo" id="0:32"/><Fill name="Relleno"><SolidColor colorValue="FF8AB6FF" name="Color"/></Fill></Shape>
+      <Shape x="-9" name="Barra 3"><Rectangle width="4" height="4" cornerRadiusTL="2" name="Trazo" id="0:33"/><Fill name="Relleno"><SolidColor colorValue="FFC2D9FF" name="Color"/></Fill></Shape>
+      <Shape x="0" name="Barra 4"><Rectangle width="4" height="4" cornerRadiusTL="2" name="Trazo" id="0:34"/><Fill name="Relleno"><SolidColor colorValue="FFFFFFFF" name="Color"/></Fill></Shape>
+      <Shape x="9" name="Barra 5"><Rectangle width="4" height="4" cornerRadiusTL="2" name="Trazo" id="0:35"/><Fill name="Relleno"><SolidColor colorValue="FFC2D9FF" name="Color"/></Fill></Shape>
+      <Shape x="18" name="Barra 6"><Rectangle width="4" height="4" cornerRadiusTL="2" name="Trazo" id="0:36"/><Fill name="Relleno"><SolidColor colorValue="FF8AB6FF" name="Color"/></Fill></Shape>
+      <Shape x="27" name="Barra 7"><Rectangle width="4" height="4" cornerRadiusTL="2" name="Trazo" id="0:37"/><Fill name="Relleno"><SolidColor colorValue="FF649EFF" name="Color"/></Fill></Shape>
+    </Node>
+
+    <!-- Línea decorativa central con un destello que la recorre mientras el tutor habla. -->
+    <Shape x="100" y="40" opacity="0" name="Destello" id="0:40">
+      <Rectangle width="56" height="1.5" cornerRadiusTL="0.75" name="Trazo"/>
+      <Fill name="Relleno">
+        <LinearGradient startX="-28" startY="0" endX="28" endY="0" name="Degradado">
+          <GradientStop colorValue="00FFFFFF" position="0"/>
+          <GradientStop colorValue="E6FFFFFF" position="0.5"/>
+          <GradientStop colorValue="00FFFFFF" position="1"/>
+        </LinearGradient>
+      </Fill>
+    </Shape>
+    <Shape x="256" y="40" name="Línea">
+      <Rectangle width="320" height="1" name="Trazo"/>
+      <Fill name="Relleno">
+        <LinearGradient startX="-160" startY="0" endX="160" endY="0" name="Degradado">
+          <GradientStop colorValue="00649EFF" position="0"/>
+          <GradientStop colorValue="66649EFF" position="0.25"/>
+          <GradientStop colorValue="66649EFF" position="0.75"/>
+          <GradientStop colorValue="00649EFF" position="1"/>
+        </LinearGradient>
+      </Fill>
+    </Shape>
+
+    <!-- Indicador de micrófono centrado en (44, 40). -->
+    <Node x="44" y="40" name="Micrófono">
+      <Node opacity="0.45" name="Icono" id="0:50">
+        <Shape y="-5" name="Cápsula"><Rectangle width="9" height="15" cornerRadiusTL="4.5" name="Trazo"/><Fill name="Relleno"><SolidColor colorValue="FFFFFFFF" name="Color"/></Fill></Shape>
+        <Shape name="Soporte">
+          <PointsPath isClosed="false" name="Trazo">
+            <StraightVertex x="-8" y="-4"/>
+            <CubicMirroredVertex x="0" y="6" rotation="0" distance="6"/>
+            <StraightVertex x="8" y="-4"/>
+          </PointsPath>
+          <Stroke thickness="1.6" cap="round" join="round" name="Contorno"><SolidColor colorValue="FFFFFFFF" name="Color"/></Stroke>
+        </Shape>
+        <Shape y="8.5" name="Pie"><Rectangle width="1.6" height="5" name="Trazo"/><Fill name="Relleno"><SolidColor colorValue="FFFFFFFF" name="Color"/></Fill></Shape>
+        <Shape y="11.5" name="Base"><Rectangle width="9" height="1.6" cornerRadiusTL="0.8" name="Trazo"/><Fill name="Relleno"><SolidColor colorValue="FFFFFFFF" name="Color"/></Fill></Shape>
+      </Node>
+      <Shape opacity="0" name="Disco activo" id="0:51">
+        <Ellipse width="44" height="44" name="Trazo"/>
+        <Fill name="Relleno">
+          <RadialGradient startX="0" startY="0" endX="22" endY="0" name="Degradado">
+            <GradientStop colorValue="33649EFF" position="0"/>
+            <GradientStop colorValue="80649EFF" position="1"/>
+          </RadialGradient>
+        </Fill>
+        <Stroke thickness="1" name="Contorno"><SolidColor colorValue="CC649EFF" name="Color"/></Stroke>
+      </Shape>
+      <Shape name="Disco">
+        <Ellipse width="44" height="44" name="Trazo"/>
+        <Fill name="Relleno"><SolidColor colorValue="FF003865" name="Color"/></Fill>
+        <Stroke thickness="1" name="Contorno"><SolidColor colorValue="4D649EFF" name="Color"/></Stroke>
+      </Shape>
+      <Shape opacity="0" name="Anillo" id="0:52">
+        <Ellipse width="44" height="44" name="Trazo"/>
+        <Stroke thickness="1.5" name="Contorno"><SolidColor colorValue="FF649EFF" name="Color"/></Stroke>
+      </Shape>
+    </Node>
+
+    <!-- Píldora de fondo translúcida con borde fino. -->
+    <Shape x="260" y="40" name="Píldora">
+      <Rectangle width="516" height="76" cornerRadiusTL="38" name="Trazo"/>
+      <Fill name="Relleno">
+        <LinearGradient startX="-258" startY="0" endX="258" endY="0" name="Degradado">
+          <GradientStop colorValue="E6003865" position="0"/>
+          <GradientStop colorValue="E0001A33" position="0.45"/>
+          <GradientStop colorValue="E0001A33" position="1"/>
+        </LinearGradient>
+      </Fill>
+      <Stroke thickness="1" name="Borde"><SolidColor colorValue="59649EFF" name="Color"/></Stroke>
+    </Shape>
+
     <StateMachine name="HUD" id="0:100">
       <StateMachineBool name="speaking" id="0:101"/>
-      <StateMachineLayer name="Signal idle" id="0:102"><EntryState><StateTransition stateToId="0:103"/></EntryState><AnimationState animationId="0:200" id="0:103"/></StateMachineLayer>
-      <StateMachineLayer name="Voice" id="0:110"><EntryState><StateTransition stateToId="0:111"/></EntryState><AnimationState animationId="0:201" id="0:111"><StateTransition stateToId="0:112" duration="100"><TransitionBoolCondition inputId="0:101" opValue="equal"/></StateTransition></AnimationState><AnimationState animationId="0:202" id="0:112"><StateTransition stateToId="0:111" duration="100"><TransitionBoolCondition inputId="0:101" opValue="notEqual"/></StateTransition></AnimationState></StateMachineLayer>
+      <StateMachineBool name="listening" id="0:102"/>
+
+      <!-- Micrófono: tenue en reposo; anillo que pulsa mientras escucha. -->
+      <StateMachineLayer name="Micrófono" id="0:110">
+        <AnyState x="560" y="-120"/>
+        <ExitState x="760" y="-120"/>
+        <EntryState x="0" y="0"><StateTransition stateToId="0:111"/></EntryState>
+        <AnimationState x="200" y="0" animationId="0:200" id="0:111">
+          <StateTransition stateToId="0:112" duration="180"><TransitionBoolCondition inputId="0:102" opValue="equal"/></StateTransition>
+        </AnimationState>
+        <AnimationState x="400" y="0" animationId="0:201" reset="true" id="0:112">
+          <StateTransition stateToId="0:111" duration="240"><TransitionBoolCondition inputId="0:102" opValue="notEqual"/></StateTransition>
+        </AnimationState>
+      </StateMachineLayer>
+
+      <!-- Onda de voz: plana y tenue en reposo; barras animadas mientras el tutor habla. -->
+      <StateMachineLayer name="Voz" id="0:120">
+        <AnyState x="560" y="-120"/>
+        <ExitState x="760" y="-120"/>
+        <EntryState x="0" y="0"><StateTransition stateToId="0:121"/></EntryState>
+        <AnimationState x="200" y="0" animationId="0:210" id="0:121">
+          <StateTransition stateToId="0:122" duration="160"><TransitionBoolCondition inputId="0:101" opValue="equal"/></StateTransition>
+        </AnimationState>
+        <AnimationState x="400" y="0" animationId="0:211" id="0:122">
+          <StateTransition stateToId="0:121" duration="240"><TransitionBoolCondition inputId="0:101" opValue="notEqual"/></StateTransition>
+        </AnimationState>
+      </StateMachineLayer>
+
+      <!-- Destello de la línea central, ligado también a speaking. -->
+      <StateMachineLayer name="Destello" id="0:130">
+        <AnyState x="560" y="-120"/>
+        <ExitState x="760" y="-120"/>
+        <EntryState x="0" y="0"><StateTransition stateToId="0:131"/></EntryState>
+        <AnimationState x="200" y="0" animationId="0:220" id="0:131">
+          <StateTransition stateToId="0:132" duration="0"><TransitionBoolCondition inputId="0:101" opValue="equal"/></StateTransition>
+        </AnimationState>
+        <AnimationState x="400" y="0" animationId="0:221" reset="true" id="0:132">
+          <StateTransition stateToId="0:131" duration="300"><TransitionBoolCondition inputId="0:101" opValue="notEqual"/></StateTransition>
+        </AnimationState>
+      </StateMachineLayer>
     </StateMachine>
-    <LinearAnimation loopValue="loop" duration="120" name="Breath" id="0:200"><KeyedObject objectId="0:20"><KeyedProperty propertyKey="18"><KeyFrameDouble value="0.55"/><KeyFrameDouble value="1" frame="60"/><KeyFrameDouble value="0.55" frame="120"/></KeyedProperty></KeyedObject></LinearAnimation>
-    <LinearAnimation loopValue="loop" duration="30" name="Quiet" id="0:201"><KeyedObject objectId="0:21"><KeyedProperty propertyKey="17"><KeyFrameDouble value="0.25"/></KeyedProperty></KeyedObject><KeyedObject objectId="0:22"><KeyedProperty propertyKey="17"><KeyFrameDouble value="0.25"/></KeyedProperty></KeyedObject><KeyedObject objectId="0:23"><KeyedProperty propertyKey="17"><KeyFrameDouble value="0.25"/></KeyedProperty></KeyedObject></LinearAnimation>
-    <LinearAnimation loopValue="loop" duration="36" name="Speaking" id="0:202"><KeyedObject objectId="0:21"><KeyedProperty propertyKey="17"><KeyFrameDouble value="0.35"/><KeyFrameDouble value="1" frame="10"/><KeyFrameDouble value="0.45" frame="20"/><KeyFrameDouble value="0.8" frame="30"/><KeyFrameDouble value="0.35" frame="36"/></KeyedProperty></KeyedObject><KeyedObject objectId="0:22"><KeyedProperty propertyKey="17"><KeyFrameDouble value="0.9"/><KeyFrameDouble value="0.3" frame="10"/><KeyFrameDouble value="1" frame="20"/><KeyFrameDouble value="0.35" frame="30"/><KeyFrameDouble value="0.9" frame="36"/></KeyedProperty></KeyedObject><KeyedObject objectId="0:23"><KeyedProperty propertyKey="17"><KeyFrameDouble value="0.5"/><KeyFrameDouble value="0.85" frame="10"/><KeyFrameDouble value="0.25" frame="20"/><KeyFrameDouble value="1" frame="30"/><KeyFrameDouble value="0.5" frame="36"/></KeyedProperty></KeyedObject></LinearAnimation>
+
+    <!-- Micrófono en reposo -->
+    <LinearAnimation loopValue="loop" duration="30" name="Micrófono reposo" id="0:200">
+      <KeyedObject objectId="0:50"><KeyedProperty propertyKey="18"><KeyFrameDouble value="0.45"/></KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:51"><KeyedProperty propertyKey="18"><KeyFrameDouble value="0"/></KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:52">
+        <KeyedProperty propertyKey="18"><KeyFrameDouble value="0"/></KeyedProperty>
+        <KeyedProperty propertyKey="16"><KeyFrameDouble value="1"/></KeyedProperty>
+        <KeyedProperty propertyKey="17"><KeyFrameDouble value="1"/></KeyedProperty>
+      </KeyedObject>
+    </LinearAnimation>
+
+    <!-- Micrófono escuchando: el anillo se expande y se desvanece en bucle (1,5 s). -->
+    <LinearAnimation loopValue="loop" duration="90" name="Micrófono escucha" id="0:201">
+      <KeyedObject objectId="0:50"><KeyedProperty propertyKey="18"><KeyFrameDouble value="1"/></KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:51">
+        <KeyedProperty propertyKey="18">
+          <KeyFrameDouble value="0.75" frame="0" interpolationType="cubic"><CubicEaseInterpolator x1="0.42" y1="0" x2="0.58" y2="1"/></KeyFrameDouble>
+          <KeyFrameDouble value="1" frame="45" interpolationType="cubic"><CubicEaseInterpolator x1="0.42" y1="0" x2="0.58" y2="1"/></KeyFrameDouble>
+          <KeyFrameDouble value="0.75" frame="90"/>
+        </KeyedProperty>
+      </KeyedObject>
+      <KeyedObject objectId="0:52">
+        <KeyedProperty propertyKey="16">
+          <KeyFrameDouble value="1" frame="0" interpolationType="cubic"><CubicEaseInterpolator x1="0" y1="0" x2="0.58" y2="1"/></KeyFrameDouble>
+          <KeyFrameDouble value="1.6" frame="90"/>
+        </KeyedProperty>
+        <KeyedProperty propertyKey="17">
+          <KeyFrameDouble value="1" frame="0" interpolationType="cubic"><CubicEaseInterpolator x1="0" y1="0" x2="0.58" y2="1"/></KeyFrameDouble>
+          <KeyFrameDouble value="1.6" frame="90"/>
+        </KeyedProperty>
+        <KeyedProperty propertyKey="18">
+          <KeyFrameDouble value="0.9" frame="0" interpolationType="cubic"><CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1"/></KeyFrameDouble>
+          <KeyFrameDouble value="0" frame="90"/>
+        </KeyedProperty>
+      </KeyedObject>
+    </LinearAnimation>
+
+    <!-- Voz en reposo: barras planas (puntos) y tenues. -->
+    <LinearAnimation loopValue="loop" duration="30" name="Voz reposo" id="0:210">
+      <KeyedObject objectId="0:30"><KeyedProperty propertyKey="18"><KeyFrameDouble value="0.35"/></KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:31"><KeyedProperty propertyKey="21"><KeyFrameDouble value="4"/></KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:32"><KeyedProperty propertyKey="21"><KeyFrameDouble value="4"/></KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:33"><KeyedProperty propertyKey="21"><KeyFrameDouble value="4"/></KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:34"><KeyedProperty propertyKey="21"><KeyFrameDouble value="4"/></KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:35"><KeyedProperty propertyKey="21"><KeyFrameDouble value="4"/></KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:36"><KeyedProperty propertyKey="21"><KeyFrameDouble value="4"/></KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:37"><KeyedProperty propertyKey="21"><KeyFrameDouble value="4"/></KeyedProperty></KeyedObject>
+    </LinearAnimation>
+
+    <!-- Voz activa: cada barra sigue su propio patrón de alturas (bucle de 0,8 s). -->
+    <LinearAnimation loopValue="loop" duration="48" name="Voz habla" id="0:211">
+      <KeyedObject objectId="0:30"><KeyedProperty propertyKey="18"><KeyFrameDouble value="1"/></KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:31"><KeyedProperty propertyKey="21">
+        <KeyFrameDouble value="8" frame="0" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="16" frame="14" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="9" frame="26" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="18" frame="38" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="8" frame="48"/>
+      </KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:32"><KeyedProperty propertyKey="21">
+        <KeyFrameDouble value="16" frame="0" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="28" frame="10" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="12" frame="20" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="24" frame="32" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="16" frame="48"/>
+      </KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:33"><KeyedProperty propertyKey="21">
+        <KeyFrameDouble value="26" frame="0" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="12" frame="14" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="34" frame="26" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="18" frame="38" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="26" frame="48"/>
+      </KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:34"><KeyedProperty propertyKey="21">
+        <KeyFrameDouble value="34" frame="0" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="20" frame="10" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="40" frame="20" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="14" frame="32" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="34" frame="48"/>
+      </KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:35"><KeyedProperty propertyKey="21">
+        <KeyFrameDouble value="20" frame="0" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="34" frame="14" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="16" frame="26" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="30" frame="38" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="20" frame="48"/>
+      </KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:36"><KeyedProperty propertyKey="21">
+        <KeyFrameDouble value="12" frame="0" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="22" frame="10" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="28" frame="20" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="10" frame="32" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="12" frame="48"/>
+      </KeyedProperty></KeyedObject>
+      <KeyedObject objectId="0:37"><KeyedProperty propertyKey="21">
+        <KeyFrameDouble value="6" frame="0" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="12" frame="14" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="18" frame="26" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="8" frame="38" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+        <KeyFrameDouble value="6" frame="48"/>
+      </KeyedProperty></KeyedObject>
+    </LinearAnimation>
+
+    <!-- Destello oculto -->
+    <LinearAnimation loopValue="loop" duration="30" name="Destello reposo" id="0:220">
+      <KeyedObject objectId="0:40"><KeyedProperty propertyKey="18"><KeyFrameDouble value="0"/></KeyedProperty></KeyedObject>
+    </LinearAnimation>
+
+    <!-- Destello recorriendo la línea de izquierda a derecha (2 s). -->
+    <LinearAnimation loopValue="loop" duration="120" name="Destello activo" id="0:221">
+      <KeyedObject objectId="0:40">
+        <KeyedProperty propertyKey="13">
+          <KeyFrameDouble value="110" frame="0" interpolationType="cubic"><CubicEaseInterpolator/></KeyFrameDouble>
+          <KeyFrameDouble value="402" frame="120"/>
+        </KeyedProperty>
+        <KeyedProperty propertyKey="18">
+          <KeyFrameDouble value="0" frame="0" interpolationType="linear"/>
+          <KeyFrameDouble value="1" frame="30" interpolationType="linear"/>
+          <KeyFrameDouble value="1" frame="90" interpolationType="linear"/>
+          <KeyFrameDouble value="0" frame="120"/>
+        </KeyedProperty>
+      </KeyedObject>
+    </LinearAnimation>
   </Artboard>
 </Rive>

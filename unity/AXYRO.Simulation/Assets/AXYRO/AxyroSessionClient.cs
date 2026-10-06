@@ -9,22 +9,24 @@ using UnityEngine.UI;
 
 namespace Axyro
 {
-    // The MVP bridge deliberately uses only the loopback demo API. A remote Unity
-    // client will need its own Access authentication flow, never a shipped token.
+    // El puente del MVP usa solo la API demo de bucle local. Un cliente remoto necesitará su propio
+    // flujo de autenticación con Cloudflare Access, nunca un token incluido en la build.
     public sealed class AxyroSessionClient : MonoBehaviour
     {
         private const string Api = "http://127.0.0.1:8787/api";
         private const string DemoUserId = "demo-participant";
-        private const string RecordedScenarioId = "supplier-negotiation";
 
         [SerializeField] private AxyroAvatarDemo avatar;
         [SerializeField] private Text connectionLabel;
         [SerializeField] private Text choiceList;
+        [SerializeField] private Button[] cards;
+        [SerializeField] private Text[] cardLabels;
 
         private string sessionId;
         private SessionStateData state;
         private int shownPhase = -1;
         private bool commandBusy;
+        private bool joinRequested;
         private string baseLabel;
         private DateTime? deadlineUtc;
         private int shownSeconds = -1;
@@ -34,6 +36,15 @@ namespace Axyro
         // Con --axyro-session la sesión queda fijada; sin él, Unity sigue siempre la sesión más reciente.
         private bool pinned;
 
+        /// <summary>True cuando hay opciones a la vista y el participante aún no ha decidido en esta fase.</summary>
+        public bool CanDecide { get; private set; }
+
+        /// <summary>Selección desde el ratón o la voz (índice 0..3).</summary>
+        public void SelectOption(int index)
+        {
+            if (CanDecide && !commandBusy) Decide(index);
+        }
+
         private void Start()
         {
             foreach (var argument in Environment.GetCommandLineArgs())
@@ -42,20 +53,25 @@ namespace Axyro
                     sessionId = argument.Substring("--axyro-session=".Length);
                     pinned = true;
                 }
+            for (var i = 0; cards != null && i < cards.Length; i++)
+            {
+                var index = i;
+                cards[i].onClick.AddListener(() => SelectOption(index));
+            }
+            ShowCards(null);
             StartCoroutine(Poll());
         }
 
         private void Update()
         {
             RefreshTimer();
-            if (state == null || commandBusy || state.status != "active") return;
+            // El teclado se mantiene como alternativa accesible al ratón y la voz.
             var keyboard = Keyboard.current;
-            if (keyboard == null) return;
-            if (keyboard.jKey.wasPressedThisFrame) StartCoroutine(SendCommand("join", null));
-            if (keyboard.digit1Key.wasPressedThisFrame) Decide(0);
-            if (keyboard.digit2Key.wasPressedThisFrame) Decide(1);
-            if (keyboard.digit3Key.wasPressedThisFrame) Decide(2);
-            if (keyboard.digit4Key.wasPressedThisFrame) Decide(3);
+            if (keyboard == null || !CanDecide) return;
+            if (keyboard.digit1Key.wasPressedThisFrame) SelectOption(0);
+            if (keyboard.digit2Key.wasPressedThisFrame) SelectOption(1);
+            if (keyboard.digit3Key.wasPressedThisFrame) SelectOption(2);
+            if (keyboard.digit4Key.wasPressedThisFrame) SelectOption(3);
         }
 
         private void Decide(int index)
@@ -100,12 +116,12 @@ namespace Axyro
                         else if (connectionLabel != null)
                         {
                             baseLabel = null;
-                            connectionLabel.text = "SIN CONEXIÓN CON LA SESIÓN LOCAL";
+                            connectionLabel.text = "Sin conexión con la sesión · reintentando…";
                         }
                     }
                 }
                 else if (connectionLabel != null && state == null)
-                    connectionLabel.text = "DEMO AUTÓNOMA · CREA UNA SESIÓN LOCAL PARA CONECTAR";
+                    connectionLabel.text = "Modo demostración · sin sesión activa";
 
                 yield return new WaitForSeconds(1.5f);
             }
@@ -120,6 +136,7 @@ namespace Axyro
             alertText = null;
             baseLabel = null;
             deadlineUtc = null;
+            joinRequested = false;
         }
 
         private IEnumerator SendCommand(string type, string optionId)
@@ -146,7 +163,8 @@ namespace Axyro
                 {
                     baseLabel = null;
                     var error = JsonUtility.FromJson<ApiError>(request.downloadHandler.text);
-                    connectionLabel.text = error != null && !string.IsNullOrEmpty(error.error) ? error.error : "NO SE PUDO ENVIAR LA DECISIÓN";
+                    connectionLabel.text = error != null && !string.IsNullOrEmpty(error.error) ? error.error : "No se ha podido enviar tu decisión. Inténtalo de nuevo.";
+                    if (type == "join") joinRequested = false;
                 }
             }
             commandBusy = false;
@@ -156,14 +174,18 @@ namespace Axyro
         {
             state = next;
             avatar?.SetLinkedSession(true);
+            avatar?.SetCharacterName(next.scenario?.character?.name);
             if (next.scenario?.phases != null)
             {
                 avatar?.SetPhaseCount(next.scenario.phases.Length);
-                avatar?.SetVoiceAvailable(next.scenario.id == RecordedScenarioId && next.scenario.phases.Length == 3);
-            }
-            if (next.scenario?.phases != null)
-                for (int i = 0; i < next.scenario.phases.Length; i++)
+                var ids = new string[next.scenario.phases.Length];
+                for (int i = 0; i < ids.Length; i++)
+                {
+                    ids[i] = next.scenario.phases[i].id;
                     avatar?.ApplyPhaseText(i, next.scenario.phases[i].title, next.scenario.phases[i].characterLine);
+                }
+                avatar?.SetPhaseIds(ids);
+            }
             TrackAlerts(next);
             if (next.phaseIndex != shownPhase)
             {
@@ -171,7 +193,7 @@ namespace Axyro
                 shownPhase = next.phaseIndex;
             }
             avatar?.SetSessionStatus(next.status);
-            baseLabel = $"SESIÓN LOCAL {next.id.Substring(0, Math.Min(8, next.id.Length)).ToUpperInvariant()} · {next.status.ToUpperInvariant()}";
+            baseLabel = $"Sesión {StatusLabel(next.status)}";
             deadlineUtc = null;
             if (!string.IsNullOrEmpty(next.phaseDeadline) &&
                 DateTime.TryParse(next.phaseDeadline, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
@@ -179,30 +201,58 @@ namespace Axyro
             shownSeconds = -1;
             RefreshTimer();
 
-            if (choiceList == null || next.scenario?.phases == null || next.phaseIndex >= next.scenario.phases.Length) return;
+            CanDecide = false;
+            if (choiceList == null || next.scenario?.phases == null || next.phaseIndex >= next.scenario.phases.Length) { ShowCards(null); return; }
             var phase = next.scenario.phases[next.phaseIndex];
             bool joined = Array.Exists(next.participants ?? Array.Empty<ParticipantData>(), person => person.userId == DemoUserId);
             bool decided = Array.Exists(next.decisions ?? Array.Empty<DecisionData>(), decision => decision.userId == DemoUserId && decision.phaseId == phase.id);
-            if (next.status == "complete") choiceList.text = "SIMULACIÓN FINALIZADA · REVISA EL INFORME";
-            else if (next.status == "paused") choiceList.text = "LA SESIÓN ESTÁ PAUSADA POR EL INSTRUCTOR";
-            else if (!joined) choiceList.text = "PULSA J PARA UNIRTE A LA SESIÓN";
+            // Este cliente es el puesto del participante: se une solo en cuanto encuentra una sesión activa.
+            if (!joined && next.status == "active" && !joinRequested && !commandBusy)
+            {
+                joinRequested = true;
+                StartCoroutine(SendCommand("join", null));
+            }
+
+            string message;
+            if (next.status == "complete") message = "Simulación completada.\n\nGracias por participar. Tu docente comentará contigo las decisiones y sus consecuencias.";
+            else if (next.status == "paused") message = "Sesión en pausa.\n\nTu docente la reanudará en unos instantes.";
+            else if (!joined) message = "Conectando con la sesión…";
             else if (decided)
             {
                 var mine = Array.Find(next.decisions, decision => decision.userId == DemoUserId && decision.phaseId == phase.id);
                 var chosen = mine == null || phase.options == null ? null : Array.Find(phase.options, option => option.id == mine.optionId);
-                choiceList.text = chosen != null && !string.IsNullOrEmpty(chosen.consequence)
-                    ? $"DECISIÓN REGISTRADA · {chosen.consequence}\nESPERA LA SIGUIENTE FASE"
-                    : "DECISIÓN REGISTRADA · ESPERA LA SIGUIENTE FASE";
+                message = chosen != null
+                    ? $"Has elegido: {chosen.label}\n\n{chosen.consequence}\n\nTu docente abrirá la siguiente situación en breve."
+                    : "Decisión registrada.\n\nTu docente abrirá la siguiente situación en breve.";
             }
             else
             {
-                var builder = new StringBuilder();
-                for (int i = 0; i < phase.options.Length; i++)
-                    builder.Append(i + 1).Append("  ").Append(phase.options[i].label).Append('\n');
-                choiceList.text = builder.ToString();
+                message = "";
+                CanDecide = true;
             }
-            if (alertText != null && Time.time < alertUntil) choiceList.text = alertText + "\n" + choiceList.text;
+            if (alertText != null && Time.time < alertUntil) message = alertText + (message.Length > 0 ? "\n\n" + message : "");
+            choiceList.text = message;
+            ShowCards(CanDecide ? phase.options : null);
         }
+
+        private void ShowCards(ChoiceData[] options)
+        {
+            if (cards == null) return;
+            for (int i = 0; i < cards.Length; i++)
+            {
+                var visible = options != null && i < options.Length;
+                cards[i].gameObject.SetActive(visible);
+                if (visible && cardLabels != null && i < cardLabels.Length) cardLabels[i].text = options[i].label;
+            }
+        }
+
+        private static string StatusLabel(string status) => status switch
+        {
+            "active" => "en curso",
+            "paused" => "en pausa",
+            "complete" => "completada",
+            _ => status
+        };
 
         // Avisa durante unos segundos de incidentes del instructor y de tiempos agotados.
         // En la primera lectura solo fija la referencia para no repetir avisos antiguos.
@@ -220,12 +270,12 @@ namespace Axyro
                 lastAlertSeq = item.seq;
                 if (item.type == "incident")
                 {
-                    alertText = $"INCIDENTE · {item.detail?.note}";
+                    alertText = $"Novedad: {item.detail?.note}";
                     alertUntil = Time.time + 10f;
                 }
                 else if (item.type == "timer_expired")
                 {
-                    alertText = "TIEMPO AGOTADO · EL RIESGO AUMENTA";
+                    alertText = "Se ha agotado el tiempo de esta situación. No decidir también tiene consecuencias.";
                     alertUntil = Time.time + 10f;
                 }
             }
@@ -240,12 +290,12 @@ namespace Axyro
             if (deadlineUtc.HasValue)
             {
                 seconds = Math.Max(0, (int)Math.Ceiling((deadlineUtc.Value - DateTime.UtcNow).TotalSeconds));
-                suffix = $" · {seconds / 60:00}:{seconds % 60:00}";
+                suffix = $" · quedan {seconds / 60}:{seconds % 60:00}";
             }
             else if (state.status == "paused" && state.phaseRemainingMs > 0)
             {
                 seconds = (int)Math.Ceiling(state.phaseRemainingMs / 1000.0);
-                suffix = $" · {seconds / 60:00}:{seconds % 60:00} EN PAUSA";
+                suffix = $" · {seconds / 60}:{seconds % 60:00} restantes";
             }
             else
             {
@@ -272,7 +322,8 @@ namespace Axyro
             public DecisionData[] decisions;
             public EventData[] events;
         }
-        [Serializable] private sealed class ScenarioData { public string id; public PhaseData[] phases; }
+        [Serializable] private sealed class ScenarioData { public string id; public CharacterData character; public PhaseData[] phases; }
+        [Serializable] private sealed class CharacterData { public string name; }
         [Serializable] private sealed class PhaseData { public string id; public string title; public string characterLine; public ChoiceData[] options; }
         [Serializable] private sealed class ChoiceData { public string id; public string label; public string consequence; }
         [Serializable] private sealed class EventData { public int seq; public string type; public EventDetail detail; }

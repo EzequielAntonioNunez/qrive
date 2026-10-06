@@ -31,11 +31,20 @@ def main() -> None:
     parser.add_argument("--out", required=True)
     parser.add_argument("--voice", default="ef_dora")
     parser.add_argument("--speed", type=float, default=0.95)
+    parser.add_argument("--semitones", type=float, default=0.0, help="sube el tono de la referencia (voz más aguda)")
     args = parser.parse_args()
 
     pipeline = KPipeline(lang_code="e", repo_id="hexgrad/Kokoro-82M")
     chunks = [audio for _, _, audio in pipeline(TEXT, voice=args.voice, speed=args.speed)]
     audio = np.concatenate([np.asarray(chunk) for chunk in chunks])
+    if args.semitones:
+        # Solo se transforma la referencia: Chatterbox resintetiza la voz y evita el timbre metálico
+        # que tendría subir el tono del audio final.
+        import torch
+        import torchaudio.functional as F
+
+        shifted = F.pitch_shift(torch.from_numpy(audio).float().unsqueeze(0), 24000, n_steps=args.semitones)
+        audio = shifted.squeeze(0).numpy()
     sf.write(args.out, audio, 24000)
     print(f"{args.out}  ({len(audio) / 24000:.1f} s)")
 

@@ -1,4 +1,4 @@
-﻿# Regenera la escena AXYRO y compila el cliente Windows en unity/AXYRO.Simulation/Build/AXYRO-Demo.exe.
+﻿# Regenera la escena AXYRO y compila el cliente Windows en unity/AXYRO.Simulation/Build/Simulador-UFV.exe.
 # Cierra el editor de Unity antes de ejecutarlo: el modo batch no puede abrir un proyecto ya abierto.
 # Uso: pnpm unity:build    (otra ruta del editor: $env:UNITY_EDITOR = 'C:\...\Unity.exe')
 $ErrorActionPreference = 'Stop'
@@ -17,4 +17,4 @@ if ($process.ExitCode -ne 0 -or -not $result -or $result.Line -notmatch 'Succeed
   throw "La compilación de Unity falló. Log completo: $log"
 }
 Write-Host "OK: $($result.Line.Trim())"
-Write-Host "Ejecutable: $project\Build\AXYRO-Demo.exe"
+Write-Host "Ejecutable: $project\Build\Simulador-UFV.exe"

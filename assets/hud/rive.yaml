@@ -1,2 +1,2 @@
-name: axyro-hud
-output: build/axyro-hud.riv
+name: hud
+output: build/hud.riv

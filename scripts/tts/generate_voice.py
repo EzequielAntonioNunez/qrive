@@ -5,11 +5,14 @@ ningún servicio ni clave de IA. Chatterbox añade una marca de agua inaudible (
 identificar el audio como sintético.
 
 Uso (entorno en .local-state/tts, ver README):
-  python scripts/tts/generate_voice.py --out .local-state/tts/samples --variants
-  python scripts/tts/generate_voice.py --out unity/AXYRO.Simulation/Assets/AXYRO/Audio --exaggeration 0.4 --cfg 0.4
+  node scripts/tts/export-lines.mjs .local-state/tts/lines.json
+  python scripts/tts/generate_voice.py --lines .local-state/tts/lines.json --voice .local-state/tts/elena-reference.wav \
+      --out unity/AXYRO.Simulation/Assets/AXYRO/Audio --exaggeration 0.5 --cfg 0.5
+  (--variants genera tres combinaciones de expresividad en --out para escucharlas y elegir)
 """
 
 import argparse
+import json
 import pathlib
 
 try:  # Usa el almacén de certificados de Windows (redes con inspección TLS).
@@ -22,16 +25,6 @@ except ImportError:
 import torch
 import torchaudio as ta
 from chatterbox.mtl_tts import ChatterboxMultilingualTTS
-
-# Mismo texto que characterLine del escenario de catálogo (shared/simulation.ts).
-LINES = {
-    "prepare": "Gracias por venir. Nuestros costes han subido y necesitamos revisar el precio. "
-    "Si encontramos una propuesta equilibrada, podremos seguir trabajando juntos.",
-    "counteroffer": "Podría reducir la subida si acordamos tres años de colaboración. "
-    "Necesito saber qué garantías y compromisos estaríais dispuestos a aceptar.",
-    "close": "Estamos cerca de un acuerdo. Para cerrarlo hoy, necesito una decisión final "
-    "y una forma clara de comprobar que cumplimos los compromisos.",
-}
 
 # Combinaciones para escuchar y elegir: exageración (expresividad) y cfg (ritmo/adherencia).
 VARIANTS = {
@@ -50,6 +43,8 @@ def normalize(wav: torch.Tensor, peak: float = 0.89) -> torch.Tensor:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True)
+    parser.add_argument("--lines", required=True, help="JSON {idDeFase: frase} de scripts/tts/export-lines.mjs")
+    parser.add_argument("--only", nargs="*", help="genera solo estos ids de fase")
     parser.add_argument("--voice", help="WAV de referencia (5-15 s) con consentimiento de la persona")
     parser.add_argument("--exaggeration", type=float, default=0.4)
     parser.add_argument("--cfg", type=float, default=0.4)
@@ -57,6 +52,9 @@ def main() -> None:
     parser.add_argument("--variants", action="store_true", help="genera las variantes de VARIANTS")
     args = parser.parse_args()
 
+    lines = json.loads(pathlib.Path(args.lines).read_text(encoding="utf-8"))
+    if args.only:
+        lines = {key: value for key, value in lines.items() if key in args.only}
     out = pathlib.Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -64,7 +62,7 @@ def main() -> None:
 
     settings = VARIANTS if args.variants else {"": (args.exaggeration, args.cfg)}
     for label, (exaggeration, cfg) in settings.items():
-        for key, text in LINES.items():
+        for key, text in lines.items():
             torch.manual_seed(args.seed)
             wav = model.generate(
                 text,

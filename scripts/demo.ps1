@@ -38,7 +38,7 @@ Write-Host "Sesión creada: $sessionId"
 
 Start-Process 'http://127.0.0.1:5173'
 
-$player = Join-Path $root 'unity\AXYRO.Simulation\Build\AXYRO-Demo.exe'
+$player = Join-Path $root 'unity\AXYRO.Simulation\Build\Simulador-UFV.exe'
 if (Test-Path $player) {
   # Sin --axyro-session, Unity sigue siempre la sesión más reciente que cree el instructor.
   $unity = Start-Process -FilePath $player -PassThru

@@ -14,34 +14,68 @@ namespace Axyro
         [SerializeField] private RiveWidget hud;
         [SerializeField] private AudioSource voice;
         [SerializeField] private AudioClip[] lines;
+        [SerializeField] private Text characterName;
         [SerializeField] private Text phaseTitle;
         [SerializeField] private Text dialogue;
         [SerializeField] private Text playLabel;
         [SerializeField] private Button playButton;
         [SerializeField] private Text inputHint;
 
-        private string[] titles = { "Preparación", "Contraoferta", "Cierre" };
+        // Demo autónoma (sin sesión): escenario por defecto «Uso responsable de la IA en la universidad».
+        private string[] titles = { "Datos personales", "Verificación", "Evaluación justa" };
+        private string[] phaseIds = { "datos-personales", "verificacion", "evaluacion" };
         private string[] scripts = {
-            "Gracias por venir. Nuestros costes han subido y necesitamos revisar el precio. Si encontramos una propuesta equilibrada, podremos seguir trabajando juntos.",
-            "Podría reducir la subida si acordamos tres años de colaboración. Necesito saber qué garantías y compromisos estaríais dispuestos a aceptar.",
-            "Estamos cerca de un acuerdo. Para cerrarlo hoy, necesito una decisión final y una forma clara de comprobar que cumplimos los compromisos."
+            "Tengo las notas y los comentarios de todos los alumnos en una hoja de cálculo. Si la pego en un chat de inteligencia artificial, nos redacta los informes en un momento. ¿Lo hacemos así?",
+            "La inteligencia artificial me ha preparado un resumen de la nueva normativa con tres referencias legales. Suena muy convincente. ¿Lo enviamos tal cual al claustro?",
+            "Un detector dice que este trabajo tiene un ochenta por ciento de probabilidad de estar hecho con inteligencia artificial. ¿Lo suspendemos directamente?"
         };
 
         private SMIBool hudSpeaking;
+        private SMIBool hudListening;
+        private bool listening;
         private int phase;
         private bool speaking;
         private bool linkedSession;
         private int phaseCount = 3;
-        private bool voiceAvailable = true;
         private string sessionStatus = "active";
+        private Coroutine autoSpeak;
 
-        /// <summary>Los WAV incluidos solo corresponden al escenario de catálogo; en otros escenarios no se locuta.</summary>
-        public void SetVoiceAvailable(bool available)
+        public bool IsSpeaking => speaking;
+
+        /// <summary>Ids de fase del escenario de la sesión: la locución se busca como Audio/&lt;id&gt;.wav.</summary>
+        public void SetPhaseIds(string[] ids)
         {
-            voiceAvailable = available;
-            if (!available && speaking) { voice?.Stop(); SetSpeaking(false); }
+            if (ids == null || ids.Length == 0) return;
+            phaseIds = (string[])ids.Clone();
+            if (titles.Length < ids.Length) Array.Resize(ref titles, ids.Length);
+            if (scripts.Length < ids.Length) Array.Resize(ref scripts, ids.Length);
+            RefreshPlayButton();
+        }
+
+        /// <summary>Nombre del personaje según el escenario de la sesión.</summary>
+        public void SetCharacterName(string value)
+        {
+            if (characterName != null && !string.IsNullOrEmpty(value) && characterName.text != value) characterName.text = value;
+        }
+
+        /// <summary>Indicador de micrófono del HUD Rive (lo controla AxyroVoiceCommands).</summary>
+        public void SetListening(bool value)
+        {
+            listening = value;
+            if (hudListening != null) hudListening.Value = value;
+        }
+
+        private AudioClip CurrentClip()
+        {
+            if (lines == null || phase >= phaseIds.Length) return null;
+            return Array.Find(lines, clip => clip != null && clip.name == phaseIds[phase]);
+        }
+
+        private void RefreshPlayButton()
+        {
+            var available = CurrentClip() != null;
             if (playButton != null) playButton.interactable = available && sessionStatus == "active";
-            if (playLabel != null && !speaking) playLabel.text = available ? "▶  ESCUCHAR INTERVENCIÓN" : "SIN LOCUCIÓN EN ESTE ESCENARIO";
+            if (playLabel != null && !speaking) playLabel.text = available ? "▶  Escuchar de nuevo" : "Sin audio";
         }
 
         /// <summary>Número de fases del escenario de la sesión; por defecto, las tres de la demo autónoma.</summary>
@@ -133,6 +167,8 @@ namespace Axyro
             {
                 hudSpeaking = hud.StateMachine?.GetBool("speaking");
                 if (hudSpeaking != null) hudSpeaking.Value = speaking;
+                hudListening = hud.StateMachine?.GetBool("listening");
+                if (hudListening != null) hudListening.Value = listening;
             }
         }
 
@@ -149,10 +185,12 @@ namespace Axyro
             if (!string.IsNullOrEmpty(line)) scripts[index] = line;
             if (index == phase)
             {
-                if (phaseTitle != null) phaseTitle.text = $"FASE {phase + 1} / {phaseCount}  ·  {titles[phase]}";
+                if (phaseTitle != null) phaseTitle.text = PhaseHeading();
                 if (dialogue != null) dialogue.text = $"“{scripts[phase]}”";
             }
         }
+
+        private string PhaseHeading() => $"SITUACIÓN {phase + 1} DE {phaseCount}  ·  {titles[phase]?.ToUpperInvariant()}";
 
         public void SetPhase(int next)
         {
@@ -160,15 +198,27 @@ namespace Axyro
             voice?.Stop();
             SetSpeaking(false);
             phase = next;
-            if (phaseTitle != null) phaseTitle.text = $"FASE {phase + 1} / {phaseCount}  ·  {titles[phase]}";
+            if (phaseTitle != null) phaseTitle.text = PhaseHeading();
             if (dialogue != null) dialogue.text = $"“{scripts[phase]}”";
+            RefreshPlayButton();
+            // En una sesión, el personaje plantea cada situación nada más empezar: no hace falta pulsar nada.
+            if (autoSpeak != null) StopCoroutine(autoSpeak);
+            if (linkedSession && sessionStatus == "active") autoSpeak = StartCoroutine(SpeakAfter(1.2f));
+        }
+
+        private IEnumerator SpeakAfter(float seconds)
+        {
+            yield return new WaitForSeconds(seconds);
+            autoSpeak = null;
+            if (!speaking && sessionStatus == "active") ToggleVoice();
         }
 
         public void ToggleVoice()
         {
-            if (!voiceAvailable || voice == null || lines == null || phase >= lines.Length || lines[phase] == null) return;
+            var clip = CurrentClip();
+            if (voice == null || clip == null) return;
             if (speaking) { voice.Stop(); SetSpeaking(false); return; }
-            voice.clip = lines[phase];
+            voice.clip = clip;
             voice.Play();
             SetSpeaking(true);
         }
@@ -177,14 +227,14 @@ namespace Axyro
         {
             linkedSession = linked;
             if (inputHint != null) inputHint.text = linked
-                ? "J UNIRSE   ·   1 / 2 / 3 DECIDIR   ·   ESPACIO ESCUCHAR   ·   F11 PANTALLA   ·   ESC SALIR"
-                : "1 · 2 · 3 CAMBIAN LA FASE   ·   ESPACIO VOZ   ·   F11 PANTALLA   ·   ESC SALIR";
+                ? "Elige con el ratón o en voz alta  ·  Espacio: repetir  ·  F11: pantalla completa  ·  Esc: salir"
+                : "1, 2 y 3: cambiar de situación  ·  Espacio: escuchar  ·  F11: pantalla completa  ·  Esc: salir";
         }
 
         public void SetSessionStatus(string status)
         {
             sessionStatus = status;
-            if (playButton != null) playButton.interactable = voiceAvailable && status == "active";
+            RefreshPlayButton();
             if (status != "active" && speaking)
             {
                 voice?.Stop();
@@ -197,7 +247,7 @@ namespace Axyro
             speaking = value;
             if (tutor != null) tutor.SetSpeaking(value);
             if (hudSpeaking != null) hudSpeaking.Value = value;
-            if (playLabel != null) playLabel.text = value ? "■  DETENER VOZ" : "▶  ESCUCHAR INTERVENCIÓN";
+            if (playLabel != null) playLabel.text = value ? "■  Detener" : "▶  Escuchar de nuevo";
         }
     }
 }

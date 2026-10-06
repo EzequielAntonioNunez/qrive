@@ -178,17 +178,17 @@ export const negotiationScenario: Scenario = {
  */
 export const aiPracticesScenario: Scenario = {
   id: 'ia-buenas-practicas',
-  version: 1,
+  version: 2,
   title: 'Uso responsable de la IA en la universidad',
   summary: 'Decide cómo aplicar la IA generativa en situaciones reales del trabajo académico: datos personales, verificación de resultados y evaluación justa.',
-  character: { name: 'Elena Vega' },
+  character: { name: 'VictorIA' },
   initialMeters: { relationship: 50, margin: 50, risk: 50 },
   meterLabels: { relationship: 'Confianza', margin: 'Productividad', risk: 'Riesgo' },
   phases: [
     {
       id: 'datos-personales',
       title: 'Datos personales',
-      briefing: 'Elena coordina la calidad académica del grado. Tiene las notas y los comentarios de 120 alumnos en una hoja de cálculo y quiere un informe individual para cada uno antes del viernes.',
+      briefing: 'VictorIA coordina la calidad académica del grado. Tiene las notas y los comentarios de 120 alumnos en una hoja de cálculo y quiere un informe individual para cada uno antes del viernes.',
       characterLine: 'Tengo las notas y los comentarios de todos los alumnos en una hoja de cálculo. Si la pego en un chat de inteligencia artificial, nos redacta los informes en un momento. ¿Lo hacemos así?',
       timeLimitSec: 180,
       timeoutRiskDelta: 8,
