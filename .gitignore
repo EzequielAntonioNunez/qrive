@@ -19,3 +19,4 @@ UserSettings/
 *.slnx
 .vscode/
 assets/avatar/build/
+assets/hud/build/

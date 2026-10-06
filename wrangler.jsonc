@@ -20,7 +20,11 @@
     "producers": [{ "binding": "EVENTS", "queue": "axyro-events" }],
     "consumers": [{ "queue": "axyro-events", "max_batch_timeout": 1 }]
   },
+  "ratelimits": [{ "name": "API_LIMITER", "namespace_id": "1001", "simple": { "limit": 300, "period": 60 } }],
+  "triggers": { "crons": ["17 3 * * *"] },
   "vars": {
+    "RETENTION_DAYS": "365",
+    "FEATURE_FLAGS": "{\"phase_timers\":true,\"ai_characters\":false,\"realtime_websocket\":false}",
     "ACCESS_TEAM_DOMAIN": "bitter-cake-9de8.cloudflareaccess.com",
     "ACCESS_AUD": "6fd0a707bbd54441a54f781ad7bb2bf2ef8ea45d1af058a126e277c753cb8797",
     "BOOTSTRAP_OWNER_EMAIL": "ezequiel@identy.cloud"

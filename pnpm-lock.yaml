@@ -166,9 +166,6 @@ importers:
 
   .:
     dependencies:
-      '@rive-app/react-webgl2':
-        specifier: ^4.36.0
-        version: 4.36.0(react@19.3.0)
       hono:
         specifier: 4.13.13
         version: 4.13.13
@@ -767,14 +764,6 @@ packages:
 
   '@poppinss/exception@1.2.3':
     resolution: {integrity: sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw==}
-
-  '@rive-app/react-webgl2@4.36.0':
-    resolution: {integrity: sha512-EWWFztHCKZoYrdPSkVwtnO3YQ4N9Z0rdAP5C7FLg7PgTT4Kwxdj5G+7vGnRKer08P0+E6gvZJNzitnewRXookA==}
-    peerDependencies:
-      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0
-
-  '@rive-app/webgl2@2.44.0':
-    resolution: {integrity: sha512-BIlutEsgyPRwMLEat2dDVBannAqIH75TeCCyrYA4KjUMMM+2bFJ2qfwqJACUAsUE+EYdcQaONycfTFRQ4JGLqg==}
 
   '@rolldown/binding-android-arm-eabi@1.2.12':
     resolution: {integrity: sha512-dB/a1214qKfHMXCpgqR4OZT+jS4kTyEXbQGJPqzobt5EwH5rX080pxE37alt3RzvR1bf1Yz/yGqRfrYAxuPw0A==}
@@ -1959,13 +1948,6 @@ snapshots:
       supports-color: 10.2.2
 
   '@poppinss/exception@1.2.3': {}
-
-  '@rive-app/react-webgl2@4.36.0(react@19.3.0)':
-    dependencies:
-      '@rive-app/webgl2': 2.44.0
-      react: 19.3.0
-
-  '@rive-app/webgl2@2.44.0': {}
 
   '@rolldown/binding-android-arm-eabi@1.2.12':
     optional: true

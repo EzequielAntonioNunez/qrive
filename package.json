@@ -11,10 +11,15 @@
     "test": "vitest run",
     "db:local": "wrangler d1 migrations apply axyro-db --config wrangler.local.jsonc --local --persist-to ./.local-state",
     "smoke": "node scripts/smoke.mjs",
-    "check": "pnpm test && pnpm build"
+    "check": "pnpm test && pnpm build",
+    "demo": "powershell -ExecutionPolicy Bypass -File scripts/demo.ps1",
+    "demo:stop": "powershell -ExecutionPolicy Bypass -File scripts/demo-stop.ps1",
+    "build:standalone": "vite build --mode standalone",
+    "deploy:cloud": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1",
+    "unity:build": "powershell -ExecutionPolicy Bypass -File scripts/unity-build.ps1",
+    "ship": "powershell -ExecutionPolicy Bypass -File scripts/ship.ps1"
   },
   "dependencies": {
-    "@rive-app/react-webgl2": "^4.36.0",
     "hono": "4.13.13",
     "jose": "6.1.0",
     "react": "19.3.0",

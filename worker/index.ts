@@ -1,10 +1,13 @@
-import { createApp } from './app';
+import { applyRetention, createApp } from './app';
 import type { Env, EventMessage } from './types';
 
 const app = createApp();
 
 export default {
   fetch: app.fetch,
+  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+    await applyRetention(env);
+  },
   async queue(batch: MessageBatch<EventMessage>, env: Env): Promise<void> {
     for (const message of batch.messages) {
       const { tenantId, sessionId, event } = message.body;
@@ -14,6 +17,9 @@ export default {
         if (event.type === 'completed') {
           await env.DB.prepare('UPDATE sessions SET status = ?, completed_at = ? WHERE id = ? AND tenant_id = ?')
             .bind('complete', event.at, sessionId, tenantId).run();
+        } else if (event.type === 'paused' || event.type === 'resumed') {
+          await env.DB.prepare("UPDATE sessions SET status = ? WHERE id = ? AND tenant_id = ? AND status <> 'complete'")
+            .bind(event.type === 'paused' ? 'paused' : 'active', sessionId, tenantId).run();
         }
         message.ack();
       } catch (error) {

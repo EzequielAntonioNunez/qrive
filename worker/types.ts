@@ -8,6 +8,9 @@ export interface Env {
   ACCESS_TEAM_DOMAIN?: string;
   ACCESS_AUD?: string;
   BOOTSTRAP_OWNER_EMAIL?: string;
+  FEATURE_FLAGS?: string;
+  RETENTION_DAYS?: string;
+  API_LIMITER?: RateLimit;
 }
 
 export interface EventMessage {
