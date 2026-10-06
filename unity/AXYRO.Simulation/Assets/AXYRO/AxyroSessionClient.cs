@@ -73,6 +73,7 @@ namespace Axyro
 
         /// <summary>True cuando hay opciones a la vista y el participante aún no ha decidido en esta fase.</summary>
         public bool CanDecide { get; private set; }
+        public int VisibleOptionCount => shownOptions?.Length ?? 0;
 
         /// <summary>Selección desde el ratón o la voz (índice 0..3).</summary>
         public void SelectOption(int index)

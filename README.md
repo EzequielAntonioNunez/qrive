@@ -72,7 +72,7 @@ El participante abre el simulador 3D en el navegador, sin instalar nada, desde `
 3. Al abrir el enlace, la persona introduce correo y código en la página de AXYRO. El Worker crea una sesión propia de 24 horas con cookie segura. El código se guarda en D1 como HMAC con un secreto del Worker; no viaja dentro de la build WebGL. Cambiar o revocar el código invalida las sesiones activas.
 4. El cliente consulta `GET /api/me` para conocer su identidad y rol, se une a la sesión y decide con el ratón o con la tecla correspondiente a una opción. Se puede unir en cualquier fase mientras la sesión no haya terminado: quien llega tarde empieza en la fase actual con los indicadores iniciales.
 
-Comportamiento del cliente en WebGL (`AxyroSessionClient.cs`, `#if UNITY_WEBGL && !UNITY_EDITOR`): la API es `<origen>/api`, sin cabecera `x-demo-user`, y la sesión sale del parámetro `sesion`. Sin él muestra «Abre el simulador desde el enlace que te comparta tu docente». Un instructor que abre el enlace ve la sesión sin poder decidir. No hay voz por micrófono: la escena web se genera sin `AxyroVoiceCommands`. El lip sync de uLipSync funciona en WebGL leyendo las muestras del clip (`autoAudioSyncOnWebGL`); por eso las locuciones llevan en WebGL `Decompress On Load`. El navegador no reproduce audio hasta el primer clic del participante.
+Comportamiento del cliente en WebGL (`AxyroSessionClient.cs`, `#if UNITY_WEBGL && !UNITY_EDITOR`): la API es `<origen>/api`, sin cabecera `x-demo-user`, y la sesión sale del parámetro `sesion`. Sin él muestra «Abre el simulador desde el enlace que te comparta tu docente». Un instructor que abre el enlace ve la sesión sin poder decidir. La escena web sustituye Vosk por `AxyroWebVoice`, que recibe las órdenes de Soniox desde el navegador cuando hay una clave UE configurada. El lip sync de uLipSync funciona en WebGL leyendo las muestras del clip (`autoAudioSyncOnWebGL`); por eso las locuciones llevan en WebGL `Decompress On Load`. El navegador no reproduce audio hasta el primer clic del participante.
 
 ### Compilar y publicar
 
@@ -101,7 +101,18 @@ Remove-Item Env:SONIOX_API_KEY
 pnpm unity:webgl
 ```
 
-La clave disponible hoy pertenece a un proyecto Soniox de Estados Unidos. Solo se usa para sintetizar el guion público; la respuesta por micrófono en la nube requiere un proyecto Soniox de la región UE y permanece desactivada hasta disponer de él. En Windows, las órdenes de voz siguen reconociéndose localmente con Vosk.
+### Respuesta por micrófono en WebGL
+
+En producción, guarda como secreto del Worker `SONIOX_EU_API_KEY` **solo una clave de un proyecto Soniox de la UE** y vuelve a desplegar. Sin esa clave, el botón de micrófono permanece oculto y el simulador sigue funcionando con ratón y teclado. La clave requiere permisos de **Temporary API keys** y **Speech-to-Text real-time**.
+
+```powershell
+pnpm exec wrangler secret put SONIOX_EU_API_KEY
+pnpm deploy:cloud
+```
+
+El botón «Activar voz» pide permiso al navegador. El Worker autentica al participante y emite una clave temporal de un solo uso, válida 60 segundos para abrir una sesión de hasta 10 minutos. El audio PCM mono de 16 kHz va del navegador al WebSocket **UE** de Soniox; ni el Worker ni Unity reciben el audio. Unity recibe únicamente el estado del micrófono, la señal de interrupción y la frase final. La interrupción requiere voz detectada en el micrófono y texto provisional de Soniox; detiene la locución Carmen y el lip sync y muestra las opciones. Las decisiones se registran solo cuando Soniox emite `<end>`. Se puede desactivar con el mismo botón; al ocultar la pestaña se corta el micrófono.
+
+Para pruebas **locales exclusivamente**, `worker/local.ts` acepta `SONIOX_TEST_API_KEY` en `.dev.vars` y usa el endpoint global de Soniox. El Worker de producción ignora esta clave aunque se configure por error. Nunca envíes audio real de participantes a ese proyecto de prueba. En Windows, las órdenes de voz siguen reconociéndose localmente con Vosk.
 
 `export-lines.mjs` vuelca las frases (`characterLine`) de los escenarios de catálogo. `generate_voice.py` admite `--only <ids>`, `--exaggeration`, `--cfg`, `--seed` y `--variants` (tres combinaciones de expresividad para elegir de oído).
 

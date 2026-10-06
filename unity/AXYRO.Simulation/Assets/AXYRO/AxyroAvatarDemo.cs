@@ -261,13 +261,20 @@ namespace Axyro
             SetSpeaking(true);
         }
 
+        /// <summary>El participante toma la palabra: detener audio y lip sync sin volver a reproducirlo.</summary>
+        public void InterruptVoice()
+        {
+            if (!speaking) return;
+            voice?.Stop();
+            SetSpeaking(false);
+        }
+
         public void SetLinkedSession(bool linked)
         {
             linkedSession = linked;
 #if UNITY_WEBGL && !UNITY_EDITOR
-            // En el navegador no hay voz por micrófono: ratón o teclas 1–4.
             if (inputHint != null) inputHint.text = linked
-                ? "Haz clic en una opción o pulsa su número  ·  Espacio: repetir  ·  F11: pantalla completa"
+                ? "Elige con voz, ratón o número  ·  Espacio: repetir  ·  F11: pantalla completa"
                 : "1, 2 y 3: cambiar de situación  ·  Espacio: escuchar  ·  F11: pantalla completa";
 #else
             if (inputHint != null) inputHint.text = linked

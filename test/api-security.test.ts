@@ -188,6 +188,59 @@ describe('códigos personales de seis cifras', () => {
   });
 });
 
+describe('micrófono WebGL con Soniox UE', () => {
+  it('solo entrega una clave temporal a participantes autenticados de una sesión propia', async () => {
+    const context = setup({ vars: { SONIOX_EU_API_KEY: 'server-only-eu-key' } });
+    const sessionId = 'session-12345678';
+    context.db.prepare("INSERT INTO sessions (id,tenant_id,instructor_id,scenario_id,scenario_version,status,created_at) VALUES (?,?,?,'x',1,'active',?)")
+      .run(sessionId, 'ufv', 'u-prof', NEWER);
+    const originalFetch = globalThis.fetch;
+    const upstream = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      expect(String(input)).toBe('https://api.eu.soniox.com/v1/auth/temporary-api-key');
+      expect(init?.headers).toMatchObject({ authorization: 'Bearer server-only-eu-key' });
+      expect(JSON.parse(String(init?.body))).toMatchObject({ usage_type: 'transcribe_websocket', single_use: true, max_session_duration_seconds: 600 });
+      return Response.json({ api_key: 'snx_temp_test-key', expires_at: NEWER }, { status: 201 });
+    });
+    globalThis.fetch = upstream as typeof fetch;
+    try {
+      const config = await context.call('GET', '/api/voice/config', { as: ALUMNA });
+      expect(await config.json()).toMatchObject({ enabled: true, region: 'eu', websocketUrl: 'wss://stt-rt.eu.soniox.com/transcribe-websocket' });
+      expect((await context.call('POST', '/api/voice/temporary-key', { body: { sessionId } })).status).toBe(401);
+      expect((await context.call('POST', '/api/voice/temporary-key', { as: PROF, body: { sessionId } })).status).toBe(403);
+      expect((await context.call('POST', '/api/voice/temporary-key', { as: ALUMNA, body: { sessionId: 'missing-12345678' } })).status).toBe(404);
+      const grant = await context.call('POST', '/api/voice/temporary-key', { as: ALUMNA, body: { sessionId } });
+      expect(grant.status).toBe(200);
+      expect(grant.headers.get('cache-control')).toBe('no-store');
+      expect(await grant.json()).toMatchObject({ apiKey: 'snx_temp_test-key', websocketUrl: 'wss://stt-rt.eu.soniox.com/transcribe-websocket' });
+      expect(upstream).toHaveBeenCalledTimes(1);
+    } finally { globalThis.fetch = originalFetch; }
+  });
+
+  it('mantiene el micrófono inactivo sin clave UE y solo lo permite en el simulador', async () => {
+    const { call } = setup();
+    expect(await (await call('GET', '/api/voice/config', { as: ALUMNA })).json()).toMatchObject({ enabled: false, region: 'eu' });
+    expect((await call('POST', '/api/voice/temporary-key', { as: ALUMNA, body: { sessionId: 'session-12345678' } })).status).toBe(503);
+    const page = await call('GET', '/');
+    const simulator = await call('GET', '/simulador/index.html', { as: ALUMNA });
+    expect(page.headers.get('permissions-policy')).toContain('microphone=()');
+    expect(simulator.headers.get('permissions-policy')).toContain('microphone=(self)');
+    expect(simulator.headers.get('content-security-policy')).toContain('wss://stt-rt.eu.soniox.com');
+  });
+
+  it('solo en la API local permite probar la clave global sin activar esa región en producción', async () => {
+    const { env } = setup({ vars: { SONIOX_TEST_API_KEY: 'local-test-key' } });
+    const local = createApp(true);
+    const live = createApp(false);
+    const headers = { 'x-demo-user': 'participant', 'sec-fetch-site': 'same-origin' };
+    const config = await local.request('http://127.0.0.1:8787/api/voice/config', { headers }, env as never);
+    expect(await config.json()).toMatchObject({ enabled: true, region: 'us', websocketUrl: 'wss://stt-rt.soniox.com/transcribe-websocket' });
+    const prodConfig = await live.request('https://axyro.test/api/voice/config', { headers, method: 'GET' }, env as never);
+    expect(prodConfig.status).toBe(401);
+    const liveAsMember = await live.request('https://axyro.test/api/voice/config', { headers: { ...headers, 'cf-access-jwt-assertion': `valid:${ALUMNA}` } }, env as never);
+    expect(await liveAsMember.json()).toMatchObject({ enabled: false, region: 'eu' });
+  });
+});
+
 describe('identidad con Cloudflare Access', () => {
   it('verifica el JWT solo con RS256 y reutiliza el JWKS entre peticiones', async () => {
     const { call } = setup();

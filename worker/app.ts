@@ -80,7 +80,7 @@ const CSP = {
   console: "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; media-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests",
   // Unity WebGL: script y estilo en línea de la plantilla (cambian en cada build, no admiten hash fijo),
   // WebAssembly ('wasm-unsafe-eval'), blob: para el framework descomprimido y los workers, audio y texturas en blob:/data:.
-  simulator: "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests"
+  simulator: "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data: wss://stt-rt.eu.soniox.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests"
 } as const;
 
 type SurfaceKind = keyof typeof CSP;
@@ -104,7 +104,7 @@ export function withSecurityHeaders(response: Response, path: string, requestId:
   headers.set('referrer-policy', 'same-origin');
   headers.set('cross-origin-opener-policy', 'same-origin');
   headers.set('cross-origin-resource-policy', 'same-origin');
-  headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+  headers.set('permissions-policy', `camera=(), microphone=${kind === 'simulator' ? '(self)' : '()'}, geolocation=(), payment=(), usb=()`);
   if (kind === 'api' && !headers.has('cache-control')) headers.set('cache-control', 'no-store');
   headers.set('x-request-id', requestId);
   return out;
@@ -198,6 +198,48 @@ export function createApp(demo = false) {
       assignInstructor: identity.role === 'instructor' && isOwnerEmail(c.env, identity.email),
       viewAccessAudit: identity.role === 'instructor'
     } });
+  });
+  const voiceService = (env: Env) => env.SONIOX_EU_API_KEY
+    ? { key: env.SONIOX_EU_API_KEY, region: 'eu', api: 'https://api.eu.soniox.com', websocketUrl: 'wss://stt-rt.eu.soniox.com/transcribe-websocket' }
+    : demo && env.SONIOX_TEST_API_KEY
+      ? { key: env.SONIOX_TEST_API_KEY, region: 'us', api: 'https://api.soniox.com', websocketUrl: 'wss://stt-rt.soniox.com/transcribe-websocket' }
+      : null;
+  app.get('/api/voice/config', c => {
+    const service = voiceService(c.env);
+    return c.json({ enabled: Boolean(service), region: service?.region ?? 'eu', websocketUrl: service?.websocketUrl ?? null });
+  });
+  app.post('/api/voice/temporary-key', async c => {
+    const service = voiceService(c.env);
+    if (!service) return c.json({ error: 'El reconocimiento de voz UE todavía no está disponible.' }, 503);
+    const body = await readJson(c) as { sessionId?: unknown };
+    const sessionId = typeof body.sessionId === 'string' ? body.sessionId : '';
+    const identity = c.get('identity');
+    if (identity.role !== 'participant') return c.json({ error: 'La respuesta por voz está reservada al participante.' }, 403);
+    if (!/^[\w-]{8,80}$/.test(sessionId) || !await sessionFor(c.env, identity.tenantId, sessionId))
+      return c.json({ error: 'Sesión no encontrada.' }, 404);
+    if (c.env.VOICE_LIMITER) {
+      const { success } = await c.env.VOICE_LIMITER.limit({ key: identity.id });
+      if (!success) return c.json({ error: 'Demasiados intentos de voz. Espera un minuto.' }, 429);
+    }
+    const upstream = await fetch(`${service.api}/v1/auth/temporary-api-key`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${service.key}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        usage_type: 'transcribe_websocket',
+        expires_in_seconds: 60,
+        single_use: true,
+        max_session_duration_seconds: 600,
+        client_reference_id: identity.id
+      })
+    });
+    if (!upstream.ok) {
+      console.warn(JSON.stringify({ code: 'SONIOX_EU_TEMP_KEY_FAILED', status: upstream.status, requestId: c.get('requestId') }));
+      return c.json({ error: 'No se ha podido activar el micrófono. Inténtalo de nuevo.' }, 502);
+    }
+    const data = await upstream.json() as { api_key?: unknown; expires_at?: unknown };
+    if (typeof data.api_key !== 'string' || !data.api_key.startsWith('snx_temp_'))
+      return c.json({ error: 'Soniox no devolvió una credencial temporal válida.' }, 502);
+    return c.json({ apiKey: data.api_key, websocketUrl: service.websocketUrl, expiresAt: data.expires_at });
   });
   app.get('/api/scenarios', async c => c.json({ scenarios: await listScenarios(c.env, c.get('identity').tenantId) }));
   app.get('/api/scenarios/:id', async c => {

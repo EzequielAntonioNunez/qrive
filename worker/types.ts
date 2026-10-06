@@ -22,9 +22,14 @@ export interface Env {
   /** Días que se conserva el registro de auditoría (730 por defecto). */
   AUDIT_RETENTION_DAYS?: string;
   API_LIMITER?: RateLimit;
+  VOICE_LIMITER?: RateLimit;
   AUTH_LIMITER?: RateLimit;
   AUTH_IP_LIMITER?: RateLimit;
   ACCESS_CODE_PEPPER?: string;
+  /** Clave de un proyecto Soniox situado en la UE. Nunca se envía al navegador. */
+  SONIOX_EU_API_KEY?: string;
+  /** Solo en `wrangler dev` (createApp(true)): pruebas locales con proyecto Soniox global. */
+  SONIOX_TEST_API_KEY?: string;
   /** Solo durante la transición: permite JWT de Access. En producción se omite. */
   LEGACY_ACCESS_AUTH?: string;
 }

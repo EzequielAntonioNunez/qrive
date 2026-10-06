@@ -16,17 +16,26 @@
     .barra span { display: block; height: 100%; width: 0; background: #649EFF; transition: width .2s ease; }
     #estado { font-size: 13px; color: #C9D6E6; margin: 0; min-height: 1.5em; max-width: 520px; line-height: 1.5; }
     #estado.error { color: #FF5D74; }
+    #axyro-voice { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 10px; max-width: min(90vw, 620px); }
+    #axyro-mic { border: 1px solid #649eff; border-radius: 999px; padding: 10px 16px; color: #fff; background: #003865ee; font: 600 13px Arial, sans-serif; cursor: pointer; white-space: nowrap; box-shadow: 0 5px 20px #0006; }
+    #axyro-mic:hover, #axyro-mic:focus-visible { background: #145b9a; outline: 2px solid #fff; outline-offset: 2px; }
+    #axyro-mic.activo { background: #154f42; border-color: #6fe0b8; }
+    #axyro-mic[hidden] { display: none; }
+    #axyro-mic-status { color: #fff; background: #001a33d9; border-radius: 8px; padding: 7px 10px; font-size: 12px; line-height: 1.35; text-shadow: 0 1px 2px #000; }
+    #axyro-mic-status:empty { display: none; }
   </style>
 </head>
 <body>
   <canvas id="unity-canvas" tabindex="-1"></canvas>
+  <div id="axyro-voice"><button id="axyro-mic" type="button" hidden>🎙 Activar voz</button><span id="axyro-mic-status" role="status" aria-live="polite"></span></div>
   <div id="carga" role="status" aria-live="polite">
     <img src="/brand/ufv-logo-white.svg" alt="Universidad Francisco de Vitoria">
     <h1>Simulador UFV</h1>
     <div class="barra" aria-hidden="true"><span id="progreso"></span></div>
     <p id="estado">Cargando el simulador…</p>
   </div>
-  <script src="Build/7750cefea36aad14e5638a0ded65c143.loader.js"></script>
+  <script src="Build/3d5be055713d5fc7526b03db47c1da48.loader.js"></script>
+  <script src="voice.js"></script>
   <script>
     (function () {
       var canvas = document.getElementById('unity-canvas');
@@ -43,9 +52,9 @@
       }
       canvas.addEventListener('click', function () { canvas.focus(); });
       createUnityInstance(canvas, {
-        dataUrl: 'Build/d902393b2fcaec98c7b5d8a4e9e2a741.data.unityweb',
-        frameworkUrl: 'Build/aa2c9df9e4d4148042b4f4e50c3a731a.framework.js.unityweb',
-        codeUrl: 'Build/320923c47317df6646febaaffbefaec7.wasm.unityweb',
+        dataUrl: 'Build/680cb469892f4578d04ada30699e89ae.data.unityweb',
+        frameworkUrl: 'Build/d82b51eb772b7ce5b7e0c99df15aa616.framework.js.unityweb',
+        codeUrl: 'Build/54cc42f7990013b86230c523f05b196c.wasm.unityweb',
         streamingAssetsUrl: 'StreamingAssets',
         companyName: "Universidad Francisco de Vitoria",
         productName: "Simulador UFV",
@@ -58,9 +67,10 @@
       }, function (valor) {
         progreso.style.width = Math.round(valor * 100) + '%';
         estado.textContent = valor < 0.9 ? 'Cargando el simulador… ' + Math.round(valor * 100) + ' %' : 'Preparando la escena…';
-      }).then(function () {
+      }).then(function (unity) {
         carga.classList.add('oculta');
         canvas.focus();
+        window.axyroVoice.attach(unity);
       }).catch(function (mensaje) {
         console.error(mensaje);
         error('No se ha podido cargar el simulador. Recarga la página; si persiste, avisa a tu docente.');

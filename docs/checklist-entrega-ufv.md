@@ -12,7 +12,8 @@ Responsables: **Dev** (equipo de desarrollo), **UFV-SI** (Servicios Informático
 
 - [x] Cambios locales confirmados y subidos al repositorio; la rama principal compila y CI pasa. (Dev)
 - [x] La verificación completa del proyecto (tests, comprobación de tipos y compilación) pasa sin errores. (Dev)
-- [ ] Prueba de humo contra la API desplegada superada, incluida la puerta de calidad de 50 simulaciones. (Dev)
+- [x] Puerta de calidad de 50 simulaciones consecutivas superada con la API local (6 oct 2026); el script usa la identidad de demostración. (Dev)
+- [ ] Prueba de humo contra la API desplegada con cuentas de prueba y código de acceso. (Dev)
 - [ ] Despliegue automático activado en la integración continua (variable de repositorio `CLOUDFLARE_DEPLOY` y credenciales de despliegue) o despliegue manual documentado. Hoy se despliega a mano. (Dev)
 - [x] Comprobación de salud de la API (`/api/health`) correcta tras el despliegue. (Dev)
 
@@ -24,7 +25,8 @@ Responsables: **Dev** (equipo de desarrollo), **UFV-SI** (Servicios Informático
 - [x] Simulador WebGL compilado, publicado en `/simulador/` y probado con una sesión autenticada. (Dev)
 - [ ] Probado en los navegadores y equipos de aula de la UFV (Chrome y Edge, red de la UFV con inspección TLS). (UFV-SI, Dev)
 - [ ] Audio de VictorIA y sincronización labial correctos en los equipos de aula. (UFV-Doc)
-- [ ] Solo si se usa la versión de escritorio para Windows (el navegador no usa el micrófono): respuesta por voz probada en esos equipos; donde Windows no deja abrir el micrófono aparece «Voz no disponible · elige con el ratón». (UFV-SI)
+- [ ] Respuesta por voz en el navegador: solo se activa con una clave de un proyecto Soniox de la región UE (secreto del Worker `SONIOX_EU_API_KEY`). Sin ella el botón «Activar voz» no aparece y se elige con ratón o teclado. Con ella, probar permiso de micrófono, interrupción de VictorIA y decisión por voz en los equipos de aula. (Dev, UFV-SI, UFV-DPO)
+- [ ] Solo si se usa la versión de escritorio para Windows: respuesta por voz local (Vosk) probada en esos equipos; donde Windows no deja abrir el micrófono aparece «Voz no disponible · elige con el ratón». (UFV-SI)
 - [ ] Prueba de carga con el tamaño de grupo previsto para el piloto (participantes simultáneos y límite de 300 peticiones por minuto y usuario). (Dev)
 
 ### Acceso e identidad

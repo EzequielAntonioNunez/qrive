@@ -149,7 +149,7 @@ public static class AxyroSceneBuilder
     }
 
     /// <summary>
-    /// Copia de la escena para el navegador: sin reconocimiento de voz (no hay micrófono local en WebGL), solo ratón y teclado.
+    /// Copia de la escena para el navegador: Vosk es nativo de Windows; WebGL usa Soniox mediante el navegador.
     /// La escena de Windows no se toca.
     /// </summary>
     private static void PrepareWebScene()
@@ -158,7 +158,14 @@ public static class AxyroSceneBuilder
         foreach (var voiceCommands in UnityEngine.Object.FindObjectsByType<AxyroVoiceCommands>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
             var status = new SerializedObject(voiceCommands).FindProperty("status").objectReferenceValue as Text;
-            if (status != null) status.text = "Haz clic en una opción o pulsa su número";
+            var session = new SerializedObject(voiceCommands).FindProperty("session").objectReferenceValue as AxyroSessionClient;
+            var avatar = new SerializedObject(voiceCommands).FindProperty("avatar").objectReferenceValue as AxyroAvatarDemo;
+            var webVoice = voiceCommands.gameObject.AddComponent<AxyroWebVoice>();
+            var webVoiceData = new SerializedObject(webVoice);
+            webVoiceData.FindProperty("session").objectReferenceValue = session;
+            webVoiceData.FindProperty("avatar").objectReferenceValue = avatar;
+            webVoiceData.ApplyModifiedPropertiesWithoutUndo();
+            if (status != null) status.text = "";
             UnityEngine.Object.DestroyImmediate(voiceCommands);
         }
         EditorSceneManager.SaveScene(scene, WebScenePath, true);

@@ -39,7 +39,7 @@ Contenido:
 - Datos de acceso: código personal de seis cifras (solo se guarda una huella protegida, no el código), sesión técnica y fecha de cada acceso.
 - Datos de la actividad: sesión en la que participas, momento en que te unes, opción elegida en cada situación y tiempo empleado en decidir.
 
-**Qué datos no tratamos.** En el navegador el simulador no usa el micrófono ni la cámara. En la versión de escritorio para Windows, si se responde por voz, el reconocimiento de las palabras «uno», «dos», «tres», «cuatro» y «repetir» se hace en el propio equipo y no se graba ni se envía el audio. No se infieren emociones, estrés, motivación ni otros estados psicológicos.
+**Qué datos no tratamos.** En el navegador el simulador no usa la cámara y, en la configuración actual, tampoco el micrófono. **[Validar UFV]** La respuesta por voz en el navegador está preparada pero desactivada: solo se activa si la UFV la aprueba y se configura un proyecto de reconocimiento de voz Soniox en la región UE. En ese caso, solo tras pulsar «Activar voz» y conceder permiso, el audio va del navegador al servicio de la UE para transcribir la frase; ni el servidor del simulador ni Unity reciben ni guardan el audio, y el micrófono se corta al desactivarlo o cambiar de pestaña. En la versión de escritorio para Windows, si se responde por voz, el reconocimiento de las palabras «uno», «dos», «tres», «cuatro» y «repetir» se hace en el propio equipo y no se graba ni se envía el audio. No se infieren emociones, estrés, motivación ni otros estados psicológicos.
 
 **Para qué.** Desarrollar la actividad formativa, mostrar a tu docente el desarrollo de la sesión y realizar el debriefing con el grupo. Los resultados no se usan para tomar decisiones automatizadas sobre ti.
 
@@ -166,7 +166,7 @@ Verificado en el código y la configuración del despliegue. Una tarea programad
 - Separación de organizaciones: todas las consultas filtran por organización y un correo no puede darse de alta en dos organizaciones.
 - No se puede degradar ni dar de baja al propietario de la organización ni al último instructor.
 - Protección frente a peticiones de otros sitios (CSRF): las operaciones que modifican datos solo se aceptan desde el propio dominio y con cuerpo JSON.
-- Cabeceras de seguridad en la API, la consola y el simulador: política de seguridad de contenidos, HTTPS obligatorio (HSTS), protección frente a incrustación en otros sitios, sin envío de la dirección de la página a terceros y sin acceso a cámara ni micrófono desde el navegador.
+- Cabeceras de seguridad en la API, la consola y el simulador: política de seguridad de contenidos, HTTPS obligatorio (HSTS), protección frente a incrustación en otros sitios, sin envío de la dirección de la página a terceros sin acceso a la cámara y con el micrófono permitido solo en la página del simulador, que únicamente lo abre si la voz UE está configurada y el participante la activa.
 - Límite de 300 peticiones por minuto y usuario.
 - Registros técnicos sin nombres ni correos, con un identificador por petición para el diagnóstico; un error interno no devuelve detalles al usuario.
 - Cifrado en tránsito (HTTPS) y en reposo (gestionado por Cloudflare).
