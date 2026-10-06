@@ -1,4 +1,4 @@
-# Arranca la demo local de AXYRO en segundo plano: API, consola web y cliente Unity.
+﻿# Arranca la demo local de AXYRO en segundo plano: API, consola web y cliente Unity.
 # Uso: powershell -ExecutionPolicy Bypass -File scripts/demo.ps1
 # Parar: powershell -ExecutionPolicy Bypass -File scripts/demo-stop.ps1
 $ErrorActionPreference = 'Stop'

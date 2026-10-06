@@ -1,4 +1,4 @@
-# Verifica, aplica migraciones D1 remotas y despliega el Worker en axyro.qhel.dev.
+﻿# Verifica, aplica migraciones D1 remotas y despliega el Worker en axyro.qhel.dev.
 # Usa la sesión de Wrangler de este equipo (wrangler login) o CLOUDFLARE_API_TOKEN si está definido.
 # Uso: pnpm deploy:cloud
 $ErrorActionPreference = 'Stop'
@@ -11,7 +11,12 @@ function Step($name, [scriptblock]$action) {
 }
 Step 'Dependencias' { pnpm install --frozen-lockfile }
 Step 'Tests y build' { pnpm check }
-Step 'Cuenta de Cloudflare' { pnpm exec wrangler whoami }
+Step 'Cuenta de Cloudflare' {
+  # wrangler whoami termina con código 0 aunque no haya sesión: hay que mirar su salida.
+  $whoami = pnpm exec wrangler whoami 2>&1 | Out-String
+  Write-Host $whoami
+  if ($whoami -match 'not authenticated') { throw 'Wrangler no tiene sesión. Ejecuta "pnpm exec wrangler login" o define CLOUDFLARE_API_TOKEN.' }
+}
 Step 'Migraciones D1 remotas' { pnpm exec wrangler d1 migrations apply axyro-db --remote }
 Step 'Despliegue del Worker' { pnpm exec wrangler deploy }
 Write-Host "`n== Comprobación"

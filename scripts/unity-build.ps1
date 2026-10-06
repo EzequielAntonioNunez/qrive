@@ -1,4 +1,4 @@
-# Regenera la escena AXYRO y compila el cliente Windows en unity/AXYRO.Simulation/Build/AXYRO-Demo.exe.
+﻿# Regenera la escena AXYRO y compila el cliente Windows en unity/AXYRO.Simulation/Build/AXYRO-Demo.exe.
 # Cierra el editor de Unity antes de ejecutarlo: el modo batch no puede abrir un proyecto ya abierto.
 # Uso: pnpm unity:build    (otra ruta del editor: $env:UNITY_EDITOR = 'C:\...\Unity.exe')
 $ErrorActionPreference = 'Stop'

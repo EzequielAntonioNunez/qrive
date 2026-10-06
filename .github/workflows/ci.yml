@@ -15,3 +15,45 @@ jobs:
           version: 12.9.1
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+
+  # Cada push a main que pasa la verificación se despliega en axyro.qhel.dev.
+  deploy:
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    environment:
+      name: production
+      url: https://axyro.qhel.dev/
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Comprobar credenciales de Cloudflare
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Falta el secreto CLOUDFLARE_API_TOKEN en GitHub (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.9.1
+      - run: pnpm install --frozen-lockfile
+      - name: Build
+        run: pnpm build
+      - name: Migraciones D1 remotas
+        run: pnpm exec wrangler d1 migrations apply axyro-db --remote
+      - name: Despliegue del Worker
+        run: pnpm exec wrangler deploy
+      - name: Comprobar axyro.qhel.dev
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://axyro.qhel.dev/api/health)
+          echo "axyro.qhel.dev responde $code"
+          # Cloudflare Access responde 302/401/403 a peticiones sin sesión: el dominio está activo y protegido.
+          case "$code" in 200|302|401|403) ;; *) echo "::error::Respuesta inesperada: $code"; exit 1 ;; esac
