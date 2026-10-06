@@ -77,6 +77,10 @@ namespace Axyro
             SetPhase(0);
             BindHud();
             var arguments = Environment.GetCommandLineArgs();
+#if !UNITY_EDITOR
+            // Unity recuerda el último modo de pantalla; se abre siempre en ventana salvo que se pida lo contrario.
+            SetFullScreen(Array.IndexOf(arguments, "--axyro-fullscreen") >= 0);
+#endif
             foreach (var argument in arguments)
             {
                 if (argument == "--axyro-autoplay") ToggleVoice();
@@ -106,8 +110,36 @@ namespace Axyro
             if (!linkedSession && keyboard != null && keyboard.digit2Key.wasPressedThisFrame) SetPhase(1);
             if (!linkedSession && keyboard != null && keyboard.digit3Key.wasPressedThisFrame) SetPhase(2);
             if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame) ToggleVoice();
+            if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame) Quit();
+            if (keyboard != null && (keyboard.f11Key.wasPressedThisFrame || (keyboard.altKey.isPressed && keyboard.enterKey.wasPressedThisFrame))) ToggleFullScreen();
             if (speaking && voice != null && !voice.isPlaying) SetSpeaking(false);
             AnimatePortrait();
+        }
+
+        private void Quit()
+        {
+            voice?.Stop();
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
+
+        /// <summary>Alterna entre ventana y pantalla completa sin bordes, conservando la resolución del escritorio.</summary>
+        private static void ToggleFullScreen() => SetFullScreen(Screen.fullScreenMode == FullScreenMode.Windowed);
+
+        private static void SetFullScreen(bool fullScreen)
+        {
+            if (fullScreen)
+            {
+                var display = Screen.currentResolution;
+                Screen.SetResolution(display.width, display.height, FullScreenMode.FullScreenWindow);
+            }
+            else
+            {
+                Screen.SetResolution(1600, 900, FullScreenMode.Windowed);
+            }
         }
 
         private void AnimatePortrait()
@@ -199,8 +231,8 @@ namespace Axyro
         {
             linkedSession = linked;
             if (inputHint != null) inputHint.text = linked
-                ? "J UNIRSE   ·   1 / 2 / 3 DECIDIR   ·   ESPACIO ESCUCHAR"
-                : "1 · 2 · 3 CAMBIAN LA FASE     ESPACIO REPRODUCE LA VOZ";
+                ? "J UNIRSE   ·   1 / 2 / 3 DECIDIR   ·   ESPACIO ESCUCHAR   ·   F11 PANTALLA   ·   ESC SALIR"
+                : "1 · 2 · 3 CAMBIAN LA FASE   ·   ESPACIO VOZ   ·   F11 PANTALLA   ·   ESC SALIR";
         }
 
         public void SetSessionStatus(string status)

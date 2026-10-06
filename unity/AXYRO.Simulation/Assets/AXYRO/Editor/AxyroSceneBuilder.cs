@@ -136,6 +136,12 @@ public static class AxyroSceneBuilder
     public static void BuildWindows()
     {
         Build();
+        // Ventana redimensionable por defecto: F11 o Alt+Intro pasa a pantalla completa y Esc cierra.
+        PlayerSettings.fullScreenMode = FullScreenMode.Windowed;
+        PlayerSettings.defaultScreenWidth = 1600;
+        PlayerSettings.defaultScreenHeight = 900;
+        PlayerSettings.resizableWindow = true;
+        PlayerSettings.allowFullscreenSwitch = true;
         var options = new BuildPlayerOptions
         {
             scenes = new[] { "Assets/Scenes/AXYRO Avatar Demo.unity" },
