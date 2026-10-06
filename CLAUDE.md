@@ -26,7 +26,8 @@ Plataforma de simulación para formación y toma de decisiones. Primer despliegu
 - Texto de interfaz y documentación en español.
 
 ## Estado y siguientes pasos
-1. Hacer commit de los cambios locales y subirlos a GitHub (`main` estaba en 88074e9).
-2. Desplegar: `pnpm deploy:cloud`, o conectar Workers Builds al repo con build `pnpm run check` y deploy `pnpm exec wrangler d1 migrations apply axyro-db --remote && pnpm exec wrangler deploy`.
-3. `pnpm unity:build` y probar Unity contra la API.
-4. Pendiente de decisión: producción del personaje final; cliente del participante (Windows o WebGL servido desde Cloudflare, que resolvería la autenticación con Access); Queue con jurisdicción UE; borrado de miembros; DPA con UFV.
+Hecho (2026-10-06): MVP en `main` y desplegado en `axyro.qhel.dev` (migración `0002` aplicada en remoto); Unity compilado y probado contra la API local (unirse y decidir llegan a la sesión).
+
+1. Despliegue continuo: el job `deploy` de `.github/workflows/ci.yml` necesita el secreto `CLOUDFLARE_API_TOKEN` en GitHub (y `CLOUDFLARE_ACCOUNT_ID` si el token ve varias cuentas). Mientras falte, desplegar a mano con `pnpm deploy:cloud`.
+2. En esta red Windows no puede comprobar la revocación de certificados: usar `curl.exe --ssl-no-revoke`.
+3. Pendiente de decisión: acceso de cuentas UFV en la política de Access (hoy solo `ezequiel@identy.cloud`); producción del personaje final; cliente del participante (Windows o WebGL servido desde Cloudflare, que resolvería la autenticación con Access); Queue con jurisdicción UE; borrado de miembros; DPA con UFV.
