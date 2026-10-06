@@ -128,13 +128,14 @@ export function applyCommand(current: SessionState, command: Command, actor: Act
       next.phaseRemainingMs = null;
       emit('resumed', {});
     } else if (command.type === 'complete') {
-      if (next.phaseIndex !== next.scenario.phases.length - 1 || !next.decisions.some(decision => decision.phaseId === next.scenario.phases[next.phaseIndex].id)) {
-        throw new DomainError('Completa las fases antes de finalizar.');
-      }
+      // El docente puede cerrar la sesión en cualquier momento (también en pausa o antes de la última fase):
+      // el informe se calcula con las decisiones registradas hasta ese instante y el evento lo marca como anticipado.
+      const lastPhase = next.scenario.phases[next.scenario.phases.length - 1];
+      const early = next.phaseIndex !== next.scenario.phases.length - 1 || !next.decisions.some(decision => decision.phaseId === lastPhase.id);
       next.status = 'complete';
       next.phaseDeadline = null;
       next.phaseRemainingMs = null;
-      emit('completed', { score: performanceReport(next).score });
+      emit('completed', { score: performanceReport(next).score, early });
     } else if (command.type === 'incident') {
       if (!command.note.trim() || command.note.length > 200 || !Number.isFinite(command.riskDelta) || Math.abs(command.riskDelta) > 25) throw new DomainError('Incidente no válido.');
       // Incidente de clase: afecta a todos los participantes.

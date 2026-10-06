@@ -36,6 +36,14 @@ export async function getScenario(env: Env, tenantId: string, id: string): Promi
   return row ? validateScenario(JSON.parse(row.json)) : null;
 }
 
+/** Una versión concreta de un escenario visible para la organización (para duplicar una sesión tal cual). */
+export async function getScenarioVersion(env: Env, tenantId: string, id: string, version: number): Promise<Scenario | null> {
+  await ensureCatalog(env);
+  const row = await env.DB.prepare('SELECT definition_json AS json FROM scenarios WHERE id = ? AND version = ? AND (tenant_id IS NULL OR tenant_id = ?)')
+    .bind(id, version, tenantId).first<{ json: string }>();
+  return row ? validateScenario(JSON.parse(row.json)) : null;
+}
+
 /**
  * Publica una versión nueva de un escenario propio de la organización.
  * Las versiones son inmutables y deben crecer; los IDs del catálogo están reservados.

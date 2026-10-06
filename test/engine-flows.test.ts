@@ -237,19 +237,29 @@ describe.each(catalogScenarios.map(scenario => [scenario.id, scenario] as const)
     expect(state.events.filter(event => event.type === 'completed')).toHaveLength(1);
   });
 
-  it('no permite finalizar antes de decidir en la última fase ni avanzar más allá de ella', () => {
+  it('no permite avanzar sin decisiones ni más allá de la última fase', () => {
     let state = createSession('s-order', 'tenant-1', instructor, at(0), scenario);
     state = apply(state, { type: 'join' }, participant, 0);
-    expect(() => apply(state, { type: 'complete' }, instructor, 1000)).toThrow('Completa las fases');
     scenario.phases.forEach((phase, index) => {
       expect(() => apply(state, { type: 'advance' }, instructor, 1000)).toThrow('al menos una decisión');
       state = apply(state, { type: 'decide', optionId: bestOption(phase).id }, participant, 2000 + index * 2000);
-      if (index < scenario.phases.length - 1) {
-        expect(() => apply(state, { type: 'complete' }, instructor, 2500 + index * 2000)).toThrow('Completa las fases');
-        state = apply(state, { type: 'advance' }, instructor, 3000 + index * 2000);
-      }
+      if (index < scenario.phases.length - 1) state = apply(state, { type: 'advance' }, instructor, 3000 + index * 2000);
     });
     expect(() => apply(state, { type: 'advance' }, instructor, 99_000)).toThrow('última fase');
+    state = apply(state, { type: 'complete' }, instructor, 99_500);
+    expect(state.events.at(-1)).toMatchObject({ type: 'completed', detail: { early: false } });
+  });
+
+  it('el docente puede finalizar antes de tiempo, también en pausa y sin decisiones', () => {
+    let state = createSession('s-early', 'tenant-1', instructor, at(0), scenario);
+    state = apply(state, { type: 'join' }, participant, 0);
+    state = apply(state, { type: 'pause' }, instructor, 1000);
+    state = apply(state, { type: 'complete' }, instructor, 2000);
+    expect(state.status).toBe('complete');
+    expect(state.phaseDeadline).toBeNull();
+    expect(state.events.at(-1)).toMatchObject({ type: 'completed', detail: { early: true } });
+    expect(() => apply(state, { type: 'decide', optionId: bestOption(scenario.phases[0]).id }, participant, 3000)).toThrow('terminó');
+    expect(() => apply(createSession('s-p', 'tenant-1', instructor, at(0), scenario), { type: 'complete' }, participant, 1000)).toThrow('instructor');
   });
 });
 

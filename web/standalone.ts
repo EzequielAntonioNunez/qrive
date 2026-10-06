@@ -8,9 +8,10 @@ import { catalogScenarios, classMeters, defaultScenario, participantReport, part
 import { ScenarioError, validateScenario } from '../shared/scenario';
 
 type Member = { id: string; email: string; name: string; role: 'instructor' | 'participant' };
-type Store = { sessions: SessionState[]; members: Member[]; simulated: Record<string, string[]> };
+type Code = { id: string; userId: string; code: string; createdAt: string; uses: number; lastUsedAt: string | null };
+type Store = { sessions: SessionState[]; members: Member[]; simulated: Record<string, string[]>; names: Record<string, string>; codes: Code[] };
 
-const KEY = 'ufv-simulador-v3';
+const KEY = 'ufv-simulador-v4';
 const actors: Record<'instructor' | 'participant', Actor & { email: string; tenantId: string }> = {
   instructor: { id: 'demo-instructor', name: 'Docente demo', role: 'instructor', email: 'instructor@demo.local', tenantId: 'demo' },
   participant: { id: 'demo-participant', name: 'Participante demo', role: 'participant', email: 'participante@demo.local', tenantId: 'demo' }
@@ -79,7 +80,11 @@ function removeSimulated(state: SessionState, ids: string[]): SessionState {
   return next;
 }
 
+/** Organización vacía (como un despliegue nuevo). Con ?ejemplo=1 en la URL se carga una sesión de ejemplo terminada. */
 function seed(): Store {
+  const members = [actors.instructor, actors.participant].map(({ id, email, name, role }) => ({ id, email, name, role }));
+  const wantsExample = (() => { try { return new URLSearchParams(window.location.search).get('ejemplo') === '1'; } catch { return false; } })();
+  if (!wantsExample) return { sessions: [], members: [members[0]], simulated: {}, names: {}, codes: [] };
   // Una sesión de ejemplo ya terminada, con una clase simulada, para que el debate y el informe tengan contenido.
   const t = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60000).toISOString();
   let state = createSession(crypto.randomUUID(), 'demo', actors.instructor, t(30), defaultScenario);
@@ -98,8 +103,20 @@ function seed(): Store {
   run({ id: 'seed-d3', type: 'decide', optionId: 'dialogar' }, actors.participant, t(18));
   decideAll(17.5);
   run({ id: 'seed-end', type: 'complete' }, actors.instructor, t(17));
-  return { sessions: [state], members: [actors.instructor, actors.participant].map(({ id, email, name, role }) => ({ id, email, name, role })), simulated: { [state.id]: sim.ids } };
+  return { sessions: [state], members, simulated: { [state.id]: sim.ids }, names: { [state.id]: 'Ejemplo · 1.º Derecho A' }, codes: [] };
 }
+
+/** Fila del listado con los mismos campos que GET /api/sessions del Worker. */
+function row(store: Store, state: SessionState, role: 'instructor' | 'participant') {
+  const completed = state.events.find(event => event.type === 'completed');
+  const base = {
+    id: state.id, name: store.names[state.id] ?? null, scenarioId: state.scenario.id, scenarioTitle: state.scenario.title, scenarioVersion: state.scenario.version,
+    status: state.status, createdAt: state.createdAt, completedAt: completed?.at ?? null, instructorId: state.instructorId, instructorName: actors.instructor.name,
+    mine: role === 'instructor' && state.instructorId === actors.instructor.id, phaseIndex: state.phaseIndex, phaseCount: state.scenario.phases.length
+  };
+  return role === 'instructor' ? { ...base, participantCount: state.participants.length, simulatedCount: (store.simulated[state.id] ?? []).length } : base;
+}
+const ORDER: Record<string, number> = { active: 0, paused: 0, complete: 1 };
 
 let memory: Store | null = null;
 function load(): Store {
@@ -107,6 +124,8 @@ function load(): Store {
   try { const raw = localStorage.getItem(KEY); if (raw) memory = JSON.parse(raw) as Store; } catch { /* almacenamiento no disponible */ }
   memory ??= seed();
   memory.simulated ??= {};
+  memory.names ??= {};
+  memory.codes ??= [];
   return memory;
 }
 function save(store: Store) { memory = store; try { localStorage.setItem(KEY, JSON.stringify(store)); } catch { /* sin persistencia */ } }
@@ -136,7 +155,8 @@ async function handle(path: string, init: RequestInit | undefined, role: 'instru
   const now = new Date().toISOString();
   // Los simulados deciden y los temporizadores vencen al consultar, igual que haría la alarma del Durable Object.
   store.sessions = store.sessions.map(state => expireTimer(stepSimulated(state, store.simulated[state.id] ?? [], Date.now()), now).state);
-  if (path === '/me') return json({ identity: { id: actor.id, name: actor.name, role, tenantId: 'demo' }, demo: true, standalone: true, flags: { phase_timers: true } });
+  const reserved = () => json({ error: 'Acción reservada al docente.' }, 403);
+  if (path === '/me') return json({ identity: { id: actor.id, name: actor.name, email: actor.email, role, tenantId: 'demo' }, demo: true, standalone: true, flags: { phase_timers: true }, permissions: { assignInstructor: role === 'instructor' } });
   if (path === '/scenarios') return json({ scenarios: catalogScenarios.map(item => ({ id: item.id, version: item.version, title: item.title, summary: item.summary, phases: item.phases.length, catalog: true })) });
   if (path.startsWith('/scenarios/')) {
     const scenario = catalogScenarios.find(item => item.id === decodeURIComponent(path.slice('/scenarios/'.length)));
@@ -144,32 +164,101 @@ async function handle(path: string, init: RequestInit | undefined, role: 'instru
   }
   if (path === '/sessions' && method === 'GET') {
     save(store);
-    return json({ sessions: [...store.sessions].reverse().map(state => ({ id: state.id, status: state.status, createdAt: state.createdAt, scenarioId: state.scenario.id })) });
+    // Participante: solo las sesiones a las que se ha unido. Orden: abiertas primero y después por fecha.
+    const visible = store.sessions.filter(state => role === 'instructor' || state.participants.some(person => person.userId === actor.id));
+    const sorted = [...visible].sort((a, b) => (ORDER[a.status] - ORDER[b.status]) || b.createdAt.localeCompare(a.createdAt));
+    return json({ sessions: sorted.slice(0, 200).map(state => row(store, state, role)) });
   }
   if (path === '/sessions' && method === 'POST') {
-    if (role !== 'instructor') return json({ error: 'Acción reservada al docente.' }, 403);
+    if (role !== 'instructor') return reserved();
+    const name = body.name === undefined ? null : String(body.name).trim();
+    if (name !== null && (name.length < 1 || name.length > 80)) return json({ error: 'El nombre de la sesión debe tener entre 1 y 80 caracteres.' }, 400);
     const scenario = catalogScenarios.find(item => item.id === body.scenarioId) ?? defaultScenario;
     const state = createSession(crypto.randomUUID(), 'demo', actor, now, scenario);
-    store.sessions.push(state); save(store);
-    return json(payload(store, state, role), 201);
+    store.sessions.push(state);
+    if (name) store.names[state.id] = name;
+    save(store);
+    return json({ ...payload(store, state, role), session: row(store, state, role) }, 201);
   }
   if (path === '/memberships') {
-    if (role !== 'instructor') return json({ error: 'Acción reservada al docente.' }, 403);
+    if (role !== 'instructor') return reserved();
     if (method === 'POST') {
-      const member: Member = { id: crypto.randomUUID(), email: String(body.email ?? '').toLowerCase(), name: String(body.name ?? '').trim(), role: 'participant' };
-      if (!member.name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(member.email)) return json({ error: 'Revisa el nombre y el correo.' }, 400);
-      store.members.push(member); save(store);
+      const email = String(body.email ?? '').trim().toLowerCase();
+      const name = String(body.name ?? '').trim();
+      if (!name || name.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: 'Revisa el nombre y el correo.' }, 400);
+      const existing = store.members.find(item => item.email === email);
+      const member: Member = { id: existing?.id ?? crypto.randomUUID(), email, name, role: body.role === 'instructor' ? 'instructor' : 'participant' };
+      store.members = [...store.members.filter(item => item.email !== email), member];
+      save(store);
       return json({ member }, 201);
     }
     return json({ members: [...store.members].sort((a, b) => a.name.localeCompare(b.name)) });
   }
-  const match = path.match(/^\/sessions\/([^/]+)(\/commands|\/demo-class)?$/);
+  const memberMatch = path.match(/^\/memberships\/([^/]+)$/);
+  if (memberMatch && method === 'DELETE') {
+    if (role !== 'instructor') return reserved();
+    const userId = decodeURIComponent(memberMatch[1]);
+    if (userId === actor.id) return json({ error: 'No puedes darte de baja a ti mismo.' }, 400);
+    if (!store.members.some(item => item.id === userId)) return json({ error: 'Miembro no encontrado.' }, 404);
+    store.members = store.members.filter(item => item.id !== userId);
+    store.codes = store.codes.filter(item => item.userId !== userId);
+    save(store);
+    return json({ deleted: true });
+  }
+  if (path === '/access-codes') {
+    if (role !== 'instructor') return reserved();
+    return json({ codes: store.codes.map(({ code: _code, ...rest }) => rest), uses: [] });
+  }
+  const codeMatch = path.match(/^\/access-codes\/([^/]+)$/);
+  if (codeMatch) {
+    if (role !== 'instructor') return reserved();
+    const userId = decodeURIComponent(codeMatch[1]);
+    if (!store.members.some(item => item.id === userId)) return json({ error: 'Miembro no encontrado.' }, 404);
+    store.codes = store.codes.filter(item => item.userId !== userId);
+    if (method === 'DELETE') { save(store); return json({ revoked: true }); }
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    store.codes.push({ id: crypto.randomUUID(), userId, code, createdAt: now, uses: 0, lastUsedAt: null });
+    save(store);
+    return json({ code }, 201);
+  }
+  const match = path.match(/^\/sessions\/([^/]+)(\/commands|\/demo-class|\/duplicate|\/export)?$/);
   const index = match ? store.sessions.findIndex(state => state.id === decodeURIComponent(match[1])) : -1;
   if (!match || index < 0) return json({ error: 'Sesión no encontrada.' }, 404);
   const current = store.sessions[index];
-  if (!match[2]) { save(store); return json(payload(store, current, role)); }
+  if (!match[2]) {
+    if (method === 'DELETE') {
+      if (role !== 'instructor') return reserved();
+      store.sessions.splice(index, 1);
+      delete store.simulated[current.id]; delete store.names[current.id];
+      save(store);
+      return json({ deleted: true });
+    }
+    if (method === 'PATCH') {
+      if (role !== 'instructor') return reserved();
+      const name = String(body.name ?? '').trim();
+      if (name.length < 1 || name.length > 80) return json({ error: 'El nombre de la sesión debe tener entre 1 y 80 caracteres.' }, 400);
+      store.names[current.id] = name; save(store);
+      return json({ session: row(store, current, role) });
+    }
+    save(store);
+    return json(payload(store, current, role));
+  }
+  if (match[2] === '/duplicate') {
+    if (role !== 'instructor') return reserved();
+    const state = createSession(crypto.randomUUID(), 'demo', actor, now, current.scenario);
+    store.sessions.push(state);
+    const base = store.names[current.id];
+    if (base) store.names[state.id] = `${base} (copia)`.slice(0, 80);
+    save(store);
+    return json({ ...payload(store, state, role), session: row(store, state, role) }, 201);
+  }
+  if (match[2] === '/export') {
+    if (role !== 'instructor') return reserved();
+    const data = payload(store, current, role);
+    return json({ exportedAt: now, session: data.state, report: data.report });
+  }
   if (match[2] === '/demo-class') {
-    if (role !== 'instructor') return json({ error: 'Acción reservada al docente.' }, 403);
+    if (role !== 'instructor') return reserved();
     const existing = store.simulated[current.id] ?? [];
     if (method === 'DELETE') {
       store.sessions[index] = removeSimulated(current, existing);

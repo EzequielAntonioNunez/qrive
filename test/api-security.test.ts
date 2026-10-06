@@ -69,11 +69,14 @@ function createD1() {
   return { d1, db };
 }
 
+const COMMAND_EVENTS: Record<string, string> = { pause: 'paused', resume: 'resumed', complete: 'completed', advance: 'phase_advanced' };
+
 /** Durable Objects simulados: registran cada operación; «boom» falla para probar el 500. */
 function fakeSessions() {
   const calls: { name: string; op: string; count?: number }[] = [];
   const live: { name: string; url: string; headers: Headers }[] = [];
   const jurisdictions: string[] = [];
+  let seq = 100;
   const namespace = {
     idFromName: (name: string) => name,
     get: (name: string) => ({
@@ -89,7 +92,13 @@ function fakeSessions() {
         if (body.op === 'purge') return Response.json({ purged: true });
         if (name.includes('clef')) return Response.json({ state: { id: name.split(':')[1], status: 'active', phaseIndex: 0, scenario: defaultScenario, events: [] }, report: { score: 0 } });
         const joined = body.op === 'command' && body.command?.type === 'join' && body.actor?.id;
-        return Response.json({ state: { id: name.split(':')[1], events: joined ? [{ seq: 2, type: 'participant_joined', at: NEWER, actorId: body.actor!.id, detail: { participantId: body.actor!.id } }] : [] }, report: { score: 0 } });
+        // Comandos del instructor que cambian estado o fase: el evento que emitiría el motor, con seq creciente.
+        const emitted = body.op === 'command' && body.command && Object.hasOwn(COMMAND_EVENTS, body.command.type) ? COMMAND_EVENTS[body.command.type] : null;
+        const events = joined ? [{ seq: 2, type: 'participant_joined', at: NEWER, actorId: body.actor!.id, detail: { participantId: body.actor!.id } }]
+          : emitted ? [{ seq: ++seq, type: emitted, at: new Date(Date.UTC(2026, 9, 6, 10, 0, seq)).toISOString(), actorId: body.actor!.id,
+            detail: emitted === 'phase_advanced' ? { phaseId: defaultScenario.phases[1].id } : {} }]
+            : [];
+        return Response.json({ state: { id: name.split(':')[1], events }, report: { score: 0 } });
       }
     }),
     jurisdiction: (value: string) => { jurisdictions.push(value); return namespace; }
@@ -747,5 +756,157 @@ describe('tiempo real por WebSocket y clase simulada', () => {
     expect(sessions.calls.at(-1)).toEqual({ name: `ufv:${SESSION}`, op: 'demo-remove' });
     expect(db.prepare("SELECT action FROM audit_log WHERE session_id = ? ORDER BY rowid").all(SESSION).map(row => row.action))
       .toEqual(['demo_class_added', 'demo_class_added', 'demo_class_removed']);
+  });
+});
+
+describe('gestión de sesiones de la consola', () => {
+  type Row = { id: string; name: string | null; scenarioId: string; scenarioTitle: string; scenarioVersion: number; status: string; createdAt: string;
+    completedAt: string | null; instructorId: string; instructorName: string | null; mine: boolean; participantCount?: number; simulatedCount?: number;
+    phaseIndex: number | null; phaseCount: number | null };
+  const NAME_ERROR = 'El nombre de la sesión debe tener entre 1 y 80 caracteres.';
+  type Call = ReturnType<typeof setup>['call'];
+  const list = async (call: Call, as: string) => (await (await call('GET', '/api/sessions', { as })).json() as { sessions: Row[] }).sessions;
+  const create = async (call: Call, body: Record<string, unknown> = {}, as = PROF) => {
+    const response = await call('POST', '/api/sessions', { as, body });
+    expect(response.status).toBe(201);
+    return (await response.json() as { session: Row; state: unknown }).session;
+  };
+
+  it('crea con nombre opcional (1-80, recortado) y lista con la forma completa para el instructor', async () => {
+    const { call, db } = setup();
+    const named = await create(call, { name: '  Grupo A — mañana  ' });
+    expect(named).toMatchObject({ name: 'Grupo A — mañana', scenarioId: defaultScenario.id, scenarioTitle: defaultScenario.title, scenarioVersion: defaultScenario.version,
+      status: 'active', completedAt: null, instructorId: 'u-prof', instructorName: 'Profesora', mine: true, participantCount: 0, simulatedCount: 0,
+      phaseIndex: 0, phaseCount: defaultScenario.phases.length });
+    const unnamed = await create(call, {});
+    expect(unnamed.name).toBeNull();
+    const created = await call('POST', '/api/sessions', { as: PROF, body: { name: null } });
+    expect(created.status).toBe(201);
+    expect(await created.json()).toHaveProperty('state');
+    for (const name of ['', '   ', 'x'.repeat(81), 5, ['a'], 'a\u0007b']) {
+      const response = await call('POST', '/api/sessions', { as: PROF, body: { name } });
+      expect(response.status, String(name)).toBe(400);
+      expect(await response.json()).toEqual({ error: NAME_ERROR });
+    }
+    expect(db.prepare('SELECT COUNT(*) AS n FROM sessions').get()).toEqual({ n: 3 });
+    const rows = await list(call, OWNER);
+    expect(rows.find(row => row.id === named.id)).toMatchObject({ mine: false, name: 'Grupo A — mañana' });
+    expect(await list(call, OTRO)).toEqual([]);
+    expect(db.prepare("SELECT detail_json AS d FROM audit_log WHERE action = 'session_created' AND session_id = ?").get(named.id))
+      .toEqual({ d: JSON.stringify({ scenarioId: defaultScenario.id, version: defaultScenario.version, named: true }) });
+  });
+
+  it('cuenta personas y simulados por participant_joined, ordena activas primero y oculta recuentos al participante', async () => {
+    const { call, db } = setup();
+    const insert = db.prepare("INSERT INTO sessions (id,tenant_id,instructor_id,scenario_id,scenario_version,status,created_at,completed_at) VALUES (?,'ufv','u-prof','x',1,?,?,?)");
+    insert.run('s-vieja', 'active', '2026-10-01T00:00:00.000Z', null);
+    insert.run('s-pausa', 'paused', '2026-10-02T00:00:00.000Z', null);
+    insert.run('s-fin', 'complete', '2026-10-05T00:00:00.000Z', '2026-10-05T01:00:00.000Z');
+    db.exec(`INSERT INTO simulation_events (tenant_id,session_id,seq,type,at,actor_id,detail_json) VALUES
+      ('ufv','s-pausa',2,'participant_joined','${NEWER}','u-alumna','{}'),
+      ('ufv','s-pausa',3,'participant_joined','${NEWER}','u-alumna','{}'),
+      ('ufv','s-pausa',4,'participant_joined','${NEWER}','sim-spausa-01','{}'),
+      ('ufv','s-pausa',5,'participant_joined','${NEWER}','sim-spausa-02','{}'),
+      ('ufv','s-pausa',6,'decision','${NEWER}','u-otra','{}'),
+      ('ufv','s-fin',2,'participant_joined','${NEWER}','u-alumna','{}')`);
+    const rows = await list(call, PROF);
+    expect(rows.map(row => [row.id, row.status])).toEqual([['s-pausa', 'paused'], ['s-vieja', 'active'], ['s-fin', 'complete']]);
+    expect(rows[0]).toMatchObject({ participantCount: 1, simulatedCount: 2, scenarioTitle: 'x', phaseIndex: null, phaseCount: null });
+    expect(rows[2]).toMatchObject({ completedAt: '2026-10-05T01:00:00.000Z', participantCount: 1, simulatedCount: 0 });
+    const asAlumna = await list(call, ALUMNA);
+    expect(asAlumna.map(row => row.id)).toEqual(['s-pausa', 's-fin']);
+    for (const row of asAlumna) {
+      expect(row).not.toHaveProperty('participantCount');
+      expect(row).not.toHaveProperty('simulatedCount');
+      expect(row.mine).toBe(false);
+    }
+  });
+
+  it('renombra con PATCH: solo quien gestiona la sesión, 1-80 caracteres, con auditoría y CSRF', async () => {
+    const { call, db } = setup();
+    const session = await create(call);
+    db.prepare("INSERT INTO sessions (id,tenant_id,instructor_id,scenario_id,scenario_version,status,created_at) VALUES ('s-otra','other','u-otro','x',1,'active',?)").run(NEWER);
+    const path = `/api/sessions/${session.id}`;
+    const renamed = await call('PATCH', path, { as: PROF, body: { name: '  Seminario IA  ' } });
+    expect(renamed.status).toBe(200);
+    expect((await renamed.json() as { session: Row }).session).toMatchObject({ id: session.id, name: 'Seminario IA', mine: true, participantCount: 0, phaseCount: defaultScenario.phases.length });
+    expect((await call('PATCH', path, { as: OWNER, body: { name: 'Ajena' } })).status).toBe(403);
+    expect((await call('PATCH', path, { as: ALUMNA, body: { name: 'Ajena' } })).status).toBe(403);
+    expect((await call('PATCH', '/api/sessions/s-otra', { as: PROF, body: { name: 'Ajena' } })).status).toBe(404);
+    expect((await call('PATCH', '/api/sessions/no-existe', { as: PROF, body: { name: 'Ajena' } })).status).toBe(404);
+    for (const body of [{}, { name: '' }, { name: ' ' }, { name: 'y'.repeat(81) }, { name: 7 }]) {
+      const response = await call('PATCH', path, { as: PROF, body });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: NAME_ERROR });
+    }
+    expect((await call('PATCH', path, { as: PROF, raw: '{"name":' })).status).toBe(400);
+    // CSRF: PATCH cambia estado, así que exige mismo origen y application/json.
+    expect((await call('PATCH', path, { as: PROF, raw: '{"name":"Texto"}', headers: { 'content-type': 'text/plain' } })).status).toBe(403);
+    expect((await call('PATCH', path, { as: PROF, body: { name: 'Cruzado' }, headers: { 'sec-fetch-site': 'cross-site' } })).status).toBe(403);
+    expect((await call('PATCH', path, { as: PROF, body: { name: 'Cruzado' }, headers: { 'sec-fetch-site': '', origin: 'https://evil.example' } })).status).toBe(403);
+    expect(csrfRejection(new Request('https://axyro.test/api/sessions/s1', { method: 'PATCH', body: '{}', headers: { 'content-type': 'text/plain' } }))).not.toBeNull();
+    expect(db.prepare('SELECT name FROM sessions WHERE id = ?').get(session.id)).toEqual({ name: 'Seminario IA' });
+    expect(db.prepare("SELECT actor_id AS actor, detail_json AS d FROM audit_log WHERE action = 'session_renamed'").all()).toEqual([{ actor: 'u-prof', d: '{}' }]);
+  });
+
+  it('sincroniza sessions.status y la fase en D1 tras pausar, reanudar, avanzar y finalizar, sin esperar a la cola', async () => {
+    const { call, db } = setup();
+    const session = await create(call);
+    const command = (type: string) => call('POST', `/api/sessions/${session.id}/commands`, { as: PROF, body: { id: `cmd-${type}-0001`, type } });
+    const row = async () => (await list(call, PROF)).find(item => item.id === session.id)!;
+    expect((await command('pause')).status).toBe(200);
+    expect(db.prepare('SELECT status FROM sessions WHERE id = ?').get(session.id)).toEqual({ status: 'paused' });
+    expect((await row()).status).toBe('paused');
+    expect((await command('resume')).status).toBe(200);
+    expect((await row()).status).toBe('active');
+    expect((await command('advance')).status).toBe(200);
+    expect((await row()).phaseIndex).toBe(1);
+    expect((await command('complete')).status).toBe(200);
+    const done = await row();
+    expect(done.status).toBe('complete');
+    expect(done.completedAt).not.toBeNull();
+    expect(db.prepare('SELECT type FROM simulation_events WHERE session_id = ? ORDER BY seq').all(session.id).map(item => item.type))
+      .toEqual(['paused', 'resumed', 'phase_advanced', 'completed']);
+    expect(db.prepare("SELECT action FROM audit_log WHERE session_id = ? ORDER BY rowid").all(session.id).map(item => item.action))
+      .toEqual(['session_created', 'pause', 'resume', 'advance', 'complete']);
+  });
+
+  it('duplica con la misma versión del escenario y nombre «(copia)»: cualquier instructor de la organización', async () => {
+    const { call, db } = setup();
+    const named = await create(call, { name: 'Sesión de prueba' });
+    const response = await call('POST', `/api/sessions/${named.id}/duplicate`, { as: OWNER, body: {} });
+    expect(response.status).toBe(201);
+    const copy = await response.json() as { session: Row; state: unknown };
+    expect(copy).toHaveProperty('state');
+    expect(copy.session).toMatchObject({ name: 'Sesión de prueba (copia)', scenarioId: named.scenarioId, scenarioVersion: named.scenarioVersion,
+      instructorId: 'u-owner', mine: true, status: 'active', participantCount: 0 });
+    expect(copy.session.id).not.toBe(named.id);
+    const unnamed = await create(call);
+    const fromTitle = await (await call('POST', `/api/sessions/${unnamed.id}/duplicate`, { as: PROF, body: {} })).json() as { session: Row };
+    expect(fromTitle.session.name).toBe(`${defaultScenario.title} (copia)`);
+    const long = await create(call, { name: 'z'.repeat(80) });
+    const longCopy = await (await call('POST', `/api/sessions/${long.id}/duplicate`, { as: PROF, body: {} })).json() as { session: Row };
+    expect(longCopy.session.name).toHaveLength(80);
+    expect(longCopy.session.name!.endsWith(' (copia)')).toBe(true);
+    expect((await call('POST', `/api/sessions/${named.id}/duplicate`, { as: ALUMNA, body: {} })).status).toBe(403);
+    expect((await call('POST', `/api/sessions/${named.id}/duplicate`, { as: OTRO, body: {} })).status).toBe(404);
+    expect((await call('POST', `/api/sessions/${named.id}/duplicate`, { as: PROF, raw: '{}', headers: { 'content-type': 'text/plain' } })).status).toBe(403);
+    expect(db.prepare("SELECT actor_id AS actor, detail_json AS d FROM audit_log WHERE action = 'session_duplicated' AND session_id = ?").get(copy.session.id))
+      .toEqual({ actor: 'u-owner', d: JSON.stringify({ sourceSessionId: named.id, scenarioId: named.scenarioId, version: named.scenarioVersion, named: true }) });
+  });
+
+  it('borra una sesión activa o pausada: purga el Durable Object y D1', async () => {
+    const { call, db, sessions } = setup();
+    const active = await create(call);
+    const paused = await create(call);
+    await call('POST', `/api/sessions/${paused.id}/commands`, { as: PROF, body: { id: 'cmd-pause-0001', type: 'pause' } });
+    expect((await list(call, PROF)).map(row => row.status).sort()).toEqual(['active', 'paused']);
+    for (const session of [active, paused]) {
+      expect((await call('DELETE', `/api/sessions/${session.id}`, { as: PROF })).status).toBe(200);
+      expect(sessions.calls).toContainEqual({ name: `ufv:${session.id}`, op: 'purge' });
+      expect((await call('GET', `/api/sessions/${session.id}`, { as: PROF })).status).toBe(404);
+    }
+    expect(db.prepare('SELECT COUNT(*) AS n FROM simulation_events').get()).toEqual({ n: 0 });
+    expect(await list(call, PROF)).toEqual([]);
   });
 });

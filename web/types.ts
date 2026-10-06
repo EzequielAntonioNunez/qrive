@@ -3,7 +3,17 @@ import type { Participant, PerformanceReport, MeterName, SessionState } from '..
 
 export type Role = 'instructor' | 'participant';
 export type Identity = { id: string; name: string; email: string; role: Role; tenantId: string };
-export type SessionSummary = { id: string; status: string; createdAt: string; scenarioId: string };
+export type SessionStatusName = 'active' | 'paused' | 'complete';
+/**
+ * Fila del listado de sesiones. Todo salvo id/estado/fecha/escenario es opcional: la consola debe funcionar con
+ * servidores que aún no envían nombre, recuentos o progreso.
+ */
+export type SessionSummary = {
+  id: string; status: SessionStatusName | string; createdAt: string; scenarioId: string;
+  name?: string | null; scenarioTitle?: string | null; scenarioVersion?: number | null; completedAt?: string | null;
+  instructorId?: string | null; instructorName?: string | null; mine?: boolean;
+  participantCount?: number | null; simulatedCount?: number | null; phaseIndex?: number | null; phaseCount?: number | null;
+};
 /** Entrada del debriefing. `rationale` y `takeaway` son opcionales: los informes antiguos no los traen. */
 export type TimelineEntry = Omit<PerformanceReport['timeline'][number], 'rationale' | 'takeaway'> & { rationale?: string | null; takeaway?: string | null };
 /** Resultado individual de un participante (modo individual). Todo opcional salvo el userId para no depender del motor. */
@@ -43,6 +53,29 @@ export function optionLetter(index: number): string { return String.fromCharCode
 export function shortDate(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+export function dayDate(iso: string | null | undefined): string {
+  const date = new Date(iso ?? '');
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+/** Fecha relativa breve: «hoy, 10:42», «ayer, 18:05» o «3 oct 2026». */
+export function relativeDate(iso: string | null | undefined, now = Date.now()): string {
+  const date = new Date(iso ?? '');
+  if (Number.isNaN(date.getTime())) return '';
+  const time = date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  const today = new Date(now); today.setHours(0, 0, 0, 0);
+  const diff = Math.floor((today.getTime() - new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()) / 86400000);
+  if (diff === 0) return `hoy, ${time}`;
+  if (diff === 1) return `ayer, ${time}`;
+  return dayDate(iso);
+}
+/** Título visible de una sesión: su nombre o, sin nombre, «Escenario · 6 oct». */
+export function sessionTitle(session: Pick<SessionSummary, 'name' | 'scenarioTitle' | 'createdAt'>, scenarioTitle?: string): string {
+  const name = session.name?.trim();
+  if (name) return name;
+  const date = new Date(session.createdAt);
+  const day = Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  return [session.scenarioTitle || scenarioTitle || 'Simulación', day].filter(Boolean).join(' · ');
 }
 export function longDate(iso: string | Date): string {
   const date = typeof iso === 'string' ? new Date(iso) : iso;

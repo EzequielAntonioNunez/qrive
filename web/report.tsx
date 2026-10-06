@@ -7,9 +7,9 @@ import { brand } from './brand';
 import { phaseSummaries, share } from './stats';
 import { METERS, longDate, optionLetter, pct, plural, qualityLabel, signed, type ParticipantResult, type Report } from './types';
 
-type Props = { state: SessionState; report: Report; results: ParticipantResult[]; simulatedCount: number; excludeSimulated: boolean };
+type Props = { state: SessionState; report: Report; results: ParticipantResult[]; simulatedCount: number; excludeSimulated: boolean; sessionName?: string };
 
-export function ImpactReport({ state, report, results, simulatedCount, excludeSimulated }: Props) {
+export function ImpactReport({ state, report, results, simulatedCount, excludeSimulated, sessionName }: Props) {
   const labels = meterLabels(state.scenario);
   const summaries = phaseSummaries(state);
   const initial = state.scenario.initialMeters;
@@ -26,7 +26,7 @@ export function ImpactReport({ state, report, results, simulatedCount, excludeSi
     <header className="rs-header">
       <img src={brand.logoOnLight} alt={brand.organization} height="44"/>
       <div><span className="eyebrow">Informe de impacto</span><h1>{state.scenario.title}</h1>
-        <p>Sesión {state.id.slice(0, 8).toUpperCase()} · {held ? `Celebrada el ${held}` : ''} · Emitido el {longDate(issued)}</p></div>
+        <p>{sessionName && sessionName !== state.scenario.title ? <>{sessionName} · </> : null}Sesión {state.id.slice(0, 8).toUpperCase()} · {held ? `Celebrada el ${held}` : ''} · Emitido el {longDate(issued)}</p></div>
     </header>
     {state.status !== 'complete' && <p className="rs-provisional">Informe provisional: la sesión sigue en curso y los datos pueden cambiar.</p>}
     {simulatedCount > 0 && <p className="rs-provisional">{excludeSimulated ? `Excluye ${plural(simulatedCount, 'participante simulado', 'participantes simulados')} de demostración.` : `Incluye ${plural(simulatedCount, 'participante simulado', 'participantes simulados')} de demostración.`}</p>}

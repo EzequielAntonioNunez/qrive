@@ -201,7 +201,8 @@ function fakeRoom() {
   const sockets = [
     { attachment: { userId: instructor.id, role: 'instructor' }, messages: [] as string[] },
     { attachment: { userId: alumna.id, role: 'participant' }, messages: [] as string[] }
-  ].map(item => ({ ...item, deserializeAttachment: () => item.attachment, send: (message: string) => item.messages.push(message), close: () => {} }));
+  ].map(item => ({ ...item, closed: [] as number[], deserializeAttachment: () => item.attachment, send: (message: string) => item.messages.push(message) }))
+    .map(item => ({ ...item, close: (code: number) => { item.closed.push(code); } }));
   const ctx = {
     storage: {
       get: async (key: string) => structuredClone(store.get(key)),
@@ -287,6 +288,18 @@ describe('SessionRoom: clase simulada y difusión en tiempo real', () => {
     vi.setSystemTime(T0 + 60_000 + BOT_MAX_DELAY_MS);
     await room.alarm();
     expect((await op({ op: 'state', actor: instructor })).body.liveTally.decided).toBe(2);
+  });
+
+  it('purgar una sesión activa cierra los sockets con 4404 y borra estado y alarma', async () => {
+    const { op, store, sockets, alarm } = fakeRoom();
+    await op({ op: 'create', id: 'abcdef12-2222', actor: instructor, scenario: defaultScenario });
+    await op({ op: 'demo-add', actor: instructor, count: 2 });
+    expect(alarm()).not.toBeNull();
+    expect((await op({ op: 'purge' })).body).toEqual({ purged: true });
+    expect(sockets.map(socket => socket.closed)).toEqual([[4404], [4404]]);
+    expect(store.size).toBe(0);
+    expect(alarm()).toBeNull();
+    expect((await op({ op: 'state', actor: instructor })).status).toBe(404);
   });
 
   it('responde al ping de la aplicación y no acepta órdenes por el socket', async () => {

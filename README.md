@@ -166,7 +166,11 @@ Cada sesión guarda una copia del escenario con el que empezó, así que publica
 - `GET /api/scenarios`: última versión de cada escenario visible (catálogo + propios de la organización).
 - `GET /api/scenarios/:id`: definición completa; sirve de plantilla para crear otro.
 - `POST /api/scenarios`: el instructor publica un escenario propio o una versión nueva. Se valida con `shared/scenario.ts` (1–8 fases, 2–4 opciones, efectos entre -50 y 50, `characterLine` obligatorio, `meterLabels` opcional con `relationship`, `margin` y `risk` de hasta 24 caracteres, `rationale` y `takeaway` opcionales) y se audita. Las versiones son inmutables y deben crecer; los IDs del catálogo están reservados.
-- `POST /api/sessions` acepta `{ "scenarioId": "..." }`. La consola muestra un selector cuando hay más de un escenario.
+- `POST /api/sessions` acepta `{ "scenarioId": "...", "name": "..." }` (`name` opcional, 1–80 caracteres tras recortar; sin él, la consola muestra el título del escenario y la fecha). Responde 201 con el cuerpo del Durable Object (`state`, `report`, `clients`, `liveTally`) y `session`, la fila del listado. La consola muestra un selector cuando hay más de un escenario.
+- `GET /api/sessions` (máximo 200; activas y pausadas primero, después por fecha de creación descendente; una consulta a D1, sin llamar a los Durable Objects) devuelve filas `{ id, name, scenarioId, scenarioTitle, scenarioVersion, status: 'active'|'paused'|'complete', createdAt, completedAt, instructorId, instructorName, mine, participantCount, simulatedCount, phaseIndex, phaseCount }`. `participantCount`/`simulatedCount` salen de los eventos `participant_joined` (IDs `sim-` = clase simulada, incluidos los ya retirados) y solo los recibe el instructor. `phaseIndex` sale del último `phase_advanced` en D1 (0 si no hay ninguno; null si la versión del escenario no está en D1).
+- `PATCH /api/sessions/:id` con `{ "name": "..." }` renombra (quien puede exportar o borrar la sesión) y devuelve `{ session }`; se audita como `session_renamed` sin el texto del nombre.
+- `POST /api/sessions/:id/duplicate` (cuerpo `{}` en JSON; cualquier instructor de la organización) crea una sesión nueva con la misma versión del escenario y el nombre «<nombre o título> (copia)», hasta 80 caracteres. Misma respuesta 201 que `POST /api/sessions`; se audita como `session_duplicated`.
+- `sessions.status` en D1 cambia con los comandos `pause`, `resume` y `complete`, y la fase con `advance`: la API escribe ese evento en D1 en el momento (idempotente con la cola), así el listado no espera a la cola. El fin del temporizador de una fase no finaliza la sesión.
 
 Los indicadores internos son siempre `relationship`, `margin` y `risk`; `meterLabels` solo cambia cómo se muestran (sin él: Relación, Margen, Riesgo).
 
@@ -235,8 +239,38 @@ Cada fase del escenario define `timeLimitSec` y `timeoutRiskDelta`. El reloj de 
 ## Contrato de API
 
 - Cualquier miembro: `GET /api/me`, `GET /api/scenarios`, `GET /api/scenarios/:id`, `GET /api/sessions` (el participante, solo las suyas), `GET /api/sessions/:id` (vista por rol), `GET /api/sessions/:id/live` (WebSocket) y `POST /api/sessions/:id/commands`.
-- Instructor: `POST /api/scenarios`, `POST /api/sessions`, `POST/DELETE /api/sessions/:id/demo-class` (el de la sesión), `GET /api/sessions/:id/events`, `GET /api/sessions/:id/export`, `DELETE /api/sessions/:id`, `GET/POST /api/memberships`, `DELETE /api/memberships/:userId` y gestión de códigos con `GET /api/access-codes`, `POST/DELETE /api/access-codes/:userId`.
+- Instructor: `POST /api/scenarios`, `POST /api/sessions`, `POST /api/sessions/:id/duplicate`, `PATCH /api/sessions/:id` (quien puede gestionarla), `POST/DELETE /api/sessions/:id/demo-class` (el de la sesión), `GET /api/sessions/:id/events`, `GET /api/analytics`, `GET /api/sessions/:id/export`, `DELETE /api/sessions/:id`, `GET/POST /api/memberships`, `DELETE /api/memberships/:userId` y gestión de códigos con `GET /api/access-codes`, `POST/DELETE /api/access-codes/:userId`.
 - Acceso: `POST /api/auth/login` acepta correo y código; `POST /api/auth/logout` cierra la sesión. La entrega del código es responsabilidad del docente; nunca se envía correo desde la plataforma.
 - `GET /api/health` sin autenticación de la API.
 
 Los comandos incluyen un `id` para idempotencia. Los roles y la organización se resuelven en el servidor; la identidad demo solo existe en `wrangler.local.jsonc` (`worker/local.ts`).
+
+### Analítica de la organización (`GET /api/analytics`)
+
+Solo instructor (403 al participante). Agregados de su organización calculados en `worker/analytics.ts` con tres consultas a D1 (sesiones, eventos `simulation_events` y la versión publicada de cada escenario), sin Durable Objects ni caché (`Cache-Control: private, no-store`). Nunca devuelve IDs de personas ni las ordena: `quality` valora la opción elegida, no a quien la elige.
+
+Parámetros opcionales: `from` y `to` (ISO; una fecha `AAAA-MM-DD` cubre el día completo en UTC; rango inclusivo sobre `sessions.created_at`; por defecto `to` = ahora y `from` = 365 días antes), `scenarioId` y `includeSimulated` (`true`/`false`, por defecto `false`). Un filtro no válido es un 400. Se analizan como máximo las 2000 sesiones más recientes del rango.
+
+```
+{
+  range: { from, to },                       // ISO normalizados
+  totals: { sessions, sessionsCompleted, sessionsActive /* activas + pausadas */, participants /* personas distintas, nunca simulados */,
+            simulatedParticipants /* simulados distintos unidos, siempre informativo */, decisions,
+            completionRate, optimalRate, avgDecisionSeconds },
+  trend: [{ week /* lunes ISO AAAA-MM-DD, UTC */, sessions, participants, decisions, optimalRate }],
+  scenarios: [{ scenarioId, title, sessions, participants, decisions, optimalRate, completionRate }],
+  phases: [{ scenarioId, scenarioTitle, phaseId, phaseTitle, decisions, optimalRate,
+             distribution: [{ optionId, label, quality, count, share }], mostChosenNonOptimal: { optionId, label, share } | null }],
+  meters: [{ scenarioId, meter, label, avgStart, avgEnd, delta }],
+  recentSessions: [{ id, name, scenarioTitle, status, createdAt, participants, optimalRate }]
+}
+```
+
+- Decisiones: eventos `decision` (detail `phaseId`, `optionId`, `durationMs`), una por persona y fase; la valoración, la etiqueta y los efectos salen de la versión del escenario de su sesión. Títulos y orden de opciones, de la versión más reciente usada en el rango.
+- `optimalRate`: decisiones con opción `best` / decisiones con opción valorada. `completionRate`: participantes de sesiones finalizadas que decidieron en todas las fases / participantes de sesiones finalizadas (quien se une tarde no puede completar las fases anteriores). `avgDecisionSeconds`: **mediana** de `durationMs` en segundos (un decimal); el motor cuenta desde el inicio de la fase, la unión si fue posterior o la última reanudación.
+- `trend`: hasta 12 semanas que terminan en la de `to`, sin empezar antes de la de `from`; siempre rellenada con ceros. Todo se asigna a la semana de creación de la sesión.
+- `phases`: solo fases con decisiones; primero las de menor `optimalRate` (dónde más se equivoca la clase), a igualdad las de más decisiones. `distribution` incluye las opciones no elegidas (`count` 0) y `share` = `count` / decisiones de la fase. `mostChosenNonOptimal` es la opción valorada no `best` más elegida; null si nadie eligió una o la fase no valora sus opciones.
+- `meters`: solo sesiones finalizadas. `avgStart` = indicadores iniciales; `avgEnd` = media de los indicadores finales por participante, reconstruidos con los eventos persistidos (unión, efectos de cada decisión, incidentes, vencimientos y ajustes manuales). Etiquetas de `meterLabels` o Relación/Margen/Riesgo.
+- `participants` de `trend`, `scenarios` y `recentSessions` sigue a `includeSimulated`; `totals.participants` cuenta siempre solo personas.
+- **Campos que pueden ser null**: `totals.completionRate`, `totals.optimalRate`, `totals.avgDecisionSeconds`, y `optimalRate`/`completionRate` de `trend`, `scenarios`, `phases` y `recentSessions` (sin denominador: la consola muestra «Sin datos aún», nunca 0 %), `phases[].mostChosenNonOptimal`, `distribution[].quality` (opción sin valorar) y `recentSessions[].name`. Sin datos: recuentos a 0, listas vacías y `trend` con ceros; nunca `NaN`.
+- Límites: las decisiones llegan a D1 por la cola, así que una decisión de hace unos segundos puede no contar aún. Retirar la clase simulada no deja evento en D1: con `includeSimulated=true`, los indicadores finales de simulados retirados pueden incluir incidentes posteriores a su retirada.

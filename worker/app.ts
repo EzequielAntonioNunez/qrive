@@ -3,7 +3,11 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { DomainError, type Command } from '../shared/engine';
 import { ScenarioError } from '../shared/scenario';
 import { defaultScenario, type SimEvent } from '../shared/simulation';
-import { getScenario, listScenarios, publishScenario } from './scenarios';
+import { getScenario, getScenarioVersion, listScenarios, publishScenario } from './scenarios';
+import { copyName, parseSessionName, SessionNameError, sessionRow, sessionRows } from './sessions';
+import { persistEvent } from './persist';
+import { AnalyticsQueryError, organizationAnalytics, parseAnalyticsQuery, type AnalyticsQuery } from './analytics';
+import type { Scenario } from '../shared/simulation';
 import { allowedDomain, identityFor, isOwnerEmail, normalizeEmail, organizationTenant, type Identity, type AuthContext } from './auth';
 import type { Env } from './types';
 import { flags } from './flags';
@@ -140,7 +144,7 @@ export function createApp(demo = false) {
   app.onError((error, c) => {
     const requestId = c.get('requestId');
     if (error instanceof HttpError) return c.json({ error: error.message }, error.status);
-    const known = error instanceof DomainError || error instanceof ScenarioError;
+    const known = error instanceof DomainError || error instanceof ScenarioError || error instanceof SessionNameError;
     if (known) {
       console.warn(JSON.stringify({ code: 'API_REJECTED', requestId, path: c.req.path, message: error.message }));
       return c.json({ error: error.message }, 400);
@@ -438,36 +442,82 @@ export function createApp(demo = false) {
     return c.json({ revoked: true });
   });
 
+  // Listado de la consola (worker/sessions.ts): una consulta a D1, sin llamadas a los Durable Objects.
+  // Instructor: todas las sesiones de la organización, con recuentos. Participante: solo aquellas a las que se ha
+  // unido, sin recuentos de la clase (en el modo demo local, todas, para que Unity siga la más reciente sin enlace).
   app.get('/api/sessions', async c => {
     const identity = c.get('identity');
-    const columns = 'id, scenario_id AS scenarioId, status, created_at AS createdAt, completed_at AS completedAt';
-    // Instructor: todas las sesiones de la organización. Participante: solo aquellas a las que se ha unido
-    // (en el modo demo local, todas, para que Unity siga la sesión más reciente sin enlace).
-    const rows = identity.role === 'instructor' || demo
-      ? await c.env.DB.prepare(`SELECT ${columns} FROM sessions WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 50`).bind(identity.tenantId).all()
-      : await c.env.DB.prepare(`SELECT ${columns} FROM sessions s WHERE s.tenant_id = ? AND EXISTS (
-          SELECT 1 FROM simulation_events e WHERE e.tenant_id = s.tenant_id AND e.session_id = s.id AND e.type = 'participant_joined' AND e.actor_id = ?)
-          ORDER BY s.created_at DESC LIMIT 50`).bind(identity.tenantId, identity.id).all();
-    return c.json({ sessions: rows.results });
+    return c.json({ sessions: await sessionRows(c.env, identity, { allForParticipant: demo }) });
   });
+  // Analítica agregada de la organización (worker/analytics.ts): solo D1, solo instructor, sin datos por persona.
+  app.get('/api/analytics', async c => {
+    const identity = c.get('identity');
+    if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
+    let query: AnalyticsQuery;
+    try {
+      query = parseAnalyticsQuery(c.req.query());
+    } catch (error) {
+      if (error instanceof AnalyticsQueryError) return c.json({ error: error.message }, 400);
+      throw error;
+    }
+    const body = await organizationAnalytics(c.env, identity.tenantId, query);
+    c.header('cache-control', 'private, no-store');
+    return c.json(body);
+  });
+  /**
+   * Crea la sesión en D1 y en su Durable Object. Respuesta 201: el cuerpo del Durable Object (roomPayload del
+   * instructor) más `session`, la fila del listado.
+   */
+  const createSessionResponse = async (env: Env, identity: Identity, scenario: Scenario, name: string | null, action: string, detail: Record<string, unknown>) => {
+    const id = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    await env.DB.prepare('INSERT INTO sessions (id,tenant_id,instructor_id,scenario_id,scenario_version,status,created_at,name) VALUES (?,?,?,?,?,?,?,?)')
+      .bind(id, identity.tenantId, identity.id, scenario.id, scenario.version, 'active', createdAt, name).run();
+    const response = await room(env, identity.tenantId, id, { op: 'create', id, tenantId: identity.tenantId, actor: identity, scenario });
+    if (!response.ok) {
+      await env.DB.prepare('DELETE FROM sessions WHERE id = ? AND tenant_id = ?').bind(id, identity.tenantId).run();
+      return response;
+    }
+    // El nombre es texto libre: no va a la auditoría, solo si la sesión tiene uno.
+    await audit(env, identity, id, action, { ...detail, scenarioId: scenario.id, version: scenario.version, named: name !== null });
+    const payload = await response.json() as Record<string, unknown>;
+    return Response.json({ ...payload, session: await sessionRow(env, identity, id) }, { status: 201 });
+  };
   app.post('/api/sessions', async c => {
     const identity = c.get('identity');
     if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
-    const body = await readJson(c, true) as { scenarioId?: unknown } | null;
+    const body = await readJson(c, true) as { scenarioId?: unknown; name?: unknown } | null;
+    const name = parseSessionName(body?.name, false);
     const scenarioId = typeof body?.scenarioId === 'string' ? body.scenarioId : defaultScenario.id;
     const scenario = await getScenario(c.env, identity.tenantId, scenarioId);
     if (!scenario) return c.json({ error: 'Escenario no encontrado.' }, 404);
-    const id = crypto.randomUUID();
-    const createdAt = new Date().toISOString();
-    await c.env.DB.prepare('INSERT INTO sessions (id,tenant_id,instructor_id,scenario_id,scenario_version,status,created_at) VALUES (?,?,?,?,?,?,?)')
-      .bind(id, identity.tenantId, identity.id, scenario.id, scenario.version, 'active', createdAt).run();
-    const response = await room(c.env, identity.tenantId, id, { op: 'create', id, tenantId: identity.tenantId, actor: identity, scenario });
-    if (!response.ok) {
-      await c.env.DB.prepare('DELETE FROM sessions WHERE id = ? AND tenant_id = ?').bind(id, identity.tenantId).run();
-      return response;
-    }
-    await audit(c.env, identity, id, 'session_created', { scenarioId: scenario.id, version: scenario.version });
-    return new Response(response.body, { status: 201, headers: { 'content-type': 'application/json' } });
+    return createSessionResponse(c.env, identity, scenario, name, 'session_created', {});
+  });
+  // Renombrar: quien puede gestionar la sesión (canManage). Devuelve la fila del listado.
+  app.patch('/api/sessions/:id', async c => {
+    const identity = c.get('identity');
+    const id = c.req.param('id');
+    if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
+    const session = await sessionFor(c.env, identity.tenantId, id);
+    if (!session) return c.json({ error: 'Sesión no encontrada.' }, 404);
+    if (!await canManage(c.env, identity, session)) return c.json({ error: 'Solo el instructor que creó la sesión puede renombrarla.' }, 403);
+    const body = await readJson(c) as { name?: unknown } | null;
+    const name = parseSessionName(body?.name, true);
+    await c.env.DB.prepare('UPDATE sessions SET name = ? WHERE tenant_id = ? AND id = ?').bind(name, identity.tenantId, id).run();
+    await audit(c.env, identity, id, 'session_renamed', {});
+    return c.json({ session: await sessionRow(c.env, identity, id) });
+  });
+  // Duplicar: cualquier instructor de la organización. Misma versión del escenario y nombre «… (copia)».
+  app.post('/api/sessions/:id/duplicate', async c => {
+    const identity = c.get('identity');
+    const id = c.req.param('id');
+    if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
+    const source = await c.env.DB.prepare('SELECT scenario_id AS scenarioId, scenario_version AS scenarioVersion, name FROM sessions WHERE tenant_id = ? AND id = ?')
+      .bind(identity.tenantId, id).first<{ scenarioId: string; scenarioVersion: number; name: string | null }>();
+    if (!source) return c.json({ error: 'Sesión no encontrada.' }, 404);
+    const scenario = await getScenarioVersion(c.env, identity.tenantId, source.scenarioId, source.scenarioVersion);
+    if (!scenario) return c.json({ error: 'Escenario no encontrado.' }, 404);
+    return createSessionResponse(c.env, identity, scenario, copyName(source.name ?? scenario.title), 'session_duplicated', { sourceSessionId: id });
   });
   // Cualquier miembro de la organización puede leer una sesión por su id (el participante llega con el enlace del
   // simulador y aún no se ha unido). Otra organización recibe 404.
@@ -538,15 +588,20 @@ export function createApp(demo = false) {
     const command = parseCommand(await readJson(c));
     // La respuesta también pasa por roomPayload: el participante recibe solo su vista filtrada.
     const response = await room(c.env, identity.tenantId, id, { op: 'command', tenantId: identity.tenantId, actor: identity, command, client: clientKind(c.req.header('x-axyro-client')) });
-    // La cola persiste eventos de forma asíncrona. Registrar la unión también aquí evita que el listado del
-    // participante omita la sesión justo después de entrar; el consumidor usa INSERT OR IGNORE sobre (session_id, seq).
-    if (response.ok && command.type === 'join') {
+    // La cola persiste eventos de forma asíncrona. La unión, el avance de fase, la pausa, la reanudación y el
+    // final se escriben también aquí (persistEvent: INSERT OR IGNORE sobre (session_id, seq) y estado ordenado por
+    // seq), para que el listado refleje enseguida la sesión del participante, la fase y `sessions.status`.
+    const persisted = PERSISTED_COMMAND_EVENTS[command.type];
+    if (response.ok && persisted) {
       const payload = await response.clone().json() as { state?: { events?: SimEvent[] } };
-      const joined = payload.state?.events?.find(event => event.type === 'participant_joined' && event.actorId === identity.id);
-      if (joined) {
-        const event = queueSafeEvent(joined);
-        await c.env.DB.prepare('INSERT OR IGNORE INTO simulation_events (tenant_id,session_id,seq,type,at,actor_id,detail_json) VALUES (?,?,?,?,?,?,?)')
-          .bind(identity.tenantId, id, event.seq, event.type, event.at, event.actorId, JSON.stringify(event.detail)).run();
+      const event = payload.state?.events?.findLast(item => item.type === persisted && item.actorId === identity.id);
+      if (event) {
+        try {
+          await persistEvent(c.env, { tenantId: identity.tenantId, sessionId: id, event: queueSafeEvent(event) });
+        } catch (error) {
+          // La cola lo reintentará: el comando ya se aplicó en el Durable Object.
+          console.error(JSON.stringify({ code: 'EVENT_DIRECT_PERSIST_FAILED', requestId: c.get('requestId'), sessionId: id, seq: event.seq, message: String(error) }));
+        }
       }
     }
     if (response.ok && command.type !== 'join' && command.type !== 'decide') await audit(c.env, identity, id, command.type, {});
@@ -610,6 +665,15 @@ export function liveRejection(request: Request, demo = false): { status: 403 | 4
   } catch { allowed = false; }
   return allowed ? null : { status: 403, message: 'Conexión de otro origen rechazada.' };
 }
+
+/** Comandos cuyo evento se escribe en D1 desde la API además de por la cola (ver POST /api/sessions/:id/commands). */
+const PERSISTED_COMMAND_EVENTS: Partial<Record<Command['type'], SimEvent['type']>> = {
+  join: 'participant_joined',
+  advance: 'phase_advanced',
+  pause: 'paused',
+  resume: 'resumed',
+  complete: 'completed'
+};
 
 function clientKind(value?: string): 'unity' | undefined {
   return value === 'unity' ? 'unity' : undefined;
