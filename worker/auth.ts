@@ -2,6 +2,7 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { Context } from 'hono';
 import type { Actor } from '../shared/engine';
 import type { Env } from './types';
+import { identityFromSession } from './access-codes';
 
 export interface Identity extends Actor { tenantId: string; email: string }
 export interface AuthContext { Bindings: Env; Variables: { identity: Identity; requestId: string } }
@@ -33,11 +34,12 @@ export function normalizeEmail(value: unknown): string | null {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254 ? email : null;
 }
 
-/** Dominios con autoalta (ALLOWED_EMAIL_DOMAINS, separados por comas). Coincidencia exacta: no incluye subdominios. */
+/** Autoalta tras un JWT válido de Access: lista de dominios exactos o «*» para cualquier correo. */
 export function allowedDomain(email: string, env: Pick<Env, 'ALLOWED_EMAIL_DOMAINS'>): boolean {
+  if (!normalizeEmail(email)) return false;
   const domains = (env.ALLOWED_EMAIL_DOMAINS ?? '').split(',').map(item => item.trim().toLowerCase().replace(/^@/, '')).filter(Boolean);
   const domain = email.slice(email.lastIndexOf('@') + 1);
-  return domains.includes(domain);
+  return domains.includes('*') || domains.includes(domain);
 }
 
 /** Nombre visible provisional a partir del correo (ana.garcia@ufv.es → «Ana Garcia»). El instructor puede corregirlo. */
@@ -99,7 +101,7 @@ async function bootstrapOwner(env: Env, email: string): Promise<MembershipRow | 
   return membershipFor(env, email);
 }
 
-/** Autoalta por dominio: siempre como participante; nunca promueve a instructor. */
+/** Autoalta tras Access: siempre como participante; nunca promueve a instructor. */
 async function enrollParticipant(env: Env, email: string): Promise<MembershipRow | null> {
   const tenantId = await organizationTenant(env);
   if (!tenantId) {
@@ -137,6 +139,9 @@ export async function identityFor(c: Context<AuthContext>, demo: boolean): Promi
     await c.env.DB.prepare('INSERT OR IGNORE INTO memberships (tenant_id,user_id,role) VALUES (?,?,?)').bind(tenantId, id, participant ? 'participant' : 'instructor').run();
     return { id, name, email, role: participant ? 'participant' : 'instructor', tenantId };
   }
+  const sessionIdentity = await identityFromSession(c);
+  if (sessionIdentity) return sessionIdentity;
+  if (c.env.LEGACY_ACCESS_AUTH !== 'true') return null;
   const domain = configuredDomain(c.env.ACCESS_TEAM_DOMAIN);
   const audience = c.env.ACCESS_AUD;
   if (!domain || !audience || audience.startsWith('REPLACE_')) throw new Error('Cloudflare Access sin configurar.');

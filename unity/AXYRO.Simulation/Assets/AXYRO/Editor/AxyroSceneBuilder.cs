@@ -158,7 +158,7 @@ public static class AxyroSceneBuilder
         foreach (var voiceCommands in UnityEngine.Object.FindObjectsByType<AxyroVoiceCommands>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
             var status = new SerializedObject(voiceCommands).FindProperty("status").objectReferenceValue as Text;
-            if (status != null) status.text = "Elige con el ratón o con las teclas 1 a 4";
+            if (status != null) status.text = "Haz clic en una opción o pulsa su número";
             UnityEngine.Object.DestroyImmediate(voiceCommands);
         }
         EditorSceneManager.SaveScene(scene, WebScenePath, true);
@@ -286,7 +286,7 @@ public static class AxyroSceneBuilder
         var slat = Lit("Lamas", Hex("#21405F"), 0.35f);
         var floor = Lit("Suelo", Hex("#121A24"), 0.4f);
         var window = new Material(Shader.Find("Universal Render Pipeline/Unlit")) { name = "Ventana" };
-        window.SetColor("_BaseColor", new Color(1.05f, 1.25f, 1.6f));
+        window.SetColor("_BaseColor", Hex("#102B4A"));
         SaveMaterial(window);
         var desk = Lit("Mesa", Hex("#2B2621"), 0.55f);
 
@@ -295,7 +295,7 @@ public static class AxyroSceneBuilder
         // Lamas acústicas verticales: dan textura al fondo desenfocado.
         for (var x = -6.0f; x <= 6.0f; x += 0.36f)
             Box("Lama", root, new Vector3(x, 2.4f, 3.48f), new Vector3(0.14f, 4.8f, 0.12f), slat);
-        // Ventanal detrás del tutor: con el desenfoque y el bloom queda como luz natural suave.
+        // Paneles azul oscuro detrás del tutor: evitan un rectángulo blanco en pantallas panorámicas.
         Box("Ventanal", root, new Vector3(-2.3f, 1.9f, 3.38f), new Vector3(1.7f, 2.6f, 0.02f), window);
         Box("Ventanal 2", root, new Vector3(-4.3f, 1.9f, 3.38f), new Vector3(1.7f, 2.6f, 0.02f), window);
         // Mesa de reuniones en primer plano, al borde inferior del encuadre.
@@ -596,10 +596,11 @@ public static class AxyroSceneBuilder
         var dialogue = Text("Dialogue", canvasObject.transform, "", 19, White, new Vector2(.045f, .062f), new Vector2(.555f, .193f));
         var buttonObject = new GameObject("Repetir", typeof(RectTransform), typeof(Image), typeof(Button));
         buttonObject.transform.SetParent(canvasObject.transform, false);
-        Stretch(buttonObject.GetComponent<RectTransform>(), new Vector2(.47f, .217f), new Vector2(.57f, .253f));
-        buttonObject.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.14f);
-        var label = Text("Label", buttonObject.transform, "▶  Repetir", 12, White, new Vector2(.06f, 0f), new Vector2(.94f, 1f));
-        label.alignment = TextAnchor.MiddleCenter;
+        Stretch(buttonObject.GetComponent<RectTransform>(), new Vector2(.40f, .211f), new Vector2(.57f, .260f));
+        buttonObject.GetComponent<Image>().color = Color.clear;
+        var label = Text("Label", buttonObject.transform, "▶  Escuchar", 14, Mint, new Vector2(0f, 0f), new Vector2(.96f, 1f));
+        label.fontStyle = FontStyle.Bold;
+        label.alignment = TextAnchor.MiddleRight;
         label.raycastTarget = false;
 
         // Resultado de la decisión (y avisos): una sola tarjeta compacta a la derecha.

@@ -120,6 +120,8 @@ function setup(options: { withOwner?: boolean; vars?: Record<string, string> } =
     ACCESS_AUD: 'aud-de-prueba',
     BOOTSTRAP_OWNER_EMAIL: 'owner@identy.cloud',
     ALLOWED_EMAIL_DOMAINS: 'ufv.es',
+    LEGACY_ACCESS_AUTH: 'true',
+    ACCESS_CODE_PEPPER: 'test-only-pepper-with-at-least-32-characters',
     ...options.vars
   };
   const app = createApp(false);
@@ -141,6 +143,37 @@ const OWNER = 'owner@identy.cloud';
 const ALUMNA = 'alumna@ufv.es';
 const OTRO = 'otro@other.org';
 const MEMBER_UNAVAILABLE = 'Ese correo no se puede dar de alta en esta organización.';
+
+describe('códigos personales de seis cifras', () => {
+  it('emite un código único y permite entrar sin Cloudflare Access; registra cada uso', async () => {
+    const prepared = setup();
+    const ownerIssue = await prepared.call('POST', '/api/access-codes/u-owner', { as: OWNER, body: {} });
+    const ownerCode = (await ownerIssue.json() as { code: string }).code;
+    const ownerLogin = await prepared.call('POST', '/api/auth/login', { body: { email: OWNER, code: ownerCode } });
+    const ownerCookie = ownerLogin.headers.get('set-cookie')?.split(';')[0] ?? '';
+    prepared.env.LEGACY_ACCESS_AUTH = 'false';
+    const issue = await prepared.call('POST', '/api/access-codes/u-alumna', { headers: { cookie: ownerCookie }, body: {} });
+    expect(issue.status).toBe(201);
+    const { code } = await issue.json() as { code: string };
+    expect(code).toMatch(/^\d{6}$/);
+    expect(prepared.db.prepare('SELECT code_hash FROM access_codes WHERE user_id = ?').get('u-alumna')).not.toHaveProperty('code', code);
+    const wrongEmail = await prepared.call('POST', '/api/auth/login', { body: { email: PROF, code } });
+    expect(wrongEmail.status).toBe(401);
+    const login = await prepared.call('POST', '/api/auth/login', { body: { email: ALUMNA, code } });
+    expect(login.status).toBe(200);
+    const cookie = login.headers.get('set-cookie')?.split(';')[0] ?? '';
+    expect(cookie).toMatch(/^axyro_session=/);
+    const me = await prepared.call('GET', '/api/me', { headers: { cookie } });
+    expect(me.status).toBe(200);
+    expect((await me.json() as { identity: { role: string } }).identity.role).toBe('participant');
+    expect((await prepared.call('POST', '/api/sessions', { headers: { cookie }, body: { scenarioId: 'x' } })).status).toBe(403);
+    expect(prepared.db.prepare("SELECT COUNT(*) AS total FROM access_code_uses WHERE outcome = 'accepted'").get()).toMatchObject({ total: 2 });
+    expect((await prepared.call('DELETE', '/api/access-codes/u-alumna', { headers: { cookie: ownerCookie } })).status).toBe(200);
+    expect((await prepared.call('GET', '/api/me', { headers: { cookie } })).status).toBe(401);
+    expect((await prepared.call('POST', '/api/auth/login', { body: { email: ALUMNA, code } })).status).toBe(401);
+    expect(prepared.db.prepare("SELECT COUNT(*) AS total FROM access_code_uses WHERE outcome = 'revoked'").get()).toMatchObject({ total: 1 });
+  });
+});
 
 describe('identidad con Cloudflare Access', () => {
   it('verifica el JWT solo con RS256 y reutiliza el JWKS entre peticiones', async () => {
@@ -166,6 +199,17 @@ describe('identidad con Cloudflare Access', () => {
 });
 
 describe('autoalta por dominio (ALLOWED_EMAIL_DOMAINS)', () => {
+  it('con * admite cualquier correo verificado por Access, siempre como participante', async () => {
+    const { call } = setup({ vars: { ALLOWED_EMAIL_DOMAINS: '*' } });
+    for (const email of ['persona@gmail.com', 'persona@alumnos.ufv.es', 'persona@otro.org']) {
+      const response = await call('GET', '/api/me', { as: email });
+      expect(response.status, email).toBe(200);
+      const { identity } = await response.json() as { identity: Record<string, string> };
+      expect(identity).toMatchObject({ email, role: 'participant', tenantId: 'ufv' });
+    }
+    expect((await call('GET', '/api/me')).status).toBe(401);
+  });
+
   it('da de alta como participante en la organización del propietario a una cuenta @ufv.es nueva', async () => {
     const { db, call } = setup();
     const response = await call('GET', '/api/me', { as: 'Ana.Garcia@UFV.es' });

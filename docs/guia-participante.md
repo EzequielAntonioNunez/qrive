@@ -9,10 +9,10 @@ El Simulador de decisiones de la Universidad Francisco de Vitoria es una activid
 ## Cómo entrar
 
 1. Abre el **enlace que te comparta tu docente**. Se abre en el navegador; no hay que instalar nada.
-2. Inicia sesión con tu **cuenta UFV** cuando aparezca la pantalla de acceso.
-3. Te unirás a la sesión automáticamente. **Entra al principio:** cuando la sesión pasa de la primera situación, ya no admite nuevas incorporaciones.
+2. Introduce tu **correo y código personal de seis cifras** en la pantalla de acceso de AXYRO. Pide el código a tu docente si todavía no lo tienes.
+3. Te unirás a la sesión automáticamente. Si llegas tarde, entras en la situación en curso; las anteriores ya no se pueden responder.
 
-Si ves «No tienes acceso a esta sesión», pide a tu docente que te dé de alta con tu correo institucional.
+Tu docente debe darte de alta antes de la sesión. Puede utilizar cualquier correo electrónico; no hace falta que sea `@ufv.es`. El código es personal: no lo compartas con otros participantes.
 
 ## Cómo responder
 
@@ -20,20 +20,20 @@ Cada situación tiene un tiempo límite (el reloj aparece en pantalla). Elige **
 
 - **Ratón:** haz clic en la tarjeta de la opción.
 - **Teclado:** pulsa **1**, **2**, **3** o **4**. La barra **espaciadora** reproduce o detiene la intervención de VictorIA.
-- **Voz:** di «**uno**», «**dos**», «**tres**» (o «**cuatro**», si hay cuarta opción). Di «**repetir**» para volver a oír a VictorIA. El reconocimiento de voz funciona **en tu propio equipo**: solo detecta esas palabras, **no graba ni envía tu voz** a ningún sitio. Si tu equipo o navegador no lo permite, verás «Voz no disponible · elige con el ratón».
+- En el navegador no se usa el micrófono. Solo la versión de escritorio para Windows, si tu docente la usa, admite la **voz**: di «**uno**», «**dos**», «**tres**» (o «**cuatro**») o «**repetir**». El reconocimiento funciona **en el propio equipo**, solo detecta esas palabras y **no graba ni envía tu voz**. Si el equipo no lo permite, verás «Voz no disponible · elige con el ratón».
 
-Si se agota el tiempo, todavía puedes decidir, pero quedará anotado. Si tu docente pausa la sesión, espera a que la reanude.
+Hasta que decides no ves la valoración de las opciones; después verás la consecuencia y por qué es o no buena práctica. Si se agota el tiempo antes de decidir, tu indicador de Riesgo sube; todavía puedes decidir, pero quedará anotado. Si tu docente pausa la sesión, espera a que la reanude.
 
 ## Qué se registra y qué no
 
 | Se registra | No se registra |
 |---|---|
-| Tu nombre y correo institucional, tal como te dio de alta tu docente | Audio o grabaciones de tu voz |
+| Tu nombre, correo y uso del código de acceso (el nombre lo registra tu docente) | Audio o grabaciones de tu voz |
 | Que te has unido a la sesión y cuándo | Imagen o vídeo: no se usa la cámara |
 | La opción que eliges en cada situación | Emociones, estrés, nerviosismo ni ningún estado psicológico |
 | El tiempo que tardas en decidir | Lo que escribes o haces fuera del simulador |
 
 - La valoración de cada opción (*Mejor opción*, *Aceptable*, *Crítica*) es **de la decisión, no de ti**. Ningún sistema toma decisiones automáticas sobre ti.
-- Ven tus resultados tu docente y, al terminar la sesión, el resto de participantes en el debriefing de grupo.
-- Los datos de la sesión se borran automáticamente **365 días después de que termine**, o antes si tu docente la elimina.
+- Tus resultados los ves tú y tu docente. Los demás participantes no ven tu nombre, tus decisiones ni tus resultados, y tú tampoco los suyos.
+- Los datos de la sesión se borran automáticamente **365 días después de que termine** (o de que se creara, si no llega a terminar), o antes si tu docente la elimina.
 - Puedes ejercer tus derechos de acceso, rectificación, supresión y oposición ante la UFV. Consulta el aviso de privacidad de la actividad.

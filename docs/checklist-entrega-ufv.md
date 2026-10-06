@@ -11,40 +11,39 @@ Responsables: **Dev** (equipo de desarrollo), **UFV-SI** (Servicios Informático
 ### Código y calidad
 
 - [ ] Cambios locales confirmados y subidos al repositorio; la rama principal compila. (Dev)
-- [ ] La verificación completa del proyecto (tests, comprobación de tipos, compilación y simulación del despliegue) pasa sin errores. (Dev)
+- [x] La verificación completa del proyecto (tests, comprobación de tipos y compilación) pasa sin errores. (Dev)
 - [ ] Prueba de humo contra la API desplegada superada, incluida la puerta de calidad de 50 simulaciones. (Dev)
-- [ ] Integración continua configurada con sus credenciales de despliegue, o procedimiento manual de despliegue documentado. (Dev)
-- [ ] Comprobación de salud de la API (`/api/health`) correcta tras el despliegue. (Dev)
+- [ ] Despliegue automático activado en la integración continua (variable de repositorio `CLOUDFLARE_DEPLOY` y credenciales de despliegue) o despliegue manual documentado. Hoy se despliega a mano. (Dev)
+- [x] Comprobación de salud de la API (`/api/health`) correcta tras el despliegue. (Dev)
 
 ### Despliegue y dominio
 
-- [ ] Migraciones de base de datos aplicadas en el entorno remoto. (Dev)
+- [x] Migraciones de base de datos aplicadas en el entorno remoto. (Dev)
 - [ ] Dominio definitivo decidido (por ejemplo, bajo `ufv.es`) y servicio trasladado; la dirección provisional queda retirada o redirigida. (UFV-SI, Dev)
 - [ ] La dirección pública alternativa del servicio y las URL de vista previa siguen desactivadas. (Dev)
-- [ ] Simulador WebGL compilado, publicado en `/simulador/` y probado desde el enlace de una sesión real. (Dev)
+- [x] Simulador WebGL compilado, publicado en `/simulador/` y probado con una sesión autenticada. (Dev)
 - [ ] Probado en los navegadores y equipos de aula de la UFV (Chrome y Edge, red de la UFV con inspección TLS). (UFV-SI, Dev)
 - [ ] Audio de VictorIA y sincronización labial correctos en los equipos de aula. (UFV-Doc)
-- [ ] Respuesta por voz probada en los equipos donde se vaya a usar; el mensaje «Voz no disponible · elige con el ratón» aparece donde no esté disponible. (UFV-SI)
+- [ ] Solo si se usa la versión de escritorio para Windows (el navegador no usa el micrófono): respuesta por voz probada en esos equipos; donde Windows no deja abrir el micrófono aparece «Voz no disponible · elige con el ratón». (UFV-SI)
 - [ ] Prueba de carga con el tamaño de grupo previsto para el piloto (participantes simultáneos y límite de 300 peticiones por minuto y usuario). (Dev)
 
 ### Acceso e identidad
 
-- [ ] Cloudflare Access conectado al proveedor de identidad de la UFV (cuentas institucionales). (UFV-SI, Dev)
-- [ ] Política de acceso ampliada a docentes y participantes del piloto (por dominio o por grupo), no a correos individuales. (UFV-SI)
-- [ ] Aplicación de Access renombrada para que la pantalla de inicio de sesión muestre solo la marca UFV. (Dev)
-- [ ] Propietario inicial de la organización con una cuenta de la UFV (hoy es una cuenta externa de desarrollo). (Dev, UFV-SI)
-- [ ] Docentes del piloto dados de alta como instructores (hoy solo por API; la consola solo da de alta participantes). (Dev)
-- [ ] Prueba de aislamiento: un usuario sin alta recibe «Acceso no autorizado»; un participante no puede controlar ni exportar sesiones. (Dev)
+- [x] Pantalla propia de acceso con correo y código personal de seis cifras comprobada en producción. (Dev)
+- [ ] Códigos únicos por usuario, revocación, límite de intentos y auditoría de accesos comprobados en producción: emisión y auditoría verificadas; falta probar revocación y límite con una cuenta de prueba. (Dev)
+- [x] Cloudflare Access retirado del dominio para que la infraestructura sea transparente al usuario. (Dev)
+- [ ] Propietario inicial de la organización con una cuenta de la UFV (hoy es una cuenta externa de desarrollo, guardada como secreto del despliegue). (Dev, UFV-SI)
+- [ ] Docentes del piloto dados de alta por el propietario y con código personal. (Dev)
+- [ ] Prueba de aislamiento: un usuario sin código recibe «Acceso no autorizado»; un participante no puede controlar ni exportar sesiones y no ve datos de sus compañeros. (Dev)
 
 ### Datos y privacidad (implementación)
 
-- [ ] Estado de las sesiones (Durable Objects) creado con jurisdicción UE. (Dev)
-- [ ] Cola de eventos con jurisdicción UE, o alternativa sin cola fuera de la UE. (Dev)
+- [ ] Estado de las sesiones (Durable Objects) en la jurisdicción UE comprobado en el entorno desplegado (configurado en el código). (Dev)
+- [ ] Cola de eventos: aceptada por el DPO sin jurisdicción UE (solo IDs seudónimos y campos de una lista blanca, sin texto de incidentes) o recreada en la UE. (Dev, UFV-DPO)
 - [ ] Ubicación UE de la base de datos D1 comprobada en el panel de Cloudflare. (Dev)
-- [ ] Tarea diaria de conservación activa (03:17 UTC, 365 días) y comprobada con una sesión de prueba. (Dev)
-- [ ] Plazo de borrado para sesiones no finalizadas. (Dev)
-- [ ] Baja de miembros, rectificación del nombre y borrado de un participante concreto. (Dev)
-- [ ] Cada participante solo puede consultar las sesiones en las que participa. (Dev)
+- [ ] Tarea diaria de conservación activa (03:17 UTC: sesiones a los 365 días, también las no finalizadas desde su creación; auditoría a los 730 días) y comprobada con datos de prueba. (Dev)
+- [ ] Baja de miembros (hoy por API) y rectificación del nombre (volviendo a dar de alta) probadas; pendiente el botón de baja en la consola y el borrado de un participante concreto dentro de una sesión. (Dev)
+- [ ] Vista del participante comprobada: solo sus sesiones, sus decisiones y sus resultados, sin valoraciones antes de decidir. (Dev)
 - [ ] Exportar JSON y Eliminar sesión probados desde la consola; la auditoría registra ambos. (Dev)
 - [ ] Copias de seguridad y recuperación de la base de datos documentadas y probadas. (Dev)
 
@@ -60,22 +59,22 @@ Responsables: **Dev** (equipo de desarrollo), **UFV-SI** (Servicios Informático
 - [ ] Titularidad de la cuenta de Cloudflare decidida y acuerdo de tratamiento de Cloudflare a nombre del responsable o encargado que corresponda. (UFV-DPO, Dev)
 - [ ] Contrato de encargo de tratamiento (DPA) firmado con el desarrollador o proveedor del servicio. (UFV-DPO)
 - [ ] Ubicación de los datos y transferencias internacionales aceptadas por el DPO. (UFV-DPO)
-- [ ] Plazos de conservación aprobados: sesiones, sesiones no finalizadas, miembros, auditoría, registros de Access y ficheros exportados. (UFV-DPO)
-- [ ] Decisión sobre la visibilidad del debriefing nominal entre participantes. (UFV-DPO, UFV-Doc)
+- [ ] Plazos de conservación aprobados: sesiones, sesiones no finalizadas, miembros, auditoría de accesos, registros técnicos y ficheros exportados. (UFV-DPO)
+- [ ] Decisión sobre la entrega privada y reposición de códigos personales del piloto. (UFV-DPO, UFV-SI)
 - [ ] Criterio sobre el uso del informe en actividades evaluables (nunca como única base de calificación). (UFV-Doc, UFV-DPO)
 
 ### Reglamento Europeo de IA
 
-- [ ] Aviso de transparencia sobre VictorIA (personaje virtual, imagen y voz sintéticas, intervenciones guionizadas) visible en el simulador antes de la primera interacción. (Dev, UFV-DPO)
+- [ ] Texto de los avisos de transparencia sobre VictorIA (ya visibles en el simulador y en la consola) aprobado. (UFV-DPO)
 - [ ] Confirmado que no se infieren emociones ni estados psicológicos y que no se usa la cámara. (Dev)
 - [ ] Confirmado que las valoraciones son de la decisión y no de la persona, y que el informe usa reglas fijas. (Dev)
 - [ ] Confirmado que no hay llamadas a proveedores de IA en ejecución ni claves de IA en el simulador; personajes con IA desactivados. (Dev)
-- [ ] Documentada la procedencia de la voz: generada sin conexión con modelos de código abierto, con referencia sintética, sin clonar a personas reales y con marca de agua inaudible. (Dev)
-- [ ] Si la voz definitiva es de una locutora: contrato y consentimiento expreso firmados antes de usarla. (UFV, Dev)
+- [ ] Documentada la procedencia de la voz: locuciones del guion generadas con Soniox TTS, voz «Carmen», desde el proyecto actual en región Estados Unidos; el navegador reproduce los WAV ya compilados y no envía audio ni texto a Soniox. Revisar las condiciones de uso antes del piloto. (Dev, UFV-DPO)
+- [ ] Si se sustituye por una locutora real o se clona una voz: contrato y consentimiento expreso firmados antes de usarla. (UFV, Dev)
 
 ### Licencias y propiedad intelectual
 
-- [ ] Inventario de licencias de terceros revisado: modelo 3D provisional (Microsoft Rocketbox, MIT), sincronización labial (uLipSync, MIT), síntesis de voz (Chatterbox, MIT; Kokoro-82M, Apache 2.0), reconocimiento de voz local y su modelo de idioma, Rive, Unity y dependencias web. (Dev)
+- [ ] Inventario de licencias y condiciones de terceros revisado: modelo 3D provisional (Microsoft Rocketbox, MIT), sincronización labial (uLipSync, MIT), locuciones Soniox TTS, reconocimiento de voz local en Windows y su modelo de idioma, Rive, Unity y dependencias web. (Dev)
 - [ ] Uso de logos y plantilla de marca UFV autorizado por Comunicación. (UFV)
 - [ ] Propiedad de los escenarios y contenidos creados para la UFV acordada. (UFV, Dev)
 
@@ -83,13 +82,13 @@ Responsables: **Dev** (equipo de desarrollo), **UFV-SI** (Servicios Informático
 
 ## 3. Contenidos
 
-- [ ] Escenario «Uso responsable de la IA en la universidad» revisado por un experto de la UFV: situaciones, opciones, consecuencias y valoraciones. (UFV-Doc)
+- [ ] Escenarios «Uso responsable de la IA en la universidad», «IA generativa en la docencia» e «IA en la atención al estudiante» revisados por un experto de la UFV: situaciones, opciones, consecuencias y valoraciones. (UFV-Doc)
 - [ ] La opción «Anonimizar… y usar solo la herramienta de IA autorizada por la universidad» se corresponde con la herramienta y la política reales de la UFV; se sabe cuál es esa herramienta para citarla en el debriefing. (UFV-Doc, UFV-SI)
 - [ ] Coherencia con la normativa interna de la UFV sobre uso de IA y con las guías docentes. (UFV-Doc)
-- [ ] Valorar una versión nueva del escenario con una explicación por opción y una idea clave por fase (el formato de escenario ya las admite; falta mostrarlas en el debriefing de la consola). Los escenarios publicados no se modifican: un cambio es una versión nueva. (UFV-Doc, Dev)
+- [ ] Explicación de cada opción («por qué») e idea clave de cada fase revisadas; el simulador y el debriefing de la consola ya las muestran. Los escenarios publicados no se modifican: un cambio es una versión nueva. (UFV-Doc)
 - [ ] Locuciones de VictorIA revisadas de oído (pronunciación, ritmo, naturalidad) para todas las fases. (UFV-Doc)
 - [ ] Personaje definitivo decidido (el actual es provisional). (UFV)
-- [ ] Textos de interfaz revisados en español y sin el nombre interno del producto, incluidos el título de la pantalla vacía de la consola (hoy alude a una negociación), la pantalla de inicio de sesión de Access y los nombres de los ficheros exportados (CSV y JSON). (Dev, UFV-Doc)
+- [ ] Textos de interfaz revisados en español y sin el nombre interno del producto, incluida la pantalla propia de código de acceso. (Dev, UFV-Doc)
 - [ ] Escenario de negociación: decidir si se ofrece en el piloto o se oculta. (UFV-Doc)
 
 ---

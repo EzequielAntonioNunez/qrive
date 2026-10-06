@@ -84,13 +84,23 @@ export class SessionRoom extends DurableObject<Env> {
 
   async fetch(request: Request): Promise<Response> {
     try {
-      const body = await request.json() as { op: 'create' | 'state' | 'command' | 'purge'; id?: string; tenantId: string; actor: Actor; command?: Command; client?: ClientKind; scenario?: Scenario };
+      const body = await request.json() as { op: 'create' | 'state' | 'command' | 'restore' | 'purge'; id?: string; tenantId: string; actor: Actor; command?: Command; client?: ClientKind; scenario?: Scenario; snapshot?: SessionState };
       if (body.op === 'purge') {
         await this.ctx.storage.deleteAlarm();
         await this.ctx.storage.deleteAll();
         return Response.json({ purged: true });
       }
       let state = await this.ctx.storage.get<SessionState>('state');
+      if (body.op === 'restore') {
+        if (!body.snapshot || body.snapshot.id !== body.id || body.snapshot.tenantId !== body.tenantId)
+          return Response.json({ error: 'Estado de sesión inválido.' }, { status: 400 });
+        if (!state) {
+          state = body.snapshot;
+          await this.ctx.storage.put('state', state);
+          await this.syncAlarm(state);
+        }
+        return Response.json({ restored: true });
+      }
       if (body.op === 'create') {
         if (state) return Response.json({ error: 'La sesión ya existe.' }, { status: 409 });
         state = createSession(body.id!, body.tenantId, body.actor, new Date().toISOString(), body.scenario);

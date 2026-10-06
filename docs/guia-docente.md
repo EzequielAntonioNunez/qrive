@@ -15,14 +15,14 @@ Hay dos piezas:
 | Pieza | Quién la usa | Para qué |
 |---|---|---|
 | **Consola web** | Docente (instructor) | Crear sesiones, dar de alta participantes, controlar fases, pausar, lanzar incidentes, ajustar indicadores, ver el informe y gestionar los datos. |
-| **Simulador** | Participantes (y el docente, si quiere proyectarlo) | Ver y escuchar a VictorIA, leer la situación y elegir una opción con ratón, teclado o voz. Se abre en el navegador, sin instalar nada. |
+| **Simulador** | Participantes (y el docente, si quiere proyectarlo) | Ver y escuchar a VictorIA, leer la situación y elegir una opción con el ratón o el teclado. Se abre en el navegador, sin instalar nada. |
 
 La consola no muestra a VictorIA; el personaje solo aparece en el simulador.
 
 **Roles**
 
-- **Instructor:** crea y dirige sesiones, da de alta participantes, exporta y elimina datos. Solo el instructor que creó una sesión puede controlarla (avanzar, pausar, finalizar). Cualquier instructor de la organización puede consultarla, exportarla o eliminarla.
-- **Participante:** se une a la sesión desde el enlace del simulador y toma decisiones.
+- **Instructor:** crea y dirige sesiones, da de alta participantes, exporta y elimina datos. Solo el instructor que creó una sesión puede controlarla (avanzar, pausar, finalizar, lanzar incidentes), exportarla o eliminarla; si ese instructor deja de ser miembro de la organización, cualquier otro instructor puede exportarla o eliminarla. Todos los instructores de la organización ven todas sus sesiones.
+- **Participante:** se une a la sesión desde el enlace del simulador y toma decisiones. Solo ve sus propias decisiones, indicadores y resultados, nunca los de sus compañeros, y solo las sesiones a las que se ha unido.
 
 ---
 
@@ -30,21 +30,21 @@ La consola no muestra a VictorIA; el personaje solo aparece en el simulador.
 
 ### 2.1 Requisitos
 
-- **Cuenta UFV autorizada.** El acceso está protegido por Cloudflare Access: solo entran las cuentas autorizadas en la política de acceso. **[Pendiente UFV]** Hoy la política está limitada a cuentas concretas; para el piloto hay que conectar el proveedor de identidad de la UFV y autorizar a docentes y participantes.
-- **Alta en la organización.** Además de pasar el control de acceso, cada persona debe estar dada de alta en la organización con su correo y su rol (instructor o participante). Sin esa alta, el sistema responde «Acceso no autorizado».
-- **Equipos de los participantes:** navegador actualizado (Chrome o Edge recomendados), altavoces o auriculares para oír a VictorIA y, si se quiere responder por voz, micrófono.
+- **Código personal.** Cada persona necesita su correo y un código único de seis cifras. El código se genera en la consola y se entrega por un canal privado. No se exige un dominio concreto de correo.
+- **Alta en la organización.** Cada persona debe ser miembro de la organización con un rol (docente o participante). El alta es manual y la realiza el docente antes de compartir el enlace (apartado 4).
+- **Equipos de los participantes:** navegador actualizado (Chrome o Edge recomendados) y altavoces o auriculares para oír a VictorIA. En el navegador se responde con el ratón o el teclado; no se usa el micrófono.
 - **Aula:** si vas a proyectar a VictorIA para todo el grupo, prevé un equipo con salida de audio a la sala.
 
 ### 2.2 Dirección de acceso
 
-Entra en **<https://axyro.qhel.dev>** e inicia sesión con tu cuenta UFV cuando aparezca la pantalla de Cloudflare Access.
+Entra en **<https://axyro.qhel.dev>** e introduce tu correo y código personal en la pantalla de AXYRO.
 
 **[Pendiente UFV]** Es la dirección provisional del entorno de pruebas. Está previsto trasladar el servicio a un dominio definitivo de la Universidad; cuando ocurra, se actualizará esta guía.
 
 ### 2.3 Preparación recomendada (15 minutos)
 
 1. Revisa el escenario que vas a usar: lee el resumen, las situaciones y las opciones (puedes crear una sesión de prueba y eliminarla después).
-2. Da de alta a los participantes (apartado 4) con antelación, no en el aula.
+2. Da de alta y crea un código para cada participante con antelación (apartado 4), no en el aula.
 3. Prueba el enlace del simulador en el equipo del aula y comprueba el audio.
 4. Decide la dinámica: un equipo por persona, o un equipo por pequeño grupo que decide en común.
 5. Ten preparado el guion de debriefing (apartado 8).
@@ -55,6 +55,8 @@ Entra en **<https://axyro.qhel.dev>** e inicia sesión con tu cuenta UFV cuando 
 
 1. En la barra lateral, apartado **Escenario para nuevas sesiones**, elige el escenario. El selector aparece cuando hay más de uno disponible. Hoy el catálogo incluye:
    - **Uso responsable de la IA en la universidad** (por defecto): tres situaciones de 3 minutos cada una (*Datos personales*, *Verificación* y *Evaluación justa*). Indicadores: **Confianza**, **Productividad** y **Riesgo**.
+   - **IA generativa en la docencia**: tres situaciones de 3 minutos (*Actividad evaluable con IA*, *Feedback asistido por IA* y *Materiales y derechos de autor*). Indicadores: Aprendizaje, Eficiencia y Riesgo.
+   - **IA en la atención al estudiante**: tres situaciones de 3 minutos (*Respuesta errónea del asistente*, *Sesgo en la priorización de becas* y *Transparencia ante el estudiante*). Indicadores: Confianza, Agilidad y Riesgo.
    - **Renegociación con un proveedor estratégico**: tres fases de 8, 5 y 4 minutos. Indicadores: Relación, Margen y Riesgo.
 2. Pulsa **+ Nueva** (o **Crear sesión** si aún no tienes ninguna).
 3. La sesión aparece en la lista **Sesiones** con su estado: *En curso*, *Pausada* o *Finalizada*.
@@ -65,19 +67,22 @@ Cada sesión guarda una copia del escenario con el que empezó. Si se publica un
 
 ## 4. Dar de alta a los participantes
 
-En el panel **Participantes**, bloque **Miembros de la organización**:
+Cada participante necesita un alta y un código personal, con independencia de su dominio de correo.
 
-1. Escribe el **Nombre** y el **Correo** institucional del participante.
-2. Pulsa **Añadir participante**.
+En **Vista general**, bloque **Personas y códigos**:
+
+1. Escribe **Nombre** y **Correo** del participante y pulsa **Añadir persona**.
+2. Pulsa **Crear código** junto a su nombre, copia las seis cifras y entrégaselas por un canal privado. El código solo se muestra una vez.
 
 Ten en cuenta:
 
-- El alta **no envía ninguna invitación**. Tú compartes el enlace del simulador (apartado 5).
+- El alta **no envía ningún correo**. Tú compartes el enlace del simulador y el código por separado (apartado 5).
 - El correo debe coincidir con el de la cuenta con la que la persona inicia sesión.
 - El nombre es el que verás en la sesión, en el debriefing y en el CSV. **Usa solo el nombre necesario** (por ejemplo, nombre y primer apellido, o el nombre con el que se identifica en clase).
-- El acceso al dominio también tiene que estar autorizado en Cloudflare Access. **[Pendiente UFV]** Definir quién gestiona esa autorización (Servicios Informáticos o una regla general para cuentas UFV).
-- Desde la consola solo se dan de alta participantes. **[Pendiente UFV]** El alta de otros docentes como instructores se hace hoy por la API; pide ayuda al equipo técnico.
-- Hoy no se puede cambiar el nombre ni dar de baja a un miembro desde la consola. Si hay un error, avisa al equipo técnico.
+- **Corregir un nombre:** vuelve a añadir a la persona con el mismo correo y el nombre correcto. El rol docente solo lo asigna el propietario.
+- Cada persona pertenece a una sola organización. Si el correo ya es de otra, el alta se rechaza («Ese correo no se puede dar de alta en esta organización.»).
+- **Cambiar código** invalida el anterior y las sesiones abiertas con él. **Revocar** desactiva el acceso; la consola muestra cuántas veces se usó y la fecha de los últimos accesos.
+- El propietario puede dar de alta a otros docentes. La baja de una persona sigue disponible por API; no se puede dar de baja al propietario ni al último docente.
 
 ---
 
@@ -90,7 +95,7 @@ Con la sesión abierta, en el bloque **Experiencia del participante** verás **E
 
 Cuando un participante abre el enlace e inicia sesión, **se une automáticamente**. En el panel **Participantes → En la sesión** verás quién ha entrado, y la consola indica si el simulador está conectado.
 
-**Importante:** los participantes deben entrar **durante la primera fase**. Una vez avanzada, el sistema no admite nuevas incorporaciones («La sesión ya está en marcha»). Si alguien llega tarde, puede seguir la sesión en la pantalla de otro compañero o en la proyección.
+**Llegadas tarde:** un participante puede unirse **en cualquier fase** mientras la sesión no haya finalizado. Empieza en la situación en curso, con los indicadores iniciales y sin decisiones previas; su tiempo de reacción cuenta desde que entra. Las situaciones anteriores no las puede responder.
 
 ---
 
@@ -101,53 +106,56 @@ Cuando un participante abre el enlace e inicia sesión, **se une automáticament
 - El reloj de la primera fase **empieza cuando se une el primer participante**, no al crear la sesión. Mientras tanto, la consola muestra «empieza al unirse».
 - En cada fase nueva el reloj se reinicia con el tiempo de esa fase.
 - Al **pausar**, el reloj se congela y los participantes no pueden decidir; al **reanudar**, continúa desde donde estaba.
-- Si el tiempo **se agota**, el indicador de Riesgo sube (8 o 10 puntos según la fase), se avisa en el simulador y queda registrado. **La fase no avanza sola** y se puede seguir decidiendo; esas decisiones aparecen en el debriefing como «tras agotar el tiempo».
+- Si el tiempo **se agota**, el indicador de Riesgo sube (8 o 10 puntos según la fase) **a quien aún no había decidido** en esa fase, se avisa en el simulador y queda registrado. **La fase no avanza sola** y se puede seguir decidiendo; esas decisiones aparecen en el debriefing como «tras agotar el tiempo».
 
 ### 6.2 Controles del instructor
 
-En el bloque **Control del instructor** verás cuántos participantes hay y cuántas decisiones se han tomado en la fase actual.
+En el bloque **Control del docente** verás cuántos participantes hay y cuántas decisiones se han tomado en la fase actual.
 
 | Control | Qué hace | Cuándo usarlo |
 |---|---|---|
 | **Pausar / Reanudar** | Congela la sesión y el reloj. | Para aclarar una duda, gestionar un problema técnico o abrir un debate a mitad de fase. |
 | **Siguiente fase →** | Pasa a la siguiente situación. Requiere al menos una decisión en la fase actual. | Cuando la mayoría ha decidido o se agota el tiempo previsto. |
 | **Finalizar sesión** | Cierra la sesión y fija el informe. Solo está disponible en la última fase, tras al menos una decisión. | Al terminar la última situación, antes del debriefing. |
-| **Lanzar incidente** | Añade un acontecimiento imprevisto (texto de hasta 200 caracteres) que sube el Riesgo 5 puntos y queda en la cronología. | Para introducir presión o un giro («El vicerrectorado pide el informe hoy mismo»). |
-| **Ajustar indicador** | Fija Confianza, Productividad o Riesgo a un valor entre 0 y 100. Queda registrado. | Para preparar una situación concreta o corregir un desajuste. Úsalo con moderación. |
+| **Lanzar** (incidente) | Añade un acontecimiento imprevisto (texto de hasta 200 caracteres) con el efecto en Riesgo que elijas (de −10 a +15; +5 por defecto). Afecta a todos los participantes y queda en la cronología. | Para introducir presión o un giro («El vicerrectorado pide el informe hoy mismo»). |
+| **Ajustar indicador** | Fija Confianza, Productividad o Riesgo a un valor entre 0 y 100 para todos los participantes. Queda registrado. | Para preparar una situación concreta o corregir un desajuste. Úsalo con moderación. |
 
-**No escribas datos personales en los incidentes** (nombres de alumnos, casos reales identificables): el texto se guarda en la cronología y en las exportaciones.
+**No escribas datos personales en los incidentes** (nombres de alumnos, casos reales identificables): los participantes lo ven y el texto se guarda en la sesión y en las exportaciones.
 
 ### 6.3 Cómo leer los indicadores
 
-- Los indicadores son **del grupo**, no de cada persona: cada decisión de cada participante los modifica.
-- Cada participante decide **una vez por fase** y no puede cambiar su respuesta.
+- Cada participante tiene **sus propios indicadores**: solo los cambian sus decisiones, el tiempo agotado cuando aún no había decidido, los incidentes y tus ajustes.
+- En la consola ves la **media de la clase**; cada participante ve solo los suyos.
+- Cada participante decide **una vez por fase** y no puede cambiar su respuesta. Hasta que decide, no ve la valoración de las opciones ni la idea clave de la fase.
 - En el escenario de IA: **Confianza** (de la comunidad universitaria en el trabajo realizado), **Productividad** (tiempo y esfuerzo) y **Riesgo** (legal, reputacional o de injusticia). Riesgo alto es malo.
 
 ---
 
 ## 7. El informe de desempeño y el debriefing
 
-Al finalizar la sesión, la consola muestra el **Performance Report** y el panel **Debriefing**.
+La consola muestra el **Informe de resultados** durante toda la sesión y el panel **Debriefing** con las decisiones registradas.
 
 ### 7.1 Qué mide el informe
 
+El informe de la consola es el **de la clase**: la puntuación y los objetivos se calculan con la media de los indicadores, y el resto con todas las decisiones. Debajo, **Resultados por participante** muestra el mismo cálculo para cada persona. Cada participante ve solo su informe individual.
+
 | Indicador | Cómo se calcula |
 |---|---|
-| **Puntuación /100** | Media de Confianza, Productividad y (100 − Riesgo) al final de la sesión. |
+| **Puntuación /100** | Media de Confianza, Productividad y (100 − Riesgo). |
 | **Decisiones correctas** | Porcentaje de decisiones que el escenario valora como *Mejor opción*. |
 | **Tiempo de reacción** | Porcentaje medio de tiempo que quedaba en la fase al decidir. |
 | **Objetivos** | Se cumplen tres: Confianza ≥ 55, Productividad ≥ 55 y Riesgo ≤ 40. |
 | **Decisiones críticas** | Número de decisiones valoradas como *Crítica*. |
-| **Tiempos agotados** | Número de fases en las que venció el reloj. |
+| **Tiempos agotados** | En la clase, fases en las que venció el reloj; en el individual, las que vencieron sin que la persona hubiera decidido. |
 
-El panel **Debriefing** lista cada decisión con la fase, la opción elegida, su consecuencia, la valoración (*Mejor opción*, *Aceptable* o *Crítica*), el nombre del participante y los segundos que tardó. Con **Descargar CSV** obtienes la misma información en una hoja de cálculo (separador «;», se abre directamente en Excel).
+El panel **Debriefing** lista cada decisión con la fase, la opción elegida, su consecuencia, la valoración (*Mejor opción*, *Aceptable* o *Crítica*), el porqué de la opción y la idea clave de la fase (si el escenario los incluye), el nombre del participante y los segundos que tardó. Con **Descargar CSV** obtienes la misma información en una hoja de cálculo (separador «;», se abre directamente en Excel).
 
 ### 7.2 Cómo usarlo bien
 
 - La valoración es **de la decisión según el diseño del escenario, no de la persona**. Preséntala así: «esta opción es la que mejor protege…», nunca «has suspendido».
 - El sistema **no mide emociones, estrés ni estados psicológicos**, y no observa por cámara ni analiza la voz.
 - El informe es un apoyo para la conversación. **No lo uses como única base para calificar** a nadie: si la actividad es evaluable, la valoración la haces tú con tu criterio.
-- Los nombres del debriefing son visibles para el grupo cuando la sesión termina. Si vas a proyectarlo, avisa antes o comenta los resultados de forma agregada.
+- Cada participante solo ve sus propias decisiones y resultados; los nombres del debriefing solo los ves tú. Si vas a proyectar la consola, avisa antes o comenta los resultados de forma agregada.
 
 ---
 
@@ -272,7 +280,9 @@ En el panel **Datos de la sesión**:
 - **Exportar JSON:** descarga todo lo registrado en la sesión (estado, decisiones, cronología de eventos e informe). Úsalo para atender una solicitud de acceso o portabilidad o para archivar resultados según indique la UFV. La exportación queda anotada en la auditoría.
 - **Eliminar sesión → Eliminar definitivamente:** borra la sesión, sus decisiones y su cronología. **No se puede deshacer.** Solo queda una anotación en la auditoría de que la sesión se eliminó, sin su contenido.
 
-**Conservación automática:** las sesiones **finalizadas** se borran automáticamente **365 días después de su finalización**. Las sesiones que nunca se finalizan **no** se borran solas: finaliza o elimina siempre tus sesiones, incluidas las de prueba.
+Solo el docente que creó la sesión puede exportarla o eliminarla (si ya no es miembro de la organización, cualquier otro docente).
+
+**Conservación automática:** las sesiones **finalizadas** se borran automáticamente **365 días después de su finalización**, y las que nunca se finalizan, **365 días después de su creación**. Aun así, elimina las sesiones de prueba en cuanto no las necesites.
 
 Si un participante pide acceder a sus datos o que se borren, sigue el procedimiento de la UFV para el ejercicio de derechos. **[Pendiente UFV]** Definir el canal (DPO o Secretaría General) y el plazo de respuesta.
 
@@ -282,12 +292,13 @@ Si un participante pide acceder a sus datos o que se borren, sigue el procedimie
 
 | Mensaje o situación | Qué significa | Qué hacer |
 |---|---|---|
-| «Acceso no autorizado» / «No tienes acceso a esta sesión. Pide a tu docente que te dé de alta.» | La persona no está dada de alta en la organización o entra con otra cuenta. | Comprueba el correo en **Miembros de la organización** y la autorización en Cloudflare Access. |
-| «No encuentro esta sesión. Comprueba el enlace…» | El enlace está incompleto o la sesión se eliminó. | Vuelve a copiar el enlace desde la consola. |
+| «Correo o código no válido» / «No tienes acceso a esta sesión.» | El correo no coincide con el alta, el código se ha cambiado o revocado, o la persona no es miembro de la organización. | Comprueba el correo y genera un código nuevo en **Personas y códigos**. |
+| «No encuentro esta sesión. Comprueba el enlace…» | El enlace está incompleto, la sesión se eliminó o es de otra organización. | Vuelve a copiar el enlace desde la consola. |
 | «Abre el simulador desde el enlace que te comparta tu docente.» | Se abrió el simulador sin el enlace de la sesión. | Comparte el enlace completo con **Copiar enlace**. |
-| «No puedes unirte a esta sesión: La sesión ya está en marcha.» | La persona entró después de la primera fase. | Que siga la sesión con un compañero o en la proyección. |
+| «Simulación completada» al abrir el enlace | La sesión ya está finalizada. | Crea una sesión nueva y comparte su enlace. |
+| «Ese correo no se puede dar de alta en esta organización.» | El correo ya pertenece a otra organización. | Avisa al equipo técnico. |
 | «Sin conexión con la sesión · reintentando…» | Corte de red. | Esperar unos segundos; si persiste, recargar la página. |
-| «Voz no disponible · elige con el ratón» | El equipo o el navegador no permite el reconocimiento de voz. | Responder con el ratón o las teclas 1-4. |
+| «Voz no disponible · elige con el ratón» | Solo en el ejecutable de Windows: no hay micrófono o Windows no deja abrirlo. | Responder con el ratón o las teclas 1-4. |
 | «Espera al menos una decisión.» | Se intentó avanzar sin ninguna decisión en la fase. | Espera a que decida al menos un participante. |
 | «Reanuda la sesión antes de avanzar.» | La sesión está pausada. | Pulsa **Reanudar**. |
 | «Es la última fase; finaliza la sesión.» | Estás en la última situación. | Pulsa **Finalizar sesión**. |

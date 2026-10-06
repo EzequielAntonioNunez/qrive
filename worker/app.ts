@@ -8,6 +8,7 @@ import { allowedDomain, identityFor, isOwnerEmail, normalizeEmail, organizationT
 import type { Env } from './types';
 import { flags } from './flags';
 import { serveSimulator } from './simulator';
+import { codeSummaries, issueCode, pruneAuth, revokeCodes, signInWithCode, signOut } from './access-codes';
 
 /** Error con código HTTP explícito (400 cuerpo no válido, 403, 404, 409...). */
 export class HttpError extends Error {
@@ -41,7 +42,7 @@ async function readJson(c: Context<AuthContext>, optional = false): Promise<unkn
 }
 
 // ---------------------------------------------------------------------------------------------
-// CSRF: Access autentica con una cookie, así que toda petición que cambia estado debe venir del
+// CSRF: la sesión propia autentica con una cookie, así que toda petición que cambia estado debe venir del
 // propio origen y con cuerpo JSON (un formulario de otro sitio no puede enviar application/json
 // sin una preflight CORS, que este Worker nunca autoriza).
 // ---------------------------------------------------------------------------------------------
@@ -137,8 +138,36 @@ export function createApp(demo = false) {
   });
 
   app.get('/api/health', c => c.json({ ok: true }));
+  app.post('/api/auth/login', async c => {
+    const rejected = csrfRejection(c.req.raw);
+    if (rejected) return c.json({ error: rejected }, 403);
+    const body = await readJson(c) as { email?: unknown; code?: unknown };
+    if (c.env.AUTH_LIMITER) {
+      const email = normalizeEmail(body?.email) ?? 'invalid';
+      const { success } = await c.env.AUTH_LIMITER.limit({ key: email });
+      if (!success) return c.json({ error: 'Demasiados intentos. Espera un minuto.' }, 429);
+    }
+    if (c.env.AUTH_IP_LIMITER) {
+      const { success } = await c.env.AUTH_IP_LIMITER.limit({ key: c.req.header('cf-connecting-ip') ?? 'local' });
+      if (!success) return c.json({ error: 'Demasiados intentos. Espera un minuto.' }, 429);
+    }
+    if (await signInWithCode(c, body?.email, body?.code) !== 'ok') return c.json({ error: 'Correo o código no válido.' }, 401);
+    return c.json({ ok: true });
+  });
+  app.post('/api/auth/logout', async c => {
+    const rejected = csrfRejection(c.req.raw);
+    if (rejected) return c.json({ error: rejected }, 403);
+    await signOut(c);
+    return c.json({ ok: true });
+  });
   // Simulador WebGL: static assets y, para ficheros de más de 25 MiB, R2 (ver worker/simulator.ts).
-  app.on(['GET', 'HEAD'], ['/simulador', '/simulador/*'], c => serveSimulator(c.req.raw, c.env));
+  app.on(['GET', 'HEAD'], ['/simulador', '/simulador/*'], async c => {
+    if (!await identityFor(c, demo)) {
+      const next = `${c.req.path}${new URL(c.req.url).search}`;
+      return c.redirect(`/?next=${encodeURIComponent(next)}`, 302);
+    }
+    return serveSimulator(c.req.raw, c.env);
+  });
   app.use('/api/*', async (c, next) => {
     const rejected = csrfRejection(c.req.raw);
     if (rejected) {
@@ -157,7 +186,16 @@ export function createApp(demo = false) {
     }
     await next();
   });
-  app.get('/api/me', c => c.json({ identity: c.get('identity'), demo, flags: flags(c.env) }));
+  app.get('/api/me', c => {
+    const identity = c.get('identity');
+    return c.json({ identity, demo, flags: flags(c.env), permissions: {
+      participate: true,
+      manageSessions: identity.role === 'instructor',
+      manageMembers: identity.role === 'instructor',
+      assignInstructor: identity.role === 'instructor' && isOwnerEmail(c.env, identity.email),
+      viewAccessAudit: identity.role === 'instructor'
+    } });
+  });
   app.get('/api/scenarios', async c => c.json({ scenarios: await listScenarios(c.env, c.get('identity').tenantId) }));
   app.get('/api/scenarios/:id', async c => {
     const scenario = await getScenario(c.env, c.get('identity').tenantId, c.req.param('id'));
@@ -209,6 +247,7 @@ export function createApp(demo = false) {
         if (organization && organization !== tenantId) throw new HttpError(409, MEMBER_UNAVAILABLE);
       }
     }
+    if (role === 'instructor' && current?.role !== 'instructor' && !isOwnerEmail(c.env, identity.email)) throw new HttpError(403, 'Solo el propietario puede asignar el rol docente.');
 
     let userId: string;
     if (!user) {
@@ -257,8 +296,46 @@ export function createApp(demo = false) {
       c.env.DB.prepare('DELETE FROM users WHERE id = ? AND NOT EXISTS (SELECT 1 FROM memberships WHERE user_id = ?)').bind(userId, userId)
     ]);
     if (!membership.meta.changes) throw new HttpError(409, LAST_INSTRUCTOR);
+    await revokeCodes(c.env, tenantId, userId);
     await audit(c.env, identity, null, 'member_deleted', { userId, role: member.role, userDeleted: (account.meta.changes ?? 0) > 0 });
     return c.json({ deleted: true });
+  });
+
+  app.get('/api/access-codes', async c => {
+    const identity = c.get('identity');
+    if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
+    const [codes, events] = await Promise.all([
+      codeSummaries(c.env, identity.tenantId),
+      c.env.DB.prepare(`SELECT uses.code_id AS codeId, uses.user_id AS userId, uses.at, uses.outcome,
+        users.display_name AS name FROM access_code_uses uses LEFT JOIN users ON users.id = uses.user_id
+        WHERE uses.tenant_id = ? ORDER BY uses.at DESC LIMIT 100`).bind(identity.tenantId).all()
+    ]);
+    return c.json({ codes, uses: events.results });
+  });
+  app.post('/api/access-codes/:userId', async c => {
+    const identity = c.get('identity');
+    if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
+    const userId = c.req.param('userId');
+    const member = await c.env.DB.prepare(`SELECT users.email, memberships.role FROM memberships JOIN users ON users.id = memberships.user_id
+      WHERE memberships.tenant_id = ? AND memberships.user_id = ?`).bind(identity.tenantId, userId).first<{ email: string; role: string }>();
+    if (!member) return c.json({ error: 'Miembro no encontrado.' }, 404);
+    if (member.role === 'instructor' && !isOwnerEmail(c.env, identity.email)) return c.json({ error: 'Solo el propietario puede crear códigos de docentes.' }, 403);
+    const { code, id } = await issueCode(c.env, identity.tenantId, userId);
+    await audit(c.env, identity, null, 'access_code_issued', { userId, codeId: id });
+    return c.json({ code, codeId: id }, 201);
+  });
+  app.delete('/api/access-codes/:userId', async c => {
+    const identity = c.get('identity');
+    if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
+    const userId = c.req.param('userId');
+    const member = await c.env.DB.prepare(`SELECT users.email, memberships.role FROM memberships JOIN users ON users.id = memberships.user_id
+      WHERE memberships.tenant_id = ? AND memberships.user_id = ?`).bind(identity.tenantId, userId).first<{ email: string; role: string }>();
+    if (!member) return c.json({ error: 'Miembro no encontrado.' }, 404);
+    if (member.role === 'instructor' && !isOwnerEmail(c.env, identity.email)) return c.json({ error: 'Solo el propietario puede revocar códigos de docentes.' }, 403);
+    if (userId === identity.id) return c.json({ error: 'No puedes revocar tu propio acceso.' }, 400);
+    await revokeCodes(c.env, identity.tenantId, userId);
+    await audit(c.env, identity, null, 'access_code_revoked', { userId });
+    return c.json({ revoked: true });
   });
 
   app.get('/api/sessions', async c => {
@@ -389,6 +466,7 @@ export async function applyRetention(env: Env, now = new Date()): Promise<number
   const auditCutoff = new Date(now.getTime() - auditDays * 86400000).toISOString();
   const pruned = await env.DB.prepare('DELETE FROM audit_log WHERE at < ?').bind(auditCutoff).run();
   const auditDeleted = pruned?.meta?.changes ?? 0;
+  await pruneAuth(env, now);
   if (rows.results.length || auditDeleted) console.log(JSON.stringify({ code: 'RETENTION_APPLIED', deleted: rows.results.length, retentionDays: days, auditDeleted, auditRetentionDays: auditDays }));
   return rows.results.length;
 }
@@ -412,7 +490,32 @@ function sessionNamespace(env: Env): DurableObjectNamespace {
 async function room(env: Env, tenantId: string, id: string, body: unknown): Promise<Response> {
   const namespace = sessionNamespace(env);
   const stub = namespace.get(namespace.idFromName(`${tenantId}:${id}`));
-  return stub.fetch('https://room.internal/', { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
+  const send = (target: DurableObjectStub, payload: unknown) => target.fetch('https://room.internal/', {
+    method: 'POST', body: JSON.stringify(payload), headers: { 'content-type': 'application/json' }
+  });
+  const response = await send(stub, body);
+  if (env.SESSIONS_JURISDICTION !== 'eu') return response;
+  const op = (body as { op?: string }).op;
+  const legacy = env.SESSIONS.get(env.SESSIONS.idFromName(`${tenantId}:${id}`));
+  if (op === 'purge') {
+    const oldResponse = await send(legacy, body);
+    return response.ok ? response : oldResponse;
+  }
+  if (response.status !== 404 || (op !== 'state' && op !== 'command')) return response;
+
+  // Las sesiones anteriores a la jurisdicción UE conservan su estado en el namespace original.
+  // Recuperamos una instantánea completa solo tras comprobar que D1 la atribuye a esta organización.
+  const session = await sessionFor(env, tenantId, id);
+  if (!session) return response;
+  const instructor = { id: session.instructorId, name: 'Recuperación', role: 'instructor' as const };
+  const oldStateResponse = await send(legacy, { op: 'state', tenantId, actor: instructor });
+  if (!oldStateResponse.ok) return response;
+  const oldPayload = await oldStateResponse.json() as { state?: { id?: string; tenantId?: string } };
+  if (oldPayload.state?.id !== id || oldPayload.state.tenantId !== tenantId) return response;
+  const restored = await send(stub, { op: 'restore', id, tenantId, actor: instructor, snapshot: oldPayload.state });
+  if (!restored.ok) return restored;
+  console.log(JSON.stringify({ code: 'LEGACY_SESSION_RESTORED', sessionId: id }));
+  return send(stub, body);
 }
 
 async function audit(env: Env, identity: Identity, sessionId: string | null, action: string, detail: Record<string, unknown>): Promise<void> {

@@ -14,6 +14,9 @@ jobs:
         with:
           version: 12.9.1
       - run: pnpm install --frozen-lockfile
+      # La build de Unity WebGL se versiona: el runner no dispone del editor de Unity.
+      - name: Comprobar simulador WebGL
+        run: test -s web/public/simulador/index.html
       - run: pnpm check
 
   # Cada push a main que pasa la verificación se despliega en axyro.qhel.dev.
@@ -58,5 +61,5 @@ jobs:
         run: |
           code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://axyro.qhel.dev/api/health)
           echo "axyro.qhel.dev responde $code"
-          # Cloudflare Access responde 302/401/403 a peticiones sin sesión: el dominio está activo y protegido.
-          case "$code" in 200|302|401|403) ;; *) echo "::error::Respuesta inesperada: $code"; exit 1 ;; esac
+          # La API de salud es pública; cualquier otra respuesta indica un despliegue incompleto.
+          test "$code" = 200 || { echo "::error::Respuesta inesperada: $code"; exit 1; }

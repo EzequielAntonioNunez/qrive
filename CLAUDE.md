@@ -2,13 +2,13 @@
 
 Plataforma de simulación para formación y toma de decisiones. Primer despliegue: UFV. La referencia de alcance es `AXYRO_MVP_ARCHITECTURE_FINAL_v1.1.md`; no construir funciones de fases posteriores (VR, IA avanzada) antes de validar la anterior.
 
-**Marca:** todo lo visible es 100 % UFV. «AXYRO» es solo el nombre interno de código, repositorio y recursos; no debe aparecer en interfaz, títulos ni ejecutables. Consola web: «Simulador de decisiones» (`web/brand.ts`). Unity: producto «Simulador UFV», ejecutable `Build/Simulador-UFV.exe`.
+**Marca:** todo lo visible es 100 % UFV. «AXYRO» es solo el nombre interno de código, repositorio y recursos; no debe aparecer en interfaz, títulos, ejecutables ni en `docs/`. Consola web: «Simulador de decisiones» (`web/brand.ts`). Unity: producto «Simulador UFV», ejecutable `Build/Simulador-UFV.exe`.
 
 ## Arquitectura
-- `shared/`: motor puro en TypeScript (`engine.ts`, `simulation.ts`, `scenario.ts`, `events.ts`, `contracts/`). Sin dependencias de Cloudflare; lo usan el Worker, los tests y la demo en navegador. `catalogScenarios` (se publican en D1 al consultarse) y `defaultScenario` = `ia-buenas-practicas`; `supplier-negotiation` sigue en catálogo. `meterLabels` es opcional y se valida en `scenario.ts`.
-- `worker/`: API Hono en Cloudflare Workers. Estado vivo de cada sesión en el Durable Object `SessionRoom`, datos en D1, eventos por Queue, retención por cron.
+- `shared/`: motor puro en TypeScript (`engine.ts`, `simulation.ts`, `scenario.ts`, `events.ts`, `contracts/`). Sin dependencias de Cloudflare; lo usan el Worker, los tests y la demo en navegador. `catalogScenarios` (se publican en D1 al consultarse) y `defaultScenario` = `ia-buenas-practicas`; `supplier-negotiation` sigue en catálogo. `meterLabels` es opcional y se valida en `scenario.ts`. Modo individual: indicadores por participante (`participantMeters`), `meters` = media de la clase, informe con `participantReports`; el participante solo recibe `participantView` y `participantReport`.
+- `worker/`: API Hono en Cloudflare Workers. Estado vivo de cada sesión en el Durable Object `SessionRoom` (jurisdicción UE con `SESSIONS_JURISDICTION`), datos en D1, eventos por Queue (lista blanca `QUEUE_DETAIL_FIELDS` en `room.ts`), retención por cron. `auth.ts` y `access-codes.ts`: membresía en D1, correo y código personal de seis cifras, cookie de sesión y auditoría de usos. `app.ts`: CSRF, cabeceras de seguridad/CSP, `x-request-id` y logs JSON.
 - `web/`: consola de instructor y participante (React + Vite). No muestra el personaje; eso es de Unity. Marca en `web/brand.ts` y `web/public/brand/` (UFV).
-- `unity/AXYRO.Simulation`: cliente de simulación (Unity 6000.3.25f1, URP, Rive 0.5.1 solo para el HUD, uLipSync). Tutor 3D en `Assets/AXYRO/AxyroTutor3D.cs` y `Characters/Tutor/` (provisional Rocketbox, MIT). `AxyroSessionClient.cs` habla con la API y se une solo a la sesión; decisión por ratón, voz (Vosk local, sin grabar audio) o teclas 1-4. La escena se genera con `AXYRO > Crear escena de avatar` o `AxyroSceneBuilder.BuildWindows` en batch.
+- `unity/AXYRO.Simulation`: cliente de simulación (Unity 6000.3.25f1, URP, Rive 0.5.1 solo para el HUD, uLipSync). Tutor 3D en `Assets/AXYRO/AxyroTutor3D.cs` y `Characters/Tutor/` (provisional Rocketbox, MIT). `AxyroSessionClient.cs` habla con la API y se une solo a la sesión; decisión por ratón, voz (Vosk local, sin grabar audio; no en WebGL) o teclas 1-4. La escena se genera con `AXYRO > Crear escena de avatar` o `AxyroSceneBuilder.BuildWindows`/`BuildWebGL` en batch. Argumentos de QA: `--axyro-session=<id>`, `--axyro-autodecide=<1-4>`, `--axyro-capture=<png>`, `--axyro-capture-delay=<s>`, `--axyro-capture-feedback=<png>`, `--axyro-fullscreen`.
 - `scripts/tts/`: locuciones WAV offline con Chatterbox Multilingual sobre una referencia sintética Kokoro (`ef_dora`); se nombran por id de fase. Entorno en `.local-state/tts/.venv` (ver README).
 
 ## Comandos
@@ -16,15 +16,18 @@ Plataforma de simulación para formación y toma de decisiones. Primer despliegu
 - `pnpm check`: tests + typecheck + build + dry-run del Worker. Debe pasar antes de cualquier commit.
 - `pnpm smoke` (API local en marcha; `SMOKE_RUNS=50` es la puerta de calidad de Simulation Core).
 - `pnpm demo` / `pnpm demo:stop`: todo en segundo plano, incluido Unity.
-- `pnpm deploy:cloud`: tests, migraciones D1 remotas y despliegue en `axyro.qhel.dev` (Cloudflare Access; requiere `wrangler login`). CI despliega en push a `main` cuando exista el secreto `CLOUDFLARE_API_TOKEN`.
+- `pnpm deploy:cloud`: tests, migraciones D1 remotas pendientes y despliegue en `axyro.qhel.dev` (requiere `wrangler login`). El job `deploy` del CI solo corre en push a `main` si la variable de repositorio `CLOUDFLARE_DEPLOY` vale `true` (y existen los secretos `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID`); si no, queda omitido.
+- `BOOTSTRAP_OWNER_EMAIL` es un secreto del Worker (`pnpm exec wrangler secret put BOOTSTRAP_OWNER_EMAIL`), no una variable de `wrangler.jsonc`. En local no hace falta: la API usa la identidad demo.
 - `pnpm unity:build`: compila el ejecutable Windows (con el editor cerrado).
-- `pnpm unity:webgl`: compila Unity para el navegador y lo publica en `/simulador/?sesion=<id>` (assets ≤25 MiB en `web/public/simulador/`, el resto en R2; ruta en `worker/simulator.ts`). El participante debe estar dado de alta como miembro y admitido en Access.
+- `pnpm unity:webgl`: compila Unity para el navegador y lo deja en `web/public/simulador/` (salida versionada; ficheros ≥25 MiB a R2; `-SkipBuild` solo prepara los assets); después `pnpm deploy:cloud`. Enlace `/simulador/?sesion=<id>` (ruta en `worker/simulator.ts`). El participante necesita membresía y código personal.
 - `pnpm build:standalone`: demo en navegador con la API emulada.
 - Red UFV: `curl.exe --ssl-no-revoke`; para uv, `UV_SYSTEM_CERTS=1` y `truststore`.
 
 ## Reglas del proyecto
-- Todo recurso pertenece a un tenant; toda consulta filtra por `tenant_id`.
-- Eventos y cola solo con IDs seudónimos, nunca nombres ni correos.
+- Todo recurso pertenece a un tenant; toda consulta filtra por `tenant_id`. Un usuario pertenece a una sola organización.
+- Eventos y cola solo con IDs seudónimos, nunca nombres ni correos. Un tipo de evento nuevo obliga a decidir sus campos en `QUEUE_DETAIL_FIELDS`; el texto libre no sale a la cola.
+- El participante nunca recibe datos de compañeros ni `quality`/`rationale`/`effects`/`takeaway` antes de decidir: toda respuesta de sesión pasa por `roomPayload`.
+- Las peticiones que cambian estado son `application/json` y del mismo origen (CSRF en `worker/app.ts`).
 - No inferir emociones ni estados psicológicos (AI Act). Las valoraciones `quality` son de la decisión, no de la persona.
 - Unity nunca contiene claves de proveedores de IA; la voz se genera offline y se incluye como WAV.
 - No clonar la voz de personas reales sin consentimiento expreso.
@@ -32,12 +35,11 @@ Plataforma de simulación para formación y toma de decisiones. Primer despliegu
 - Texto de interfaz y documentación en español.
 
 ## Estado y siguientes pasos (2026-10-06)
-Hecho: escenario de IA responsable por defecto, marca UFV en consola y Unity, tutor 3D con lip sync y voz Chatterbox, CI con job de despliegue.
+Hecho: escenarios de IA con VictorIA (por defecto `ia-buenas-practicas`), marca UFV en consola y Unity, tutor 3D con lip sync y 12 locuciones Soniox TTS RT v2 (voz española `Carmen`, guion público generado fuera de la aplicación); modo individual (indicadores e informe por participante, media de clase, unión en cualquier fase, vista filtrada); seguridad (membresías con una organización por usuario, códigos personales de seis cifras, sesiones propias, auditoría de usos, CSRF, CSP, `x-request-id`, observability); RGPD (Durable Objects en la UE, retención de sesiones no completadas y de `audit_log` a 730 días, cola con lista blanca; la cola sigue sin jurisdicción UE); simulador WebGL publicado en `/simulador/`; `BOOTSTRAP_OWNER_EMAIL` y `ACCESS_CODE_PEPPER` como secretos; CI con despliegue condicionado a `CLOUDFLARE_DEPLOY`. La aplicación Cloudflare Access «Simulador UFV» y sus dos políticas AXYRO están retiradas. La entrada pública y el acceso propio se han probado en producción.
 
 Pendiente:
-1. Crear el secreto `CLOUDFLARE_API_TOKEN` en GitHub para que despliegue el CI.
-2. Dominio definitivo (p. ej. de `ufv.es`) y renombrar la aplicación Access «AXYRO SIM / DECISION»; ambos se ven en el login.
-3. Personaje definitivo con Reallusion Character Creator 4.
-4. Locutora real con consentimiento para la voz final.
-5. Cliente remoto del participante (WebGL servido desde Cloudflare, autenticación con Access).
-6. Queue con jurisdicción UE; borrado de miembros; DPA con UFV.
+1. Activar el despliegue automático (`CLOUDFLARE_DEPLOY=true` con sus secretos, o Workers Builds).
+2. Probar una sesión completa de extremo a extremo con los equipos y la red de la UFV.
+3. Decisiones de la UFV de `docs/checklist-entrega-ufv.md` (dominio definitivo, DPA, base jurídica, plazos, ubicación de datos, etc.).
+4. Personaje definitivo con Reallusion Character Creator 4.
+5. Respuesta por micrófono WebGL con Soniox STT cuando esté habilitado el proyecto y la clave UE; hoy la voz por micrófono solo existe en Windows con Vosk local.

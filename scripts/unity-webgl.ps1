@@ -1,6 +1,6 @@
 ﻿# Compila el simulador Unity para el navegador (WebGL) y lo deja listo para servirse en /simulador/.
 # - Ficheros de hasta 25 MiB (límite de los static assets de Workers): se copian a web/public/simulador/
-#   y viajan con la consola en el siguiente despliegue (pnpm deploy:cloud).
+#   se versionan y viajan con la consola en CI o con pnpm deploy:cloud.
 # - Ficheros mayores: se suben al bucket R2 axyro-files bajo simulador/; el Worker los sirve desde ahí.
 # Cierra el editor de Unity antes de ejecutarlo: el modo batch no puede abrir un proyecto ya abierto.
 # Uso: pnpm unity:webgl    (otra ruta del editor: $env:UNITY_EDITOR = 'C:\...\Unity.exe')
@@ -22,9 +22,13 @@ if (-not $SkipBuild) {
   New-Item -ItemType Directory -Force -Path $logs | Out-Null
   $log = Join-Path $logs 'unity-webgl.log'
   Write-Host 'Compilando Unity para WebGL (la primera vez puede tardar bastante)...'
-  $process = Start-Process -FilePath $unity -ArgumentList @('-batchmode', '-quit', '-projectPath', "`"$project`"", '-buildTarget', 'WebGL', '-executeMethod', 'AxyroSceneBuilder.BuildWebGL', '-logFile', "`"$log`"") -Wait -PassThru -NoNewWindow
+  $process = Start-Process -FilePath $unity -ArgumentList @('-batchmode', '-quit', '-projectPath', "`"$project`"", '-buildTarget', 'WebGL', '-executeMethod', 'AxyroSceneBuilder.BuildWebGL', '-logFile', "`"$log`"") -PassThru -NoNewWindow
+  # Espera solo al editor; Unity puede dejar subprocesos vivos después de terminar.
+  $process.WaitForExit()
   $result = Select-String -Path $log -Pattern 'AXYRO_WEBGL_RESULT' | Select-Object -Last 1
-  if ($process.ExitCode -ne 0 -or -not $result -or $result.Line -notmatch 'Succeeded') {
+  # El resultado del BuildPipeline es la señal fiable: en batchmode Unity puede
+  # devolver un código de proceso distinto de cero incluso tras compilar bien.
+  if (-not $result -or $result.Line -notmatch 'Succeeded errors=0') {
     Get-Content $log -Tail 40
     throw "La compilación WebGL falló. Log completo: $log"
   }
@@ -36,7 +40,7 @@ $build = (Resolve-Path $build).Path
 $files = Get-ChildItem -Path $build -Recurse -File
 $large = @($files | Where-Object { $_.Length -ge $limit })
 
-# La carpeta de destino es solo salida de compilación (ignorada por Git): se rehace entera.
+# La carpeta de destino es una salida generada y versionada: se rehace entera.
 if (Test-Path $target) { Remove-Item -Recurse -Force $target }
 New-Item -ItemType Directory -Force -Path $target | Out-Null
 

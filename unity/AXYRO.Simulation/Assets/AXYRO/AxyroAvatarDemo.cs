@@ -39,6 +39,7 @@ namespace Axyro
         private int phaseCount = 3;
         private string sessionStatus = "active";
         private Coroutine autoSpeak;
+        private float speechStartedAt;
 
         public bool IsSpeaking => speaking;
 
@@ -82,7 +83,7 @@ namespace Axyro
             var available = CurrentClip() != null;
             if (playButton != null) playButton.interactable = available && sessionStatus == "active";
             if (playButton != null) playButton.gameObject.SetActive(available);
-            if (playLabel != null && !speaking) playLabel.text = "▶  Repetir";
+            if (playLabel != null && !speaking) playLabel.text = LineFinished ? "↻  Repetir voz" : "▶  Escuchar";
         }
 
         /// <summary>Número de fases del escenario de la sesión; por defecto, las tres de la demo autónoma.</summary>
@@ -149,7 +150,14 @@ namespace Axyro
             if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame) Quit();
 #endif
             if (keyboard != null && (keyboard.f11Key.wasPressedThisFrame || (keyboard.altKey.isPressed && keyboard.enterKey.wasPressedThisFrame))) ToggleFullScreen();
-            if (speaking && voice != null && !voice.isPlaying) SetSpeaking(false);
+            // Algunos navegadores mantienen isPlaying=true si el audio WebGL se queda bloqueado.
+            // La interacción debe poder continuar al acabar la duración real del clip.
+            if (speaking && voice != null && (!voice.isPlaying ||
+                (voice.clip != null && Time.realtimeSinceStartup - speechStartedAt > voice.clip.length + 2f)))
+            {
+                voice.Stop();
+                SetSpeaking(false);
+            }
         }
 
         private void Quit()
@@ -221,12 +229,17 @@ namespace Axyro
             phase = next;
             if (phaseTitle != null) phaseTitle.text = PhaseHeading();
             if (dialogue != null) dialogue.text = scripts[phase];
-            RefreshPlayButton();
-            // En una sesión, el personaje plantea cada situación nada más empezar: no hace falta pulsar nada.
+            // En escritorio la locución empieza sola; WebGL espera un gesto del usuario.
             if (autoSpeak != null) StopCoroutine(autoSpeak);
             var willSpeak = linkedSession && sessionStatus == "active" && CurrentClip() != null;
             LineFinished = !willSpeak;
+#if UNITY_WEBGL && !UNITY_EDITOR
+            // El navegador exige un gesto del usuario para iniciar el audio. Evita una locución
+            // automática bloqueada que ocultaría las opciones durante toda la fase.
+#else
             if (willSpeak) autoSpeak = StartCoroutine(SpeakAfter(1.2f));
+#endif
+            RefreshPlayButton();
         }
 
         private IEnumerator SpeakAfter(float seconds)
@@ -244,6 +257,7 @@ namespace Axyro
             if (speaking) { voice.Stop(); SetSpeaking(false); return; }
             voice.clip = clip;
             voice.Play();
+            speechStartedAt = Time.realtimeSinceStartup;
             SetSpeaking(true);
         }
 
@@ -253,7 +267,7 @@ namespace Axyro
 #if UNITY_WEBGL && !UNITY_EDITOR
             // En el navegador no hay voz por micrófono: ratón o teclas 1–4.
             if (inputHint != null) inputHint.text = linked
-                ? "Elige con el ratón o con las teclas 1 a 4  ·  Espacio: repetir  ·  F11: pantalla completa"
+                ? "Haz clic en una opción o pulsa su número  ·  Espacio: repetir  ·  F11: pantalla completa"
                 : "1, 2 y 3: cambiar de situación  ·  Espacio: escuchar  ·  F11: pantalla completa";
 #else
             if (inputHint != null) inputHint.text = linked
@@ -280,7 +294,7 @@ namespace Axyro
             speaking = value;
             if (tutor != null) tutor.SetSpeaking(value);
             if (hudSpeaking != null) hudSpeaking.Value = value;
-            if (playLabel != null) playLabel.text = value ? "■  Detener" : "▶  Repetir";
+            if (playLabel != null) playLabel.text = value ? "■  Detener" : "↻  Repetir voz";
         }
     }
 }

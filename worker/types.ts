@@ -22,6 +22,11 @@ export interface Env {
   /** Días que se conserva el registro de auditoría (730 por defecto). */
   AUDIT_RETENTION_DAYS?: string;
   API_LIMITER?: RateLimit;
+  AUTH_LIMITER?: RateLimit;
+  AUTH_IP_LIMITER?: RateLimit;
+  ACCESS_CODE_PEPPER?: string;
+  /** Solo durante la transición: permite JWT de Access. En producción se omite. */
+  LEGACY_ACCESS_AUTH?: string;
 }
 
 export interface EventMessage {

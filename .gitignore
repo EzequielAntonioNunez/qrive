@@ -12,6 +12,8 @@ Library/
 Temp/
 Obj/
 Build/
+!web/public/simulador/Build/
+!web/public/simulador/Build/**
 Builds/
 UserSettings/
 *.csproj
@@ -20,6 +22,5 @@ UserSettings/
 .vscode/
 assets/avatar/build/
 assets/hud/build/
-# Compilación WebGL de Unity (pnpm unity:webgl): no se versiona.
-web/public/simulador/
+# Se versiona la compilación WebGL para que GitHub Actions publique la misma experiencia.
 assets/feedback/build/

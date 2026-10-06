@@ -456,7 +456,7 @@ namespace Axyro
 
         private static string StatusLabel(string status) => status switch
         {
-            "active" => "En curso",
+            "active" => "",
             "paused" => "En pausa",
             "complete" => "Completada",
             _ => status
@@ -489,7 +489,7 @@ namespace Axyro
             }
         }
 
-        // Muestra la cuenta atrás de la fase junto al estado de la sesión; solo reescribe el texto cuando cambia el segundo.
+        // Muestra la cuenta atrás sin un estado redundante; solo reescribe el texto cuando cambia el segundo.
         private void RefreshTimer()
         {
             if (connectionLabel == null || baseLabel == null || state == null) return;
@@ -498,12 +498,12 @@ namespace Axyro
             if (deadlineUtc.HasValue)
             {
                 seconds = Math.Max(0, (int)Math.Ceiling((deadlineUtc.Value - DateTime.UtcNow).TotalSeconds));
-                suffix = $" · {seconds / 60}:{seconds % 60:00}";
+                suffix = $"{seconds / 60}:{seconds % 60:00} restantes";
             }
             else if (state.status == "paused" && state.phaseRemainingMs > 0)
             {
                 seconds = (int)Math.Ceiling(state.phaseRemainingMs / 1000.0);
-                suffix = $" · {seconds / 60}:{seconds % 60:00} restantes";
+                suffix = $"{seconds / 60}:{seconds % 60:00} restantes";
             }
             else
             {
@@ -512,7 +512,8 @@ namespace Axyro
             }
             if (seconds == shownSeconds) return;
             shownSeconds = seconds;
-            connectionLabel.text = baseLabel + suffix;
+            connectionLabel.text = string.IsNullOrEmpty(baseLabel) ? suffix :
+                string.IsNullOrEmpty(suffix) ? baseLabel : baseLabel + " · " + suffix;
         }
 
         [Serializable] private sealed class MeEnvelope { public IdentityData identity; public bool demo; }
