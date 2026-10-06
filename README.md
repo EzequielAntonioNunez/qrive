@@ -103,16 +103,17 @@ pnpm unity:webgl
 
 ### Respuesta por micrófono en WebGL
 
-En producción, guarda como secreto del Worker `SONIOX_EU_API_KEY` **solo una clave de un proyecto Soniox de la UE** y vuelve a desplegar. Sin esa clave, el botón de micrófono permanece oculto y el simulador sigue funcionando con ratón y teclado. La clave requiere permisos de **Temporary API keys** y **Speech-to-Text real-time**.
+En producción, guarda la clave del proyecto Soniox como secreto del Worker `SONIOX_API_KEY` e indica la región de ese proyecto en la variable `SONIOX_REGION` de `wrangler.jsonc` (`us` hoy; `eu` cuando haya proyecto en la UE). Sin la clave, el botón de micrófono permanece oculto y el simulador sigue funcionando con ratón y teclado. La clave requiere permisos de **Temporary API keys** y **Speech-to-Text real-time**. El secreto se lee en cada petición: no hace falta volver a desplegar.
 
 ```powershell
-pnpm exec wrangler secret put SONIOX_EU_API_KEY
-pnpm deploy:cloud
+pnpm exec wrangler secret put SONIOX_API_KEY
 ```
 
-El botón «Activar voz» pide permiso al navegador. El Worker autentica al participante y emite una clave temporal de un solo uso, válida 60 segundos para abrir una sesión de hasta 10 minutos. El audio PCM mono de 16 kHz va del navegador al WebSocket **UE** de Soniox; ni el Worker ni Unity reciben el audio. Unity recibe únicamente el estado del micrófono, la señal de interrupción y la frase final. La interrupción requiere voz detectada en el micrófono y texto provisional de Soniox; detiene la locución Carmen y el lip sync y muestra las opciones. Las decisiones se registran solo cuando Soniox emite `<end>`. Se puede desactivar con el mismo botón; al ocultar la pestaña se corta el micrófono.
+Con `SONIOX_REGION=us` hay transferencia internacional de la voz: el primer clic en «Activar voz» muestra dónde se transcribe y solo el segundo («Aceptar y activar») abre el micrófono. Pendiente de validación por el DPO (ver `docs/privacidad-y-transparencia.md`).
 
-Para pruebas **locales exclusivamente**, `worker/local.ts` acepta `SONIOX_TEST_API_KEY` en `.dev.vars` y usa el endpoint global de Soniox. El Worker de producción ignora esta clave aunque se configure por error. Nunca envíes audio real de participantes a ese proyecto de prueba. En Windows, las órdenes de voz siguen reconociéndose localmente con Vosk.
+El botón «Activar voz» pide permiso al navegador. El Worker autentica al participante y emite una clave temporal de un solo uso, válida 60 segundos para abrir una sesión de hasta 10 minutos. El audio PCM mono de 16 kHz va del navegador al WebSocket de Soniox de la región configurada; ni el Worker ni Unity reciben el audio. Unity recibe únicamente el estado del micrófono, la señal de interrupción y la frase final. La interrupción requiere voz detectada en el micrófono y texto provisional de Soniox; detiene la locución Carmen y el lip sync y muestra las opciones. Las decisiones se registran solo cuando Soniox emite `<end>`. Se puede desactivar con el mismo botón; al ocultar la pestaña se corta el micrófono.
+
+Para pruebas **locales exclusivamente**, `worker/local.ts` acepta `SONIOX_TEST_API_KEY` en `.dev.vars` y usa el endpoint global de Soniox. El Worker de producción ignora esta clave aunque se configure por error. En Windows, las órdenes de voz siguen reconociéndose localmente con Vosk.
 
 `export-lines.mjs` vuelca las frases (`characterLine`) de los escenarios de catálogo. `generate_voice.py` admite `--only <ids>`, `--exaggeration`, `--cfg`, `--seed` y `--variants` (tres combinaciones de expresividad para elegir de oído).
 

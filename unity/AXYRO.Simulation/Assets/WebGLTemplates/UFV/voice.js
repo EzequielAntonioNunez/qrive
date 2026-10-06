@@ -24,7 +24,7 @@
   `;
 
   const voice = {
-    unity: null, button: null, status: null, active: false, starting: false, websocketUrl: null,
+    unity: null, button: null, status: null, active: false, starting: false, websocketUrl: null, region: 'eu', noticeAccepted: false,
     speaking: false, canDecide: false, optionCount: 0, interrupted: false,
     socket: null, stream: null, context: null, source: null, processor: null, sink: null,
     finalText: '', lastSpeechAt: 0, speechMs: 0, voiceStartAt: 0, generation: 0,
@@ -48,14 +48,24 @@
       try {
         const response = await fetch('/api/voice/config', { credentials: 'same-origin', cache: 'no-store' });
         const config = await response.json();
-        const localTest = ['localhost', '127.0.0.1'].includes(location.hostname) && config.region === 'us';
-        if (!response.ok || !config.enabled || (config.region !== 'eu' && !localTest)) return;
+        if (!response.ok || !config.enabled) return;
         this.websocketUrl = config.websocketUrl;
+        this.region = config.region;
       } catch { return; }
       this.button = document.getElementById('axyro-mic');
       this.status = document.getElementById('axyro-mic-status');
       this.button.hidden = false;
-      this.button.addEventListener('click', () => this.active || this.starting ? this.stop() : this.start());
+      this.button.addEventListener('click', () => {
+        if (this.active || this.starting) return this.stop();
+        // Fuera de la UE, el participante ve dónde se transcribe su voz antes de abrir el micrófono.
+        if (this.region !== 'eu' && !this.noticeAccepted) {
+          this.noticeAccepted = true;
+          this.button.textContent = '🎙 Aceptar y activar';
+          this.setStatus('Tu voz se transcribe en Soniox (EE. UU.) solo mientras la voz está activa; ni el simulador ni la UFV guardan el audio. Si prefieres no usarla, elige con el ratón.');
+          return;
+        }
+        this.start();
+      });
       document.addEventListener('visibilitychange', () => { if (document.hidden) this.stop(); });
       window.addEventListener('pagehide', () => this.stop());
     },
@@ -85,7 +95,7 @@
         const grant = await response.json();
         if (generation !== this.generation) return;
         if (!grant.apiKey || grant.websocketUrl !== this.websocketUrl)
-          throw new Error('La conexión de voz UE no está disponible.');
+          throw new Error('La conexión de voz no está disponible.');
         const socket = new WebSocket(grant.websocketUrl, ['soniox-api-key', grant.apiKey]);
         this.socket = socket;
         socket.onopen = () => this.onOpen(generation);

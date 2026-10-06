@@ -20,7 +20,8 @@ Cada situación tiene un tiempo límite (el reloj aparece en pantalla). Elige **
 
 - **Ratón:** haz clic en la tarjeta de la opción.
 - **Teclado:** pulsa **1**, **2**, **3** o **4**. La barra **espaciadora** reproduce o detiene la intervención de VictorIA.
-- En el navegador no se usa el micrófono. Solo la versión de escritorio para Windows, si tu docente la usa, admite la **voz**: di «**uno**», «**dos**», «**tres**» (o «**cuatro**») o «**repetir**». El reconocimiento funciona **en el propio equipo**, solo detecta esas palabras y **no graba ni envía tu voz**. Si el equipo no lo permite, verás «Voz no disponible · elige con el ratón».
+- **Voz en el navegador (opcional):** si ves el botón «Activar voz», púlsalo, lee el aviso (tu voz se transcribe en Soniox, en EE. UU.; ni el simulador ni la UFV guardan el audio) y pulsa «Aceptar y activar». Di «**uno**», «**dos**», «**tres**», «**cuatro**» o «**repetir**»; puedes interrumpir a VictorIA hablando. Se desactiva con el mismo botón o al cambiar de pestaña. Si prefieres no usarla, elige con el ratón.
+- La versión de escritorio para Windows, si tu docente la usa, también admite la **voz**: di «**uno**», «**dos**», «**tres**» (o «**cuatro**») o «**repetir**». El reconocimiento funciona **en el propio equipo**, solo detecta esas palabras y **no graba ni envía tu voz**. Si el equipo no lo permite, verás «Voz no disponible · elige con el ratón».
 
 Hasta que decides no ves la valoración de las opciones; después verás la consecuencia y por qué es o no buena práctica. Si se agota el tiempo antes de decidir, tu indicador de Riesgo sube; todavía puedes decidir, pero quedará anotado. Si tu docente pausa la sesión, espera a que la reanude.
 

@@ -37,6 +37,9 @@
     // ACCESS_CODE_PEPPER y BOOTSTRAP_OWNER_EMAIL se configuran como secretos del Worker.
     // La autenticación pública usa correo y código propio; Cloudflare Access no participa.
     // Durable Objects de sesión en la UE (RGPD). Cambiarlo deja inaccesibles las sesiones creadas con el valor anterior.
-    "SESSIONS_JURISDICTION": "eu"
+    "SESSIONS_JURISDICTION": "eu",
+    // Región del proyecto Soniox cuya clave está en el secreto SONIOX_API_KEY (voz del simulador web).
+    // «us»: transferencia internacional avisada al participante antes de abrir el micrófono; «eu» al disponer de proyecto UE.
+    "SONIOX_REGION": "us"
   }
 }

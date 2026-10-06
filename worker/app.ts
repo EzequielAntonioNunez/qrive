@@ -73,6 +73,12 @@ export function csrfRejection(request: Request): string | null {
 // Cabeceras de seguridad. El Worker atiende /api, /simulador y las páginas HTML de la consola
 // (run_worker_first en wrangler.jsonc); los ficheros con hash de /assets y /brand salen directos.
 // ---------------------------------------------------------------------------------------------
+/** Hosts regionales de Soniox: una clave solo funciona en la región de su proyecto. */
+const SONIOX_REGIONS = {
+  eu: { region: 'eu', api: 'https://api.eu.soniox.com', websocketUrl: 'wss://stt-rt.eu.soniox.com/transcribe-websocket' },
+  us: { region: 'us', api: 'https://api.soniox.com', websocketUrl: 'wss://stt-rt.soniox.com/transcribe-websocket' }
+} as const;
+
 const CSP = {
   // Respuestas JSON: no se interpretan como documento.
   api: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
@@ -80,7 +86,7 @@ const CSP = {
   console: "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; media-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests",
   // Unity WebGL: script y estilo en línea de la plantilla (cambian en cada build, no admiten hash fijo),
   // WebAssembly ('wasm-unsafe-eval'), blob: para el framework descomprimido y los workers, audio y texturas en blob:/data:.
-  simulator: "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data: wss://stt-rt.eu.soniox.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests"
+  simulator: "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data: wss://stt-rt.eu.soniox.com wss://stt-rt.soniox.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests"
 } as const;
 
 type SurfaceKind = keyof typeof CSP;
@@ -199,10 +205,11 @@ export function createApp(demo = false) {
       viewAccessAudit: identity.role === 'instructor'
     } });
   });
-  const voiceService = (env: Env) => env.SONIOX_EU_API_KEY
-    ? { key: env.SONIOX_EU_API_KEY, region: 'eu', api: 'https://api.eu.soniox.com', websocketUrl: 'wss://stt-rt.eu.soniox.com/transcribe-websocket' }
+  // La región la fija el proyecto Soniox de la clave: SONIOX_REGION debe coincidir con él («eu» por defecto).
+  const voiceService = (env: Env) => env.SONIOX_API_KEY
+    ? { key: env.SONIOX_API_KEY, ...SONIOX_REGIONS[env.SONIOX_REGION === 'us' ? 'us' : 'eu'] }
     : demo && env.SONIOX_TEST_API_KEY
-      ? { key: env.SONIOX_TEST_API_KEY, region: 'us', api: 'https://api.soniox.com', websocketUrl: 'wss://stt-rt.soniox.com/transcribe-websocket' }
+      ? { key: env.SONIOX_TEST_API_KEY, ...SONIOX_REGIONS.us }
       : null;
   app.get('/api/voice/config', c => {
     const service = voiceService(c.env);
@@ -233,7 +240,7 @@ export function createApp(demo = false) {
       })
     });
     if (!upstream.ok) {
-      console.warn(JSON.stringify({ code: 'SONIOX_EU_TEMP_KEY_FAILED', status: upstream.status, requestId: c.get('requestId') }));
+      console.warn(JSON.stringify({ code: 'SONIOX_TEMP_KEY_FAILED', region: service.region, status: upstream.status, requestId: c.get('requestId') }));
       return c.json({ error: 'No se ha podido activar el micrófono. Inténtalo de nuevo.' }, 502);
     }
     const data = await upstream.json() as { api_key?: unknown; expires_at?: unknown };

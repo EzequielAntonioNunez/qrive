@@ -190,7 +190,7 @@ describe('códigos personales de seis cifras', () => {
 
 describe('micrófono WebGL con Soniox UE', () => {
   it('solo entrega una clave temporal a participantes autenticados de una sesión propia', async () => {
-    const context = setup({ vars: { SONIOX_EU_API_KEY: 'server-only-eu-key' } });
+    const context = setup({ vars: { SONIOX_API_KEY: 'server-only-eu-key' } });
     const sessionId = 'session-12345678';
     context.db.prepare("INSERT INTO sessions (id,tenant_id,instructor_id,scenario_id,scenario_version,status,created_at) VALUES (?,?,?,'x',1,'active',?)")
       .run(sessionId, 'ufv', 'u-prof', NEWER);
@@ -213,6 +213,27 @@ describe('micrófono WebGL con Soniox UE', () => {
       expect(grant.headers.get('cache-control')).toBe('no-store');
       expect(await grant.json()).toMatchObject({ apiKey: 'snx_temp_test-key', websocketUrl: 'wss://stt-rt.eu.soniox.com/transcribe-websocket' });
       expect(upstream).toHaveBeenCalledTimes(1);
+    } finally { globalThis.fetch = originalFetch; }
+  });
+
+  it('con SONIOX_REGION=us usa los hosts globales de Soniox y lo indica en la configuración', async () => {
+    const context = setup({ vars: { SONIOX_API_KEY: 'server-only-us-key', SONIOX_REGION: 'us' } });
+    const sessionId = 'session-12345678';
+    context.db.prepare("INSERT INTO sessions (id,tenant_id,instructor_id,scenario_id,scenario_version,status,created_at) VALUES (?,?,?,'x',1,'active',?)")
+      .run(sessionId, 'ufv', 'u-prof', NEWER);
+    const originalFetch = globalThis.fetch;
+    const upstream = vi.fn(async (input: string | URL | Request) => {
+      expect(String(input)).toBe('https://api.soniox.com/v1/auth/temporary-api-key');
+      return Response.json({ api_key: 'snx_temp_us-key', expires_at: NEWER }, { status: 201 });
+    });
+    globalThis.fetch = upstream as typeof fetch;
+    try {
+      expect(await (await context.call('GET', '/api/voice/config', { as: ALUMNA })).json())
+        .toMatchObject({ enabled: true, region: 'us', websocketUrl: 'wss://stt-rt.soniox.com/transcribe-websocket' });
+      const grant = await context.call('POST', '/api/voice/temporary-key', { as: ALUMNA, body: { sessionId } });
+      expect(await grant.json()).toMatchObject({ apiKey: 'snx_temp_us-key', websocketUrl: 'wss://stt-rt.soniox.com/transcribe-websocket' });
+      const simulator = await context.call('GET', '/simulador/index.html', { as: ALUMNA });
+      expect(simulator.headers.get('content-security-policy')).toContain('wss://stt-rt.soniox.com');
     } finally { globalThis.fetch = originalFetch; }
   });
 

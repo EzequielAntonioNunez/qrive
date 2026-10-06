@@ -25,7 +25,7 @@ Responsables: **Dev** (equipo de desarrollo), **UFV-SI** (Servicios Informático
 - [x] Simulador WebGL compilado, publicado en `/simulador/` y probado con una sesión autenticada. (Dev)
 - [ ] Probado en los navegadores y equipos de aula de la UFV (Chrome y Edge, red de la UFV con inspección TLS). (UFV-SI, Dev)
 - [ ] Audio de VictorIA y sincronización labial correctos en los equipos de aula. (UFV-Doc)
-- [ ] Respuesta por voz en el navegador: solo se activa con una clave de un proyecto Soniox de la región UE (secreto del Worker `SONIOX_EU_API_KEY`). Sin ella el botón «Activar voz» no aparece y se elige con ratón o teclado. Con ella, probar permiso de micrófono, interrupción de VictorIA y decisión por voz en los equipos de aula. (Dev, UFV-SI, UFV-DPO)
+- [ ] Respuesta por voz en el navegador (secreto `SONIOX_API_KEY`, región en `SONIOX_REGION`; hoy proyecto Soniox de EE. UU. con aviso previo al participante): transferencia internacional aceptada por el DPO o proyecto en la UE; permiso de micrófono, interrupción de VictorIA y decisión por voz probados en los equipos de aula. (Dev, UFV-SI, UFV-DPO)
 - [ ] Solo si se usa la versión de escritorio para Windows: respuesta por voz local (Vosk) probada en esos equipos; donde Windows no deja abrir el micrófono aparece «Voz no disponible · elige con el ratón». (UFV-SI)
 - [ ] Prueba de carga con el tamaño de grupo previsto para el piloto (participantes simultáneos y límite de 300 peticiones por minuto y usuario). (Dev)
 

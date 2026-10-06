@@ -42,4 +42,4 @@ Pendiente:
 2. Probar una sesión completa de extremo a extremo con los equipos y la red de la UFV.
 3. Decisiones de la UFV de `docs/checklist-entrega-ufv.md` (dominio definitivo, DPA, base jurídica, plazos, ubicación de datos, etc.).
 4. Personaje definitivo con Reallusion Character Creator 4.
-5. Voz por micrófono en WebGL: implementada (`AxyroWebVoice.cs`, `Plugins/WebGL/AxyroVoice.jslib`, plantilla `voice.js`, `/api/voice/*` con claves temporales Soniox de un solo uso). Queda oculta hasta guardar el secreto `SONIOX_EU_API_KEY` (proyecto Soniox UE) y tener la aprobación del DPO.
+5. Voz por micrófono en WebGL: implementada (`AxyroWebVoice.cs`, `Plugins/WebGL/AxyroVoice.jslib`, plantilla `voice.js`, `/api/voice/*` con claves temporales Soniox de un solo uso). Se activa con el secreto `SONIOX_API_KEY`; `SONIOX_REGION` (`wrangler.jsonc`) indica la región del proyecto: hoy `us`, con aviso de transferencia internacional antes de abrir el micrófono y pendiente del DPO; `eu` cuando haya proyecto UE.

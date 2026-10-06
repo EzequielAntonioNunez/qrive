@@ -26,8 +26,10 @@ export interface Env {
   AUTH_LIMITER?: RateLimit;
   AUTH_IP_LIMITER?: RateLimit;
   ACCESS_CODE_PEPPER?: string;
-  /** Clave de un proyecto Soniox situado en la UE. Nunca se envía al navegador. */
-  SONIOX_EU_API_KEY?: string;
+  /** Clave (secreto) del proyecto Soniox para la voz del simulador web. Nunca se envía al navegador. */
+  SONIOX_API_KEY?: string;
+  /** Región del proyecto Soniox de SONIOX_API_KEY: «eu» (por defecto) o «us» (transferencia internacional, avisada al participante). */
+  SONIOX_REGION?: string;
   /** Solo en `wrangler dev` (createApp(true)): pruebas locales con proyecto Soniox global. */
   SONIOX_TEST_API_KEY?: string;
   /** Solo durante la transición: permite JWT de Access. En producción se omite. */
