@@ -2,6 +2,8 @@ import { catalogScenarios, type Scenario } from '../shared/simulation';
 import { ScenarioError, validateScenario } from '../shared/scenario';
 import type { Env } from './types';
 
+const UNAVAILABLE_ID = 'Ese identificador no está disponible.';
+
 export interface ScenarioSummary { id: string; version: number; title: string; summary: string; phases: number; catalog: boolean }
 
 /** Publica los escenarios de catálogo incluidos en el código si esa versión aún no existe en D1. */
@@ -40,8 +42,12 @@ export async function getScenario(env: Env, tenantId: string, id: string): Promi
  */
 export async function publishScenario(env: Env, tenantId: string, actorId: string, value: unknown): Promise<Scenario> {
   const scenario = validateScenario(value);
+  // El catálogo se publica antes de comprobar: un ID de catálogo está reservado aunque aún no esté en D1.
+  // El mensaje es el mismo para catálogo y otras organizaciones, para no revelar qué IDs usan otros tenants.
+  await ensureCatalog(env);
+  if (catalogScenarios.some(item => item.id === scenario.id)) throw new ScenarioError(UNAVAILABLE_ID);
   const owners = await env.DB.prepare('SELECT DISTINCT tenant_id AS tenantId FROM scenarios WHERE id = ?').bind(scenario.id).all<{ tenantId: string | null }>();
-  if (owners.results.some(row => row.tenantId !== tenantId)) throw new ScenarioError('id: ya existe en otra organización o en el catálogo; usa otro identificador.');
+  if (owners.results.some(row => row.tenantId !== tenantId)) throw new ScenarioError(UNAVAILABLE_ID);
   const latest = await env.DB.prepare('SELECT MAX(version) AS version FROM scenarios WHERE id = ? AND tenant_id = ?').bind(scenario.id, tenantId).first<{ version: number | null }>();
   if (latest?.version && scenario.version <= latest.version) throw new ScenarioError(`version: debe ser mayor que ${latest.version}.`);
   await env.DB.prepare('INSERT INTO scenarios (id,version,tenant_id,title,definition_json,created_by,created_at) VALUES (?,?,?,?,?,?,?)')

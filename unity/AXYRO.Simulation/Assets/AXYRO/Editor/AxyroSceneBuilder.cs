@@ -85,6 +85,126 @@ public static class AxyroSceneBuilder
         if (summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded) EditorApplication.Exit(1);
     }
 
+    private const string WebScenePath = "Assets/Scenes/AXYRO Avatar Web.unity";
+    private const string WebBuildPath = "Build/WebGL";
+
+    /// <summary>
+    /// Compilación WebGL para servirla en /simulador/ del mismo dominio que la API (Cloudflare Access).
+    /// Uso: Unity.exe -batchmode -quit -projectPath unity/AXYRO.Simulation -buildTarget WebGL -executeMethod AxyroSceneBuilder.BuildWebGL
+    /// (lo lanza scripts/unity-webgl.ps1, que además publica el resultado).
+    /// </summary>
+    [MenuItem("AXYRO/Compilar simulador web (WebGL)")]
+    public static void BuildWebGL()
+    {
+        Build();
+        PrepareWebScene();
+        ConfigureAudioForWebGL();
+
+        PlayerSettings.companyName = "Universidad Francisco de Vitoria";
+        PlayerSettings.productName = "Simulador UFV";
+        PlayerSettings.colorSpace = ColorSpace.Linear;
+        PlayerSettings.runInBackground = true;
+        // Brotli con descompresión en JavaScript si hace falta: no depende de que el servidor envíe Content-Encoding.
+        PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Brotli;
+        PlayerSettings.WebGL.decompressionFallback = true;
+        // Nombres con hash: el Worker puede cachear Build/ sin caducidad y cada compilación invalida lo anterior.
+        PlayerSettings.WebGL.nameFilesAsHashes = true;
+        PlayerSettings.WebGL.dataCaching = true;
+        PlayerSettings.WebGL.template = "PROJECT:UFV";
+        PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
+        // Sin pantalla de Unity si la licencia lo permite (en Unity 6 también con Personal); si no, Unity la mantiene.
+        try
+        {
+            PlayerSettings.SplashScreen.showUnityLogo = false;
+            PlayerSettings.SplashScreen.show = false;
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning($"No se pudo quitar la pantalla de inicio de Unity: {exception.Message}");
+        }
+
+        var succeeded = false;
+        try
+        {
+            var options = new BuildPlayerOptions
+            {
+                scenes = new[] { WebScenePath },
+                locationPathName = WebBuildPath,
+                target = BuildTarget.WebGL,
+                options = BuildOptions.None
+            };
+            var report = BuildPipeline.BuildPlayer(options);
+            var summary = report.summary;
+            succeeded = summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded;
+            if (succeeded) RemoveDesktopOnlyFiles();
+            Debug.Log($"AXYRO_WEBGL_RESULT {summary.result} errors={summary.totalErrors} size={summary.totalSize}");
+        }
+        finally
+        {
+            // La copia web es temporal: el editor vuelve a la escena de siempre.
+            EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            AssetDatabase.DeleteAsset(WebScenePath);
+        }
+        if (!succeeded && Application.isBatchMode) EditorApplication.Exit(1);
+    }
+
+    /// <summary>
+    /// Copia de la escena para el navegador: sin reconocimiento de voz (no hay micrófono local en WebGL), solo ratón y teclado.
+    /// La escena de Windows no se toca.
+    /// </summary>
+    private static void PrepareWebScene()
+    {
+        var scene = EditorSceneManager.GetActiveScene();
+        foreach (var voiceCommands in UnityEngine.Object.FindObjectsByType<AxyroVoiceCommands>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            var status = new SerializedObject(voiceCommands).FindProperty("status").objectReferenceValue as Text;
+            if (status != null) status.text = "Elige con el ratón o con las teclas 1 a 4";
+            UnityEngine.Object.DestroyImmediate(voiceCommands);
+        }
+        EditorSceneManager.SaveScene(scene, WebScenePath, true);
+        EditorSceneManager.OpenScene(WebScenePath, OpenSceneMode.Single);
+    }
+
+    /// <summary>
+    /// uLipSync en WebGL no recibe OnAudioFilterRead: lee las muestras con AudioClip.GetData (autoAudioSyncOnWebGL
+    /// sincroniza al desbloquearse el audio con el primer clic). GetData necesita los clips descomprimidos al cargar.
+    /// </summary>
+    private static void ConfigureAudioForWebGL()
+    {
+        foreach (var guid in AssetDatabase.FindAssets("t:AudioClip", new[] { "Assets/AXYRO/Audio" }))
+        {
+            var path = AssetDatabase.GUIDToAssetPath(guid);
+            if (!(AssetImporter.GetAtPath(path) is AudioImporter importer)) continue;
+            var settings = importer.GetOverrideSampleSettings("WebGL");
+            if (importer.ContainsSampleSettingsOverride("WebGL") && settings.loadType == AudioClipLoadType.DecompressOnLoad) continue;
+            settings.loadType = AudioClipLoadType.DecompressOnLoad;
+            if (!importer.SetOverrideSampleSettings("WebGL", settings))
+            {
+                Debug.LogWarning($"No se pudo ajustar {path} para WebGL");
+                continue;
+            }
+            importer.SaveAndReimport();
+        }
+        foreach (var lipSync in UnityEngine.Object.FindObjectsByType<LipSync>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            var data = new SerializedObject(lipSync);
+            var autoSync = data.FindProperty("autoAudioSyncOnWebGL");
+            if (autoSync == null) continue;
+            autoSync.boolValue = true;
+            data.ApplyModifiedPropertiesWithoutUndo();
+        }
+        EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+    }
+
+    /// <summary>El modelo de voz Vosk (StreamingAssets) es solo para Windows: en la build web sobra y pesa decenas de MB.</summary>
+    private static void RemoveDesktopOnlyFiles()
+    {
+        var streaming = System.IO.Path.Combine(WebBuildPath, "StreamingAssets");
+        if (!System.IO.Directory.Exists(streaming)) return;
+        foreach (var directory in System.IO.Directory.GetDirectories(streaming, "vosk-model*"))
+            System.IO.Directory.Delete(directory, true);
+    }
+
     // ---------- Render pipeline ----------
 
     private static void EnsureUrp()
@@ -531,8 +651,42 @@ public static class AxyroSceneBuilder
         demoData.ApplyModifiedPropertiesWithoutUndo();
         Debug.Log($"AXYRO_VOICE_LINES {string.Join(", ", audio.Select(clip => clip.name))}");
 
+        // Feedback de la decisión (Rive): check, marca neutra o aviso junto a VictorIA, sobre la escena 3D.
+        var feedbackPanel = new GameObject("Rive Feedback", typeof(RectTransform));
+        feedbackPanel.transform.SetParent(canvasObject.transform, false);
+        Stretch(feedbackPanel.GetComponent<RectTransform>(), new Vector2(.36f, .56f), new Vector2(.50f, .81f));
+        feedbackPanel.SetActive(false);
+        var feedbackRivePanel = feedbackPanel.AddComponent<RivePanel>();
+        var feedbackRenderer = new SerializedObject(feedbackPanel.AddComponent<RiveCanvasRenderer>());
+        feedbackRenderer.FindProperty("m_initialRivePanel").objectReferenceValue = feedbackRivePanel;
+        feedbackRenderer.ApplyModifiedPropertiesWithoutUndo();
+        var feedbackWidgetObject = new GameObject("Decision Feedback", typeof(RectTransform));
+        feedbackWidgetObject.transform.SetParent(feedbackPanel.transform, false);
+        Stretch(feedbackWidgetObject.GetComponent<RectTransform>(), Vector2.zero, Vector2.one);
+        var feedbackWidget = feedbackWidgetObject.AddComponent<RiveWidget>();
+        var feedbackAsset = AssetDatabase.LoadAssetAtPath<Rive.Asset>("Assets/AXYRO/feedback.riv");
+        if (feedbackAsset == null) throw new InvalidOperationException("No se pudo importar feedback.riv");
+        var feedbackWidgetData = new SerializedObject(feedbackWidget);
+        feedbackWidgetData.FindProperty("m_asset").objectReferenceValue = feedbackAsset;
+        feedbackWidgetData.FindProperty("m_artboardName").stringValue = "Feedback";
+        feedbackWidgetData.FindProperty("m_stateMachineName").stringValue = "Feedback";
+        feedbackWidgetData.ApplyModifiedPropertiesWithoutUndo();
+        feedbackPanel.SetActive(true);
+        var decisionFeedback = feedbackPanel.AddComponent<AxyroDecisionFeedback>();
+        var decisionFeedbackData = new SerializedObject(decisionFeedback);
+        decisionFeedbackData.FindProperty("widget").objectReferenceValue = feedbackWidget;
+        decisionFeedbackData.ApplyModifiedPropertiesWithoutUndo();
+
+        // Transparencia (AI Act): el personaje y su voz son sintéticos.
+        var notice = Text("Aviso IA", canvasObject.transform, "VictorIA es un personaje virtual: su imagen y su voz son sintéticas.", 11, Muted, new Vector2(.03f, .012f), new Vector2(.50f, .045f));
+        var noticeShadow = notice.gameObject.AddComponent<Shadow>();
+        noticeShadow.effectColor = new Color(0f, 0f, 0f, 0.7f);
+        noticeShadow.effectDistance = new Vector2(1f, -1f);
+
         var sessionClient = canvasObject.AddComponent<AxyroSessionClient>();
         var clientData = new SerializedObject(sessionClient);
+        clientData.FindProperty("feedback").objectReferenceValue = decisionFeedback;
+        clientData.FindProperty("tutor").objectReferenceValue = tutor;
         clientData.FindProperty("avatar").objectReferenceValue = demo;
         clientData.FindProperty("connectionLabel").objectReferenceValue = connection;
         clientData.FindProperty("choiceList").objectReferenceValue = choices;

@@ -20,3 +20,6 @@ UserSettings/
 .vscode/
 assets/avatar/build/
 assets/hud/build/
+# Compilación WebGL de Unity (pnpm unity:webgl): no se versiona.
+web/public/simulador/
+assets/feedback/build/

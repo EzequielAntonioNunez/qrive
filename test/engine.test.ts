@@ -23,9 +23,11 @@ describe('session authorization and command behavior', () => {
   });
 
   it('records instructor meter adjustments as their own auditable event', () => {
-    const state = createSession('session', 'tenant', instructor, start);
+    // Modo individual: el ajuste se aplica a los participantes y `meters` es su media; sin nadie unido no cambiaría nada.
+    const state = applyCommand(createSession('session', 'tenant', instructor, start), { id: 'join-0001', type: 'join' }, participant, start).state;
     const result = applyCommand(state, { id: 'meter-0001', type: 'set-meter', meter: 'risk', value: 35 }, instructor, start);
     expect(result.state.meters.risk).toBe(35);
+    expect(result.state.participantMeters[participant.id].risk).toBe(35);
     expect(result.events).toMatchObject([{ type: 'meter_changed', detail: { meter: 'risk', value: 35 } }]);
     expect(() => applyCommand(state, { id: 'meter-0002', type: 'set-meter', meter: 'risk', value: 101 }, instructor, start)).toThrow('Valor no válido');
     expect(() => applyCommand(state, { id: 'meter-0003', type: 'set-meter', meter: 'risk', value: 35 }, participant, start)).toThrow('reservada');

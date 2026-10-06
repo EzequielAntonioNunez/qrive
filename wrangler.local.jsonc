@@ -3,6 +3,7 @@
   "name": "axyro-sim-lab-local",
   "main": "worker/local.ts",
   "compatibility_date": "2026-10-05",
+  "workers_dev": false,
   "d1_databases": [{ "binding": "DB", "database_name": "axyro-db", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "axyro-files" }],
   "durable_objects": { "bindings": [{ "name": "SESSIONS", "class_name": "SessionRoom" }] },

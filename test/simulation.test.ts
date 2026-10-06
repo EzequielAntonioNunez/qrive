@@ -14,6 +14,7 @@ describe('negotiation simulation', () => {
       id: 's', tenantId: 't', instructorId: 'i', scenario: negotiationScenario,
       status: 'complete', phaseIndex: 2, phaseStartedAt: '2026-10-05T00:00:00Z', phaseDeadline: null, phaseRemainingMs: null,
       meters: { relationship: 65, margin: 60, risk: 35 },
+      participantMeters: { p: { relationship: 65, margin: 60, risk: 35 } },
       participants: [{ userId: 'p', name: 'Participant', joinedAt: '2026-10-05T00:00:00Z' }],
       decisions: [{ userId: 'p', phaseId: 'prepare', optionId: 'ask-data', at: '2026-10-05T00:00:03Z', durationMs: 3000 }],
       events: [{ seq: 1, type: 'completed', at: '2026-10-05T00:01:00Z', actorId: 'i', detail: {} }],

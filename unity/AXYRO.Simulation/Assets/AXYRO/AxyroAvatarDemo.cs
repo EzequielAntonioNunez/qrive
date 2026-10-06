@@ -42,6 +42,12 @@ namespace Axyro
 
         public bool IsSpeaking => speaking;
 
+        /// <summary>
+        /// True cuando el personaje ya ha planteado la situación actual (terminó o se detuvo la locución, o no hay audio).
+        /// Las opciones se muestran a partir de ese momento: primero se escucha, después se decide.
+        /// </summary>
+        public bool LineFinished { get; private set; } = true;
+
         /// <summary>Ids de fase del escenario de la sesión: la locución se busca como Audio/&lt;id&gt;.wav.</summary>
         public void SetPhaseIds(string[] ids)
         {
@@ -75,7 +81,8 @@ namespace Axyro
         {
             var available = CurrentClip() != null;
             if (playButton != null) playButton.interactable = available && sessionStatus == "active";
-            if (playLabel != null && !speaking) playLabel.text = available ? "▶  Escuchar de nuevo" : "Sin audio";
+            if (playButton != null) playButton.gameObject.SetActive(available);
+            if (playLabel != null && !speaking) playLabel.text = "▶  Repetir";
         }
 
         /// <summary>Número de fases del escenario de la sesión; por defecto, las tres de la demo autónoma.</summary>
@@ -102,23 +109,30 @@ namespace Axyro
             SetPhase(0);
             BindHud();
             var arguments = Environment.GetCommandLineArgs();
-#if !UNITY_EDITOR
+#if !UNITY_EDITOR && !UNITY_WEBGL
             // Unity recuerda el último modo de pantalla; se abre siempre en ventana salvo que se pida lo contrario.
+            // En el navegador el lienzo ocupa la página y no se toca su resolución.
             SetFullScreen(Array.IndexOf(arguments, "--axyro-fullscreen") >= 0);
 #endif
+            // Captura de QA desde dentro del simulador: --axyro-capture=<png> [--axyro-capture-delay=<segundos>].
+            var captureDelay = Array.IndexOf(arguments, "--axyro-autoplay") >= 0 ? 2.5f : 3.0f;
+            foreach (var argument in arguments)
+                if (argument.StartsWith("--axyro-capture-delay=", StringComparison.Ordinal) &&
+                    float.TryParse(argument.Substring("--axyro-capture-delay=".Length), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var seconds))
+                    captureDelay = Mathf.Clamp(seconds, 0f, 120f);
             foreach (var argument in arguments)
             {
                 if (argument == "--axyro-autoplay") ToggleVoice();
                 if (argument.StartsWith("--axyro-capture=", StringComparison.Ordinal))
-                    StartCoroutine(CaptureAfterFrames(argument.Substring("--axyro-capture=".Length), Array.IndexOf(arguments, "--axyro-autoplay") >= 0));
+                    StartCoroutine(CaptureAfterFrames(argument.Substring("--axyro-capture=".Length), captureDelay));
             }
         }
 
-        private IEnumerator CaptureAfterFrames(string path, bool autoplay)
+        private IEnumerator CaptureAfterFrames(string path, float delay)
         {
             yield return new WaitForEndOfFrame();
             yield return new WaitForEndOfFrame();
-            yield return new WaitForSeconds(autoplay ? 2.5f : 3.0f);
+            yield return new WaitForSeconds(delay);
             ScreenCapture.CaptureScreenshot(path);
             Debug.Log($"AXYRO_CAPTURE_READY {path}");
         }
@@ -130,7 +144,10 @@ namespace Axyro
             if (!linkedSession && keyboard != null && keyboard.digit2Key.wasPressedThisFrame) SetPhase(1);
             if (!linkedSession && keyboard != null && keyboard.digit3Key.wasPressedThisFrame) SetPhase(2);
             if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame) ToggleVoice();
+#if !UNITY_WEBGL || UNITY_EDITOR
+            // En el navegador Esc solo sale de pantalla completa: no hay aplicación que cerrar.
             if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame) Quit();
+#endif
             if (keyboard != null && (keyboard.f11Key.wasPressedThisFrame || (keyboard.altKey.isPressed && keyboard.enterKey.wasPressedThisFrame))) ToggleFullScreen();
             if (speaking && voice != null && !voice.isPlaying) SetSpeaking(false);
         }
@@ -146,7 +163,11 @@ namespace Axyro
         }
 
         /// <summary>Alterna entre ventana y pantalla completa sin bordes, conservando la resolución del escritorio.</summary>
+#if UNITY_WEBGL && !UNITY_EDITOR
+        private static void ToggleFullScreen() => Screen.fullScreen = !Screen.fullScreen;
+#else
         private static void ToggleFullScreen() => SetFullScreen(Screen.fullScreenMode == FullScreenMode.Windowed);
+#endif
 
         private static void SetFullScreen(bool fullScreen)
         {
@@ -190,7 +211,7 @@ namespace Axyro
             }
         }
 
-        private string PhaseHeading() => $"SITUACIÓN {phase + 1} DE {phaseCount}  ·  {titles[phase]?.ToUpperInvariant()}";
+        private string PhaseHeading() => $"{phase + 1} / {phaseCount}   {titles[phase]?.ToUpperInvariant()}";
 
         public void SetPhase(int next)
         {
@@ -203,7 +224,9 @@ namespace Axyro
             RefreshPlayButton();
             // En una sesión, el personaje plantea cada situación nada más empezar: no hace falta pulsar nada.
             if (autoSpeak != null) StopCoroutine(autoSpeak);
-            if (linkedSession && sessionStatus == "active") autoSpeak = StartCoroutine(SpeakAfter(1.2f));
+            var willSpeak = linkedSession && sessionStatus == "active" && CurrentClip() != null;
+            LineFinished = !willSpeak;
+            if (willSpeak) autoSpeak = StartCoroutine(SpeakAfter(1.2f));
         }
 
         private IEnumerator SpeakAfter(float seconds)
@@ -211,6 +234,7 @@ namespace Axyro
             yield return new WaitForSeconds(seconds);
             autoSpeak = null;
             if (!speaking && sessionStatus == "active") ToggleVoice();
+            if (!speaking) LineFinished = true;
         }
 
         public void ToggleVoice()
@@ -226,9 +250,16 @@ namespace Axyro
         public void SetLinkedSession(bool linked)
         {
             linkedSession = linked;
+#if UNITY_WEBGL && !UNITY_EDITOR
+            // En el navegador no hay voz por micrófono: ratón o teclas 1–4.
+            if (inputHint != null) inputHint.text = linked
+                ? "Elige con el ratón o con las teclas 1 a 4  ·  Espacio: repetir  ·  F11: pantalla completa"
+                : "1, 2 y 3: cambiar de situación  ·  Espacio: escuchar  ·  F11: pantalla completa";
+#else
             if (inputHint != null) inputHint.text = linked
                 ? "Elige con el ratón o en voz alta  ·  Espacio: repetir  ·  F11: pantalla completa  ·  Esc: salir"
                 : "1, 2 y 3: cambiar de situación  ·  Espacio: escuchar  ·  F11: pantalla completa  ·  Esc: salir";
+#endif
         }
 
         public void SetSessionStatus(string status)
@@ -244,10 +275,12 @@ namespace Axyro
 
         private void SetSpeaking(bool value)
         {
+            // Al terminar (o detener) la locución, la situación queda planteada y se muestran las opciones.
+            if (speaking && !value) LineFinished = true;
             speaking = value;
             if (tutor != null) tutor.SetSpeaking(value);
             if (hudSpeaking != null) hudSpeaking.Value = value;
-            if (playLabel != null) playLabel.text = value ? "■  Detener" : "▶  Escuchar de nuevo";
+            if (playLabel != null) playLabel.text = value ? "■  Detener" : "▶  Repetir";
         }
     }
 }

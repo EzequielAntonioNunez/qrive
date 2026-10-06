@@ -50,9 +50,9 @@ El proyecto `unity/AXYRO.Simulation` usa Unity **6000.3.25f1** con URP, el paque
 
 ### Interacción
 
-`AxyroSessionClient` conecta la escena con la API local (`http://127.0.0.1:8787/api`) como `demo-participant`. Con `--axyro-session=<id>` queda fijado a esa sesión; sin él, sigue siempre la sesión más reciente, de modo que al crear una sesión nueva en la consola Unity cambia solo. El participante se une automáticamente en cuanto hay una sesión activa. Consulta el estado cada 1,5 s, sincroniza fase y estado con el tutor, muestra la cuenta atrás, la consecuencia de cada decisión y avisa durante 10 s de incidentes y tiempos agotados. La consola indica si Unity está conectado.
+`AxyroSessionClient` conecta la escena con la API local (`http://127.0.0.1:8787/api`) como `demo-participant` (en WebGL, con la identidad real; ver «Simulador en el navegador»). Con `--axyro-session=<id>` queda fijado a esa sesión; sin él, sigue siempre la sesión más reciente, de modo que al crear una sesión nueva en la consola Unity cambia solo. El participante se une automáticamente en cuanto hay una sesión activa. Consulta el estado cada 1,5 s, sincroniza fase y estado con el tutor, muestra la cuenta atrás, la consecuencia de cada decisión y avisa durante 10 s de incidentes y tiempos agotados. La consola indica si Unity está conectado.
 
-- Decidir: clic en las tarjetas de opción, por voz («uno», «dos», «tres»; «repetir» vuelve a reproducir la intervención) o con las teclas `1`–`4`. La voz usa el reconocimiento local de Windows (`KeywordRecognizer`): no se graba ni se envía audio.
+- Decidir: clic en las tarjetas de opción, por voz («uno», «dos», «tres»; «repetir» vuelve a reproducir la intervención) o con las teclas `1`–`4`. La voz se reconoce en el propio equipo con Vosk (Apache 2.0, modelo `vosk-model-small-es-0.42` en `Assets/StreamingAssets/vosk-model-es/`, librería en `Assets/Plugins/x86_64/`) con una gramática cerrada de órdenes: el audio del micrófono solo se procesa en memoria, no se envía ni se guarda. El micrófono se cierra mientras habla el tutor o la ventana no tiene el foco. Si falta el micrófono, el modelo o la librería, se elige con ratón o teclado.
 - `Espacio` reproduce o detiene la intervención; `F11` (o `Alt+Intro`) alterna pantalla completa; `Esc` cierra.
 - Se abre siempre en ventana de 1600×900 (`--axyro-fullscreen` para arrancar en pantalla completa).
 - Sin sesión: demo autónoma; `1`/`2`/`3` cambian de fase.
@@ -60,7 +60,30 @@ El proyecto `unity/AXYRO.Simulation` usa Unity **6000.3.25f1** con URP, el paque
 
 El HUD Rive se edita en `assets/hud/scene.rml`; el `.riv` compilado se versiona en `unity/AXYRO.Simulation/Assets/AXYRO/hud.riv`.
 
-El cliente Unity solo usa la identidad demo de bucle local. Un cliente remoto necesitará su propio flujo de autenticación con Cloudflare Access (por ejemplo, WebGL servido desde el mismo dominio); nunca un token incluido en la build.
+El ejecutable Windows solo usa la identidad demo de bucle local (`--axyro-session=<id>` o `--axyro-session <id>`). El participante remoto usa la build WebGL servida desde el mismo dominio (ver «Simulador en el navegador»); nunca un token incluido en la build.
+
+## Simulador en el navegador
+
+El participante abre el simulador 3D en el navegador, sin instalar nada, desde `https://axyro.qhel.dev/simulador/?sesion=<id>`.
+
+1. El instructor crea la sesión en la consola. En «Experiencia del participante» aparece el enlace para participantes con «Copiar enlace» y «Abrir simulador».
+2. **Alta del participante (imprescindible):** en «Participantes › Miembros de la organización», el instructor añade nombre y correo con «Añadir participante» (`POST /api/memberships`, rol `participant`). El Worker solo reconoce a quien tiene una membresía en D1: sin ella, `/api/*` responde 401 y el simulador muestra «No tienes acceso a esta sesión. Pide a tu docente que te dé de alta.». Un usuario pertenece a una sola organización (la primera membresía que encuentra `worker/auth.ts`), y la sesión debe ser de esa organización (si no, 404).
+3. Además, la política de Cloudflare Access debe admitir el correo del participante (hoy solo admite `ezequiel@identy.cloud`; para la UFV, una regla por dominio `@ufv.es` o por grupo). Esto se configura en el panel de Access, no en el código.
+4. El participante abre el enlace, inicia sesión en Access y se carga la build WebGL. Al ser el mismo origen, la cookie de Access viaja sola en cada petición: el cliente consulta `GET /api/me` para conocer su id y rol, se une a la sesión y decide con el ratón o con las teclas `1`–`4`. La unión solo es posible en la primera fase (la sesión no debe haber avanzado).
+
+Comportamiento del cliente en WebGL (`AxyroSessionClient.cs`, `#if UNITY_WEBGL && !UNITY_EDITOR`): la API es `<origen>/api`, sin cabecera `x-demo-user`, y la sesión sale del parámetro `sesion`. Sin él muestra «Abre el simulador desde el enlace que te comparta tu docente». Un instructor que abre el enlace ve la sesión sin poder decidir. No hay voz por micrófono: la escena web se genera sin `AxyroVoiceCommands`. El lip sync de uLipSync funciona en WebGL leyendo las muestras del clip (`autoAudioSyncOnWebGL`); por eso las locuciones llevan en WebGL `Decompress On Load`. El navegador no reproduce audio hasta el primer clic del participante.
+
+### Compilar y publicar
+
+```powershell
+pnpm unity:webgl        # con el editor de Unity cerrado; requiere el módulo «Web Build Support»
+pnpm deploy:cloud
+```
+
+- `scripts/unity-webgl.ps1` ejecuta `AxyroSceneBuilder.BuildWebGL` (escena regenerada, plantilla `Assets/WebGLTemplates/UFV/`, Brotli con `decompressionFallback`, nombres con hash, sin el modelo Vosk) en `unity/AXYRO.Simulation/Build/WebGL` y lo copia a `web/public/simulador/` (ignorado por Git). Vite lo incluye en `dist/web` y el despliegue lo sube como static assets.
+- Los static assets de Workers admiten como máximo 25 MiB por fichero. Los ficheros que lo superan se suben a R2 (`axyro-files/simulador/<ruta>`, jurisdicción UE) con `wrangler r2 object put --remote`. `pnpm unity:webgl -SkipBuild` repite solo la publicación.
+- El Worker atiende `/simulador` y `/simulador/*` antes que los assets (`run_worker_first`): sirve el asset si existe y, si no, el objeto de R2 con su `Content-Type` (`.wasm` → `application/wasm`, `.data`/`.unityweb` → `application/octet-stream`) y caché `immutable` para `Build/` (`worker/simulator.ts`). `/simulador` redirige a `/simulador/` conservando `?sesion=`. Cloudflare Access protege todas estas rutas igual que la consola.
+- En local: con `pnpm dev:api` y `pnpm dev:web`, el enlace de la consola apunta a `http://127.0.0.1:5173/simulador/index.html?sesion=<id>` (Vite no resuelve la carpeta). Con la API local el cliente WebGL detecta el modo demo en `/api/me` y actúa como participante demo.
 
 ## Voz del tutor
 
@@ -109,14 +132,18 @@ El token de desarrollo permite desplegar con `Workers Editor`, aplicar migracion
 
 Los escenarios son datos versionados en D1 (tabla `scenarios`, migración `0002`). Los escenarios de catálogo viven en `catalogScenarios` (`shared/simulation.ts`) y se publican automáticamente en D1 al consultarse:
 
-- `ia-buenas-practicas` «Uso responsable de la IA en la universidad» (`defaultScenario`): fases `datos-personales`, `verificacion` y `evaluacion`, de 3 minutos cada una. Indicadores con etiquetas propias: Confianza, Productividad y Riesgo.
+- `ia-buenas-practicas` «Uso responsable de la IA en la universidad» (`defaultScenario`): fases `datos-personales`, `verificacion` y `evaluacion`, de 3 minutos cada una. Indicadores con etiquetas propias: Confianza, Productividad y Riesgo. Versión 3 (añade `rationale` y `takeaway`).
+- `ia-docencia` «IA generativa en la docencia» (VictorIA): fases `actividad-evaluable`, `feedback-asistido` y `materiales-fuentes`, de 3 minutos cada una. Indicadores Aprendizaje, Eficiencia y Riesgo.
+- `ia-atencion-estudiantes` «IA en la atención al estudiante» (VictorIA): fases `chatbot-plazos`, `sesgo-becas` y `transparencia-ia`, de 3 minutos cada una. Indicadores Confianza, Agilidad y Riesgo.
 - `supplier-negotiation` «Renegociación con un proveedor estratégico»: fases `prepare`, `counteroffer` y `close` (8, 5 y 4 minutos). Indicadores Relación, Margen y Riesgo.
+
+Aprendizaje explícito: cada opción puede llevar `rationale` (por qué es o no buena práctica, hasta 300 caracteres) y cada fase un `takeaway` (la idea clave de buena práctica, hasta 240). Ambos son opcionales; el informe los incluye en cada entrada del debriefing (`timeline[].rationale` de la opción elegida y `timeline[].takeaway` de la fase, `null` si no existen) para que la consola y Unity puedan mostrarlos. Los escenarios de VictorIA los rellenan en todas sus fases y opciones.
 
 Cada sesión guarda una copia del escenario con el que empezó, así que publicar una versión nueva no altera sesiones en curso.
 
 - `GET /api/scenarios`: última versión de cada escenario visible (catálogo + propios de la organización).
 - `GET /api/scenarios/:id`: definición completa; sirve de plantilla para crear otro.
-- `POST /api/scenarios`: el instructor publica un escenario propio o una versión nueva. Se valida con `shared/scenario.ts` (1–8 fases, 2–4 opciones, efectos entre -50 y 50, `characterLine` obligatorio, `meterLabels` opcional con `relationship`, `margin` y `risk` de hasta 24 caracteres) y se audita. Las versiones son inmutables y deben crecer; los IDs del catálogo están reservados.
+- `POST /api/scenarios`: el instructor publica un escenario propio o una versión nueva. Se valida con `shared/scenario.ts` (1–8 fases, 2–4 opciones, efectos entre -50 y 50, `characterLine` obligatorio, `meterLabels` opcional con `relationship`, `margin` y `risk` de hasta 24 caracteres, `rationale` y `takeaway` opcionales) y se audita. Las versiones son inmutables y deben crecer; los IDs del catálogo están reservados.
 - `POST /api/sessions` acepta `{ "scenarioId": "..." }`. La consola muestra un selector cuando hay más de un escenario.
 
 Los indicadores internos son siempre `relationship`, `margin` y `risk`; `meterLabels` solo cambia cómo se muestran (sin él: Relación, Margen, Riesgo).

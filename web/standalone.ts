@@ -11,7 +11,7 @@ type Store = { sessions: SessionState[]; members: Member[] };
 
 const KEY = 'ufv-simulador-v2';
 const actors: Record<'instructor' | 'participant', Actor & { email: string; tenantId: string }> = {
-  instructor: { id: 'demo-instructor', name: 'Instructor demo', role: 'instructor', email: 'instructor@demo.local', tenantId: 'demo' },
+  instructor: { id: 'demo-instructor', name: 'Docente demo', role: 'instructor', email: 'instructor@demo.local', tenantId: 'demo' },
   participant: { id: 'demo-participant', name: 'Participante demo', role: 'participant', email: 'participante@demo.local', tenantId: 'demo' }
 };
 
@@ -63,14 +63,14 @@ async function handle(path: string, init: RequestInit | undefined, role: 'instru
     return json({ sessions: [...store.sessions].reverse().map(state => ({ id: state.id, status: statusOf(state), createdAt: state.createdAt, scenarioId: state.scenario.id })) });
   }
   if (path === '/sessions' && method === 'POST') {
-    if (role !== 'instructor') return json({ error: 'Acción reservada al instructor.' }, 403);
+    if (role !== 'instructor') return json({ error: 'Acción reservada al docente.' }, 403);
     const scenario = catalogScenarios.find(item => item.id === body.scenarioId) ?? defaultScenario;
     const state = createSession(crypto.randomUUID(), 'demo', actor, now, scenario);
     store.sessions.push(state); save(store);
     return json(payload(state), 201);
   }
   if (path === '/memberships') {
-    if (role !== 'instructor') return json({ error: 'Acción reservada al instructor.' }, 403);
+    if (role !== 'instructor') return json({ error: 'Acción reservada al docente.' }, 403);
     if (method === 'POST') {
       const member: Member = { id: crypto.randomUUID(), email: String(body.email ?? '').toLowerCase(), name: String(body.name ?? '').trim(), role: 'participant' };
       if (!member.name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(member.email)) return json({ error: 'Miembro no válido.' }, 400);

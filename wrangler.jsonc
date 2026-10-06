@@ -10,7 +10,9 @@
     "directory": "./dist/web",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
+    // El Worker atiende todo (API, simulador y páginas HTML de la consola, para añadir cabeceras de seguridad)
+    // salvo los ficheros con hash de Vite y la marca, que salen directos de los static assets.
+    "run_worker_first": ["/*", "!/assets/*", "!/brand/*"]
   },
   "d1_databases": [{ "binding": "DB", "database_name": "axyro-db", "database_id": "a6f26406-0082-4f70-8550-63535822a104", "migrations_dir": "migrations" }],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "axyro-files", "jurisdiction": "eu" }],
@@ -22,11 +24,19 @@
   },
   "ratelimits": [{ "name": "API_LIMITER", "namespace_id": "1001", "simple": { "limit": 300, "period": 60 } }],
   "triggers": { "crons": ["17 3 * * *"] },
+  "observability": { "enabled": true },
   "vars": {
     "RETENTION_DAYS": "365",
+    "AUDIT_RETENTION_DAYS": "730",
     "FEATURE_FLAGS": "{\"phase_timers\":true,\"ai_characters\":false,\"realtime_websocket\":false}",
     "ACCESS_TEAM_DOMAIN": "bitter-cake-9de8.cloudflareaccess.com",
     "ACCESS_AUD": "6fd0a707bbd54441a54f781ad7bb2bf2ef8ea45d1af058a126e277c753cb8797",
-    "BOOTSTRAP_OWNER_EMAIL": "ezequiel@identy.cloud"
+    // Necesario para el primer arranque. Debería ser un secreto (`wrangler secret put BOOTSTRAP_OWNER_EMAIL`) y salir de aquí.
+    "BOOTSTRAP_OWNER_EMAIL": "ezequiel@identy.cloud",
+    // Autoalta como participante de cualquier cuenta de estos dominios que pase Cloudflare Access.
+    // Organización: DEFAULT_TENANT_ID si se define; si no, aquella en la que BOOTSTRAP_OWNER_EMAIL es instructor.
+    "ALLOWED_EMAIL_DOMAINS": "ufv.es",
+    // Durable Objects de sesión en la UE (RGPD). Cambiarlo deja inaccesibles las sesiones creadas con el valor anterior.
+    "SESSIONS_JURISDICTION": "eu"
   }
 }

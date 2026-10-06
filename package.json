@@ -17,6 +17,7 @@
     "build:standalone": "vite build --mode standalone",
     "deploy:cloud": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1",
     "unity:build": "powershell -ExecutionPolicy Bypass -File scripts/unity-build.ps1",
+    "unity:webgl": "powershell -ExecutionPolicy Bypass -File scripts/unity-webgl.ps1",
     "ship": "powershell -ExecutionPolicy Bypass -File scripts/ship.ps1"
   },
   "dependencies": {

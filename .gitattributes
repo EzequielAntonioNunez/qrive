@@ -1,0 +1,6 @@
+﻿# Modelo de voz Vosk y librerías nativas: se versionan tal cual (sin conversión de fin de línea).
+unity/AXYRO.Simulation/Assets/StreamingAssets/vosk-model-es/** -text
+unity/AXYRO.Simulation/Assets/Plugins/** -text
+*.riv binary
+*.wav binary
+*.fbx binary

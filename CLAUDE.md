@@ -8,7 +8,7 @@ Plataforma de simulación para formación y toma de decisiones. Primer despliegu
 - `shared/`: motor puro en TypeScript (`engine.ts`, `simulation.ts`, `scenario.ts`, `events.ts`, `contracts/`). Sin dependencias de Cloudflare; lo usan el Worker, los tests y la demo en navegador. `catalogScenarios` (se publican en D1 al consultarse) y `defaultScenario` = `ia-buenas-practicas`; `supplier-negotiation` sigue en catálogo. `meterLabels` es opcional y se valida en `scenario.ts`.
 - `worker/`: API Hono en Cloudflare Workers. Estado vivo de cada sesión en el Durable Object `SessionRoom`, datos en D1, eventos por Queue, retención por cron.
 - `web/`: consola de instructor y participante (React + Vite). No muestra el personaje; eso es de Unity. Marca en `web/brand.ts` y `web/public/brand/` (UFV).
-- `unity/AXYRO.Simulation`: cliente de simulación (Unity 6000.3.25f1, URP, Rive 0.5.1 solo para el HUD, uLipSync). Tutor 3D en `Assets/AXYRO/AxyroTutor3D.cs` y `Characters/Tutor/` (provisional Rocketbox, MIT). `AxyroSessionClient.cs` habla con la API y se une solo a la sesión; decisión por ratón, voz (KeywordRecognizer local, sin grabar audio) o teclas 1-4. La escena se genera con `AXYRO > Crear escena de avatar` o `AxyroSceneBuilder.BuildWindows` en batch.
+- `unity/AXYRO.Simulation`: cliente de simulación (Unity 6000.3.25f1, URP, Rive 0.5.1 solo para el HUD, uLipSync). Tutor 3D en `Assets/AXYRO/AxyroTutor3D.cs` y `Characters/Tutor/` (provisional Rocketbox, MIT). `AxyroSessionClient.cs` habla con la API y se une solo a la sesión; decisión por ratón, voz (Vosk local, sin grabar audio) o teclas 1-4. La escena se genera con `AXYRO > Crear escena de avatar` o `AxyroSceneBuilder.BuildWindows` en batch.
 - `scripts/tts/`: locuciones WAV offline con Chatterbox Multilingual sobre una referencia sintética Kokoro (`ef_dora`); se nombran por id de fase. Entorno en `.local-state/tts/.venv` (ver README).
 
 ## Comandos
@@ -18,6 +18,7 @@ Plataforma de simulación para formación y toma de decisiones. Primer despliegu
 - `pnpm demo` / `pnpm demo:stop`: todo en segundo plano, incluido Unity.
 - `pnpm deploy:cloud`: tests, migraciones D1 remotas y despliegue en `axyro.qhel.dev` (Cloudflare Access; requiere `wrangler login`). CI despliega en push a `main` cuando exista el secreto `CLOUDFLARE_API_TOKEN`.
 - `pnpm unity:build`: compila el ejecutable Windows (con el editor cerrado).
+- `pnpm unity:webgl`: compila Unity para el navegador y lo publica en `/simulador/?sesion=<id>` (assets ≤25 MiB en `web/public/simulador/`, el resto en R2; ruta en `worker/simulator.ts`). El participante debe estar dado de alta como miembro y admitido en Access.
 - `pnpm build:standalone`: demo en navegador con la API emulada.
 - Red UFV: `curl.exe --ssl-no-revoke`; para uv, `UV_SYSTEM_CERTS=1` y `truststore`.
 

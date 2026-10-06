@@ -1,10 +1,57 @@
 import { DurableObject } from 'cloudflare:workers';
 import { applyCommand, createSession, DomainError, expireTimer, type Actor, type Command } from '../shared/engine';
-import { performanceReport, type Scenario, type SessionState, type SimEvent } from '../shared/simulation';
+import { participantReport, participantView, performanceReport, type Scenario, type SessionState, type SimEvent } from '../shared/simulation';
+import type { SimEventType } from '../shared/events';
 import type { Env, EventMessage } from './types';
 import { flags } from './flags';
 
 export type ClientKind = 'unity';
+
+/**
+ * Campos de `detail` que pueden salir del Durable Object hacia la cola (y de ahí a D1), por tipo de evento.
+ * Solo IDs seudónimos, IDs del escenario y números: nunca texto libre que pueda llevar datos personales.
+ * Un campo que no esté aquí se queda en el estado del Durable Object (consola y simulador lo siguen viendo)
+ * y en la cola aparece como `<campo>Redacted: true`. Un tipo nuevo obliga a decidir aquí qué campos salen.
+ */
+export const QUEUE_DETAIL_FIELDS: Record<SimEventType, readonly string[]> = {
+  session_started: ['scenarioId', 'scenarioVersion'],
+  participant_joined: ['participantId'],
+  decision: ['phaseId', 'optionId', 'durationMs'],
+  phase_advanced: ['phaseId'],
+  paused: [],
+  resumed: [],
+  incident: ['riskDelta'],
+  meter_changed: ['meter', 'value'],
+  timer_expired: ['phaseId', 'riskDelta'],
+  completed: ['score']
+};
+
+/** Copia del evento apta para la cola: `detail` filtrado por la lista blanca de su tipo. */
+export function queueSafeEvent(event: SimEvent): SimEvent {
+  const allowed = Object.hasOwn(QUEUE_DETAIL_FIELDS, event.type) ? QUEUE_DETAIL_FIELDS[event.type] : [];
+  const detail: SimEvent['detail'] = {};
+  for (const [key, value] of Object.entries(event.detail ?? {})) {
+    if (allowed.includes(key)) detail[key] = value;
+    else detail[`${key}Redacted`] = true;
+  }
+  return { seq: event.seq, type: event.type, at: event.at, actorId: event.actorId, detail };
+}
+
+/** Mensajes que se publican en la cola para unos eventos pendientes (ya redactados). */
+export function queueMessages(state: Pick<SessionState, 'tenantId' | 'id'>, events: SimEvent[]): { body: EventMessage }[] {
+  return events.map(event => ({ body: { tenantId: state.tenantId, sessionId: state.id, event: queueSafeEvent(event) } satisfies EventMessage }));
+}
+
+/**
+ * Respuesta de las operaciones `state`/`command` según quién pregunta. El instructor ve el estado completo y el
+ * informe de la clase; cualquier otro actor (participante) solo su vista filtrada y su informe individual.
+ */
+export function roomPayload(state: SessionState, actor: Pick<Actor, 'id' | 'role'> | undefined, clients: Partial<Record<ClientKind, string>>) {
+  if (actor?.role === 'instructor') return { state, report: performanceReport(state), clients };
+  // Por defecto, la vista restringida: un actor ausente o con un rol desconocido no ve el estado completo.
+  const userId = actor?.id ?? '';
+  return { state: participantView(state, userId), report: participantReport(state, userId), clients };
+}
 
 export class SessionRoom extends DurableObject<Env> {
   /** Presencia en memoria de los clientes de simulación. No se persiste: es solo indicativa. */
@@ -12,7 +59,7 @@ export class SessionRoom extends DurableObject<Env> {
 
   private async flush(state: SessionState): Promise<void> {
     if (!state.pendingEvents.length) return;
-    await this.env.EVENTS.sendBatch(state.pendingEvents.map(event => ({ body: { tenantId: state.tenantId, sessionId: state.id, event } satisfies EventMessage })));
+    await this.env.EVENTS.sendBatch(queueMessages(state, state.pendingEvents));
     state.pendingEvents = [];
     await this.ctx.storage.put('state', state);
   }
@@ -61,7 +108,7 @@ export class SessionRoom extends DurableObject<Env> {
       if (body.client === 'unity') this.clientSeen.unity = new Date().toISOString();
       if (body.op !== 'state') await this.syncAlarm(state);
       try { await this.flush(state); } catch (error) { console.error(JSON.stringify({ code: 'QUEUE_FLUSH_FAILED', sessionId: state.id, message: String(error) })); }
-      return Response.json({ state, report: performanceReport(state), clients: this.clientSeen });
+      return Response.json(roomPayload(state, body.actor, this.clientSeen));
     } catch (error) {
       if (error instanceof DomainError) return Response.json({ error: error.message }, { status: 400 });
       console.error(JSON.stringify({ code: 'ROOM_ERROR', message: String(error) }));

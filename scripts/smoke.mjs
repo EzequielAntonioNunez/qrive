@@ -92,4 +92,33 @@ if (await remove(customSession.state.id) !== 200) throw new Error('No se pudo bo
 try { await api(`/sessions/${customSession.state.id}`); throw new Error('La sesión borrada sigue accesible'); }
 catch (error) { if (!String(error).includes('404')) throw error; }
 console.log('OK: exportación y borrado RGPD');
+
+// Recorre cada escenario visible (catálogo y propios) eligiendo la mejor opción de cada fase.
+async function playScenario(scenarioId) {
+  const created = await api('/sessions', 'instructor', { scenarioId });
+  const id = created.state.id;
+  if (created.state.scenario.id !== scenarioId) throw new Error(`La sesión ${id} no usa el escenario ${scenarioId}`);
+  const phases = created.state.scenario.phases.length;
+  let current = await command(id, 'participant', 'join');
+  for (let index = 0; index < phases; index++) {
+    if (current.state.phaseIndex !== index) throw new Error(`Fase inesperada en ${scenarioId}: ${current.state.phaseIndex} en lugar de ${index}`);
+    const { options } = current.state.scenario.phases[index];
+    const option = options.find(item => item.quality === 'best') ?? options[0];
+    current = await command(id, 'participant', 'decide', { optionId: option.id });
+    if (index < phases - 1) current = await command(id, 'instructor', 'advance');
+  }
+  const completed = await command(id, 'instructor', 'complete');
+  const { report } = completed;
+  if (completed.state.status !== 'complete') throw new Error(`La sesión de ${scenarioId} no terminó`);
+  if (report.decisions !== phases) throw new Error(`Informe incorrecto en ${scenarioId}: ${report.decisions} decisiones para ${phases} fases`);
+  if (report.correctDecisionsPct !== null && report.correctDecisionsPct !== 100) throw new Error(`Decisiones correctas en ${scenarioId}: ${report.correctDecisionsPct} %`);
+  if (report.criticalDecisions !== 0) throw new Error(`Decisiones críticas inesperadas en ${scenarioId}: ${report.criticalDecisions}`);
+  return phases;
+}
+const { scenarios } = await api('/scenarios');
+if (!scenarios.length) throw new Error('No hay escenarios publicados');
+let scenarioPhases = 0;
+for (const scenario of scenarios) scenarioPhases += await playScenario(scenario.id);
+console.log(`OK: ${scenarios.length} escenarios recorridos con la mejor opción (${scenarioPhases} fases)`);
+
 console.log(`OK: ${runs} simulaciones consecutivas sin error crítico`);

@@ -63,7 +63,8 @@ export function validateScenario(value: unknown): Scenario {
         consequence: text(option.consequence, `${optionPath}.consequence`, 300),
         effects: meters(option.effects, `${optionPath}.effects`, -50, 50),
         skill: option.skill as Choice['skill'],
-        ...(option.quality === undefined ? {} : { quality: quality(option.quality, `${optionPath}.quality`) })
+        ...(option.quality === undefined ? {} : { quality: quality(option.quality, `${optionPath}.quality`) }),
+        ...(option.rationale === undefined ? {} : { rationale: text(option.rationale, `${optionPath}.rationale`, 300) })
       };
     });
     const result: Phase = {
@@ -75,6 +76,7 @@ export function validateScenario(value: unknown): Scenario {
     };
     if (phase.timeLimitSec !== undefined) result.timeLimitSec = int(phase.timeLimitSec, `${path}.timeLimitSec`, 30, 3600);
     if (phase.timeoutRiskDelta !== undefined) result.timeoutRiskDelta = int(phase.timeoutRiskDelta, `${path}.timeoutRiskDelta`, 0, 50);
+    if (phase.takeaway !== undefined) result.takeaway = text(phase.takeaway, `${path}.takeaway`, 240);
     return result;
   });
   const scenario: Scenario = {
