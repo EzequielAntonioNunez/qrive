@@ -113,6 +113,8 @@ Con `SONIOX_REGION=us` hay transferencia internacional de la voz: el primer clic
 
 El botón «Activar voz» pide permiso al navegador. El Worker autentica al participante y emite una clave temporal de un solo uso, válida 60 segundos para abrir una sesión de hasta 10 minutos. El audio PCM mono de 16 kHz va del navegador al WebSocket de Soniox de la región configurada; ni el Worker ni Unity reciben el audio. Unity recibe únicamente el estado del micrófono, la señal de interrupción y la frase final. La interrupción requiere voz detectada en el micrófono y texto provisional de Soniox; detiene la locución Carmen y el lip sync y muestra las opciones. Las decisiones se registran solo cuando Soniox emite `<end>`. Se puede desactivar con el mismo botón; al ocultar la pestaña se corta el micrófono.
 
+**Respuesta libre con Clef.** Las órdenes cortas («la dos», «repetir») van directas a Unity. Una frase con palabras propias se envía a `POST /api/voice/interpret` (`{ sessionId, phrase }`, solo participantes). El Worker toma las opciones de la fase actual del estado de la sesión (nunca del cliente) y llama al modelo de decisión `@cf/cloudflare/clef-flash` de Workers AI (binding `AI`, `worker/voice-intent.ts`). La respuesta es `{ kind: 'decide' | 'confirm' | 'unclear', option, confidence, phaseId }`: con probabilidad ≥ 0,75 se decide, entre 0,45 y 0,75 el navegador pregunta «¿Te refieres a la opción N?» y espera «sí»/«no», y por debajo pide repetir. La decisión llega a Unity como la palabra del número, por el mismo camino que el ratón. La frase no se registra.
+
 Para pruebas **locales exclusivamente**, `worker/local.ts` acepta `SONIOX_TEST_API_KEY` en `.dev.vars` y usa el endpoint global de Soniox. El Worker de producción ignora esta clave aunque se configure por error. En Windows, las órdenes de voz siguen reconociéndose localmente con Vosk.
 
 `export-lines.mjs` vuelca las frases (`characterLine`) de los escenarios de catálogo. `generate_voice.py` admite `--only <ids>`, `--exaggeration`, `--cfg`, `--seed` y `--variants` (tres combinaciones de expresividad para elegir de oído).
@@ -180,6 +182,19 @@ Cada participante tiene sus propios indicadores (`participantMeters`): sus decis
 
 El participante solo recibe `participantView` y `participantReport` (`roomPayload` en `worker/room.ts`): sus indicadores, sus decisiones y su informe, sin datos de compañeros, y sin `quality`, `rationale`, `effects` ni `takeaway` en las fases en las que aún no ha decidido (con la sesión finalizada se muestra todo). La lista `GET /api/sessions` del participante solo incluye las sesiones a las que se ha unido, y no puede leer `/events`.
 
+## Tiempo real
+
+`GET /api/sessions/:id/live` con `Upgrade: websocket` abre un WebSocket (API de hibernación del Durable Object `SessionRoom`). Mismas comprobaciones que `GET /api/sessions/:id` (cookie, `API_LIMITER`, sesión de la organización: si no, 401/404) y, además, `Origin` igual al propio origen (403; en local se admite 127.0.0.1/localhost) y cabecera `Upgrade` (426). El Worker reenvía el upgrade con la identidad en una cabecera interna que construye él; nunca la del cliente. Se desactiva con el flag `realtime_websocket` (404).
+
+- Al conectar y tras cada cambio (unión, decisión, pausa, reanudación, avance, fin, incidente, ajuste, vencimiento del reloj, clase simulada) el servidor envía `{"type":"session","data": …}`, donde `data` es exactamente el cuerpo de `GET /api/sessions/:id` para la identidad de ese socket (calculado con `roomPayload`): el participante sigue recibiendo solo su vista.
+- El cliente puede enviar el texto `ping` (respuesta `pong`, automática) o `{"type":"ping"}` (respuesta `{"type":"pong"}`); cualquier otro mensaje se ignora: los cambios van por la API HTTP.
+- La consulta periódica sigue funcionando igual (Unity WebGL consulta; la consola vuelve a consultar si el WebSocket falla). La CSP de la consola añade `wss://<host>` a `connect-src`. En desarrollo, el proxy de Vite necesita `ws: true` para `/api`.
+- Solo el instructor recibe `liveTally: { phaseId, counts, decided, total }` (votos por índice de opción de la fase activa, participantes que ya han decidido en ella y participantes unidos). El participante nunca lo recibe.
+
+### Clase simulada (demostraciones)
+
+`POST /api/sessions/:id/demo-class` con `{ "count": 1-40 }` (20 por defecto) añade participantes simulados, solo para el instructor que creó la sesión y mientras no haya terminado (máximo 40 a la vez). Son seudónimos (`sim-<8 caracteres de la sesión>-NN`, «Participante simulado NN»), no son usuarios ni membresías y llevan `simulated: true` en `state.participants` y en `report.participantReports`. Se unen y deciden por el mismo camino del motor que una persona: la alarma del Durable Object (multiplexada con el reloj de fase) hace decidir a cada uno a los 2-12 s de empezar la fase, con un reparto por valoración de la opción de 45 % mejor, 35 % aceptable y 20 % mala; en pausa esperan. `DELETE /api/sessions/:id/demo-class` los retira con sus decisiones e indicadores (los eventos ya emitidos se conservan con su ID `sim-…`). Ambas operaciones devuelven el cuerpo de `GET /api/sessions/:id` más `demoClass: { added, total }` o `{ removed, total }` y quedan en la auditoría.
+
 ## Datos personales (RGPD)
 
 - Exportación: `GET /api/sessions/:id/export` devuelve estado, eventos e informe. En la consola, «Exportar JSON».
@@ -206,7 +221,7 @@ Cada fase del escenario define `timeLimitSec` y `timeoutRiskDelta`. El reloj de 
 
 - `shared/events.ts`: catálogo versionado de eventos (`EVENT_SCHEMA_VERSION`). Solo IDs seudónimos.
 - `shared/contracts/ai-provider.ts` y `shared/contracts/context-engine.ts`: interfaces de AI Provider y Context Engine. Sin implementación hasta la macrofase de IA avanzada.
-- `worker/flags.ts`: feature flags desde la variable `FEATURE_FLAGS` (JSON). `phase_timers` desactiva las alarmas; `ai_characters` y `realtime_websocket` están reservados.
+- `worker/flags.ts`: feature flags desde la variable `FEATURE_FLAGS` (JSON). `phase_timers` desactiva las alarmas del reloj; `realtime_websocket` (activo por defecto) habilita el WebSocket de tiempo real; `ai_characters` está reservado.
 - Rate limiting: binding `API_LIMITER`, 300 peticiones por minuto y usuario en el entorno cloud. No se aplica en modo local.
 
 ## Seguridad
@@ -219,8 +234,8 @@ Cada fase del escenario define `timeLimitSec` y `timeoutRiskDelta`. El reloj de 
 
 ## Contrato de API
 
-- Cualquier miembro: `GET /api/me`, `GET /api/scenarios`, `GET /api/scenarios/:id`, `GET /api/sessions` (el participante, solo las suyas), `GET /api/sessions/:id` (vista por rol) y `POST /api/sessions/:id/commands`.
-- Instructor: `POST /api/scenarios`, `POST /api/sessions`, `GET /api/sessions/:id/events`, `GET /api/sessions/:id/export`, `DELETE /api/sessions/:id`, `GET/POST /api/memberships`, `DELETE /api/memberships/:userId` y gestión de códigos con `GET /api/access-codes`, `POST/DELETE /api/access-codes/:userId`.
+- Cualquier miembro: `GET /api/me`, `GET /api/scenarios`, `GET /api/scenarios/:id`, `GET /api/sessions` (el participante, solo las suyas), `GET /api/sessions/:id` (vista por rol), `GET /api/sessions/:id/live` (WebSocket) y `POST /api/sessions/:id/commands`.
+- Instructor: `POST /api/scenarios`, `POST /api/sessions`, `POST/DELETE /api/sessions/:id/demo-class` (el de la sesión), `GET /api/sessions/:id/events`, `GET /api/sessions/:id/export`, `DELETE /api/sessions/:id`, `GET/POST /api/memberships`, `DELETE /api/memberships/:userId` y gestión de códigos con `GET /api/access-codes`, `POST/DELETE /api/access-codes/:userId`.
 - Acceso: `POST /api/auth/login` acepta correo y código; `POST /api/auth/logout` cierra la sesión. La entrega del código es responsabilidad del docente; nunca se envía correo desde la plataforma.
 - `GET /api/health` sin autenticación de la API.
 

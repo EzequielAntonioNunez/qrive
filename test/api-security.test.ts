@@ -23,7 +23,7 @@ beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
-const { catalogScenarios } = await import('../shared/simulation');
+const { catalogScenarios, defaultScenario } = await import('../shared/simulation');
 
 // ---------------------------------------------------------------------------------------------
 // D1 sobre SQLite en memoria (node:sqlite) con las migraciones reales: las consultas con subconsultas
@@ -71,23 +71,30 @@ function createD1() {
 
 /** Durable Objects simulados: registran cada operación; «boom» falla para probar el 500. */
 function fakeSessions() {
-  const calls: { name: string; op: string }[] = [];
+  const calls: { name: string; op: string; count?: number }[] = [];
+  const live: { name: string; url: string; headers: Headers }[] = [];
   const jurisdictions: string[] = [];
   const namespace = {
     idFromName: (name: string) => name,
     get: (name: string) => ({
-      fetch: async (_url: string, init: RequestInit) => {
-        const body = JSON.parse(String(init.body)) as { op: string; command?: { type: string }; actor?: { id: string } };
-        calls.push({ name, op: body.op });
+      fetch: async (url: string, init: RequestInit) => {
+        // Upgrade a WebSocket reenviado por el Worker (sin cuerpo). Node no admite respuestas 101: se responde 200.
+        if (init.body === undefined) {
+          live.push({ name, url, headers: new Headers(init.headers) });
+          return Response.json({ live: true });
+        }
+        const body = JSON.parse(String(init.body)) as { op: string; command?: { type: string }; actor?: { id: string }; count?: number };
+        calls.push({ name, op: body.op, ...(body.count !== undefined ? { count: body.count } : {}) });
         if (name.includes('boom')) throw new Error('fallo interno simulado');
         if (body.op === 'purge') return Response.json({ purged: true });
+        if (name.includes('clef')) return Response.json({ state: { id: name.split(':')[1], status: 'active', phaseIndex: 0, scenario: defaultScenario, events: [] }, report: { score: 0 } });
         const joined = body.op === 'command' && body.command?.type === 'join' && body.actor?.id;
         return Response.json({ state: { id: name.split(':')[1], events: joined ? [{ seq: 2, type: 'participant_joined', at: NEWER, actorId: body.actor!.id, detail: { participantId: body.actor!.id } }] : [] }, report: { score: 0 } });
       }
     }),
     jurisdiction: (value: string) => { jurisdictions.push(value); return namespace; }
   };
-  return { namespace, calls, jurisdictions };
+  return { namespace, calls, live, jurisdictions };
 }
 
 const OLD = '2026-01-01T00:00:00.000Z';
@@ -214,6 +221,34 @@ describe('micrófono WebGL con Soniox UE', () => {
       expect(await grant.json()).toMatchObject({ apiKey: 'snx_temp_test-key', websocketUrl: 'wss://stt-rt.eu.soniox.com/transcribe-websocket' });
       expect(upstream).toHaveBeenCalledTimes(1);
     } finally { globalThis.fetch = originalFetch; }
+  });
+
+  it('interpreta la respuesta libre con Clef usando las opciones del servidor, solo para participantes', async () => {
+    const context = setup();
+    const sessionId = 'clef-12345678';
+    context.db.prepare("INSERT INTO sessions (id,tenant_id,instructor_id,scenario_id,scenario_version,status,created_at) VALUES (?,?,?,'x',1,'active',?)")
+      .run(sessionId, 'ufv', 'u-prof', NEWER);
+    const phrase = 'Quitaría los datos personales y usaría la herramienta de la universidad';
+    expect((await context.call('POST', '/api/voice/interpret', { as: ALUMNA, body: { sessionId, phrase } })).status).toBe(503);
+    const inputs: { model: string; input: any }[] = [];
+    (context.env as Record<string, unknown>).AI = {
+      run: async (model: string, input: unknown) => {
+        inputs.push({ model, input });
+        return { answers: { opcion: { choice: 'opcion_2', probabilities: { opcion_2: 0.91, ninguna: 0.05 }, confidence: 0.9 } } };
+      }
+    };
+    expect((await context.call('POST', '/api/voice/interpret', { as: PROF, body: { sessionId, phrase } })).status).toBe(403);
+    expect((await context.call('POST', '/api/voice/interpret', { as: ALUMNA, body: { sessionId, phrase: '  ' } })).status).toBe(400);
+    expect((await context.call('POST', '/api/voice/interpret', { as: ALUMNA, body: { sessionId: 'missing-12345678', phrase } })).status).toBe(404);
+    const response = await context.call('POST', '/api/voice/interpret', { as: ALUMNA, body: { sessionId, phrase } });
+    const phase = defaultScenario.phases[0];
+    expect(await response.json()).toEqual({ kind: 'decide', option: 1, confidence: 0.91, phaseId: phase.id });
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0].model).toBe('@cf/cloudflare/clef-flash');
+    expect(inputs[0].input.questions.opcion.criteria.opcion_1).toBe(phase.options[0].label);
+    expect(inputs[0].input.state).toContain(phrase);
+    // A Clef no le llegan identidad ni valoraciones de las opciones.
+    expect(JSON.stringify(inputs[0].input)).not.toMatch(/alumna|quality|rationale/);
   });
 
   it('con SONIOX_REGION=us usa los hosts globales de Soniox y lo indica en la configuración', async () => {
@@ -631,5 +666,86 @@ describe('retención', () => {
     db.exec("INSERT INTO audit_log (id,tenant_id,actor_id,session_id,action,at,detail_json) VALUES ('a','ufv','u-prof',NULL,'x','2026-08-01T00:00:00.000Z','{}')");
     await applyRetention({ DB: d1, SESSIONS: fakeSessions().namespace, AUDIT_RETENTION_DAYS: '30' } as never, new Date('2026-10-06T00:00:00.000Z'));
     expect(db.prepare('SELECT COUNT(*) AS n FROM audit_log').get()).toEqual({ n: 0 });
+  });
+});
+
+describe('tiempo real por WebSocket y clase simulada', () => {
+  const SESSION = 'session-live-1234';
+  const ORIGIN = 'https://axyro.test';
+  const WS = { upgrade: 'websocket', origin: ORIGIN };
+  function withSession() {
+    const context = setup();
+    context.db.prepare("INSERT INTO sessions (id,tenant_id,instructor_id,scenario_id,scenario_version,status,created_at) VALUES (?,?,?,'x',1,'active',?)")
+      .run(SESSION, 'ufv', 'u-prof', NEWER);
+    context.db.prepare("INSERT INTO sessions (id,tenant_id,instructor_id,scenario_id,scenario_version,status,created_at) VALUES (?,?,?,'x',1,'active',?)")
+      .run('session-other-1234', 'other', 'u-otro', NEWER);
+    return context;
+  }
+
+  it('rechaza el upgrade sin identidad (401), de otra organización (404), de otro origen (403) o sin Upgrade (426)', async () => {
+    const { call, sessions } = withSession();
+    expect((await call('GET', `/api/sessions/${SESSION}/live`, { headers: WS })).status).toBe(401);
+    expect((await call('GET', `/api/sessions/${SESSION}/live`, { as: OTRO, headers: WS })).status).toBe(404);
+    expect((await call('GET', '/api/sessions/no-existe-1234/live', { as: PROF, headers: WS })).status).toBe(404);
+    const foreign = await call('GET', `/api/sessions/${SESSION}/live`, { as: PROF, headers: { upgrade: 'websocket', origin: 'https://evil.example' } });
+    expect(foreign.status).toBe(403);
+    expect(await foreign.json()).toEqual({ error: 'Conexión de otro origen rechazada.' });
+    expect((await call('GET', `/api/sessions/${SESSION}/live`, { as: PROF, headers: { upgrade: 'websocket' } })).status).toBe(403);
+    expect((await call('GET', `/api/sessions/${SESSION}/live`, { as: PROF, headers: { upgrade: 'websocket', origin: 'http://axyro.test' } })).status).toBe(403);
+    expect((await call('GET', `/api/sessions/${SESSION}/live`, { as: PROF, headers: { origin: ORIGIN } })).status).toBe(426);
+    expect(sessions.live).toEqual([]);
+  });
+
+  it('reenvía el upgrade al Durable Object con la identidad del Worker, nunca con la cabecera del cliente', async () => {
+    const { call, sessions } = withSession();
+    const forged = JSON.stringify({ id: 'u-prof', name: 'Falsa', role: 'instructor', tenantId: 'ufv' });
+    const response = await call('GET', `/api/sessions/${SESSION}/live`, { as: ALUMNA, headers: { ...WS, 'x-axyro-room-actor': forged } });
+    expect(response.status).toBe(200);
+    expect(sessions.live).toHaveLength(1);
+    expect(sessions.live[0].name).toBe(`ufv:${SESSION}`);
+    expect(sessions.live[0].headers.get('upgrade')).toBe('websocket');
+    expect(JSON.parse(sessions.live[0].headers.get('x-axyro-room-actor')!)).toEqual({ id: 'u-alumna', name: 'Alumna', role: 'participant', tenantId: 'ufv' });
+    expect(sessions.live[0].headers.get('cookie')).toBeNull();
+    // Antes del upgrade se asegura el estado (y la recuperación de sesiones antiguas) con una lectura normal.
+    expect(sessions.calls.at(-1)).toEqual({ name: `ufv:${SESSION}`, op: 'state' });
+  });
+
+  it('se puede desactivar con el flag realtime_websocket', async () => {
+    const context = setup({ vars: { FEATURE_FLAGS: '{"realtime_websocket":false}' } });
+    context.db.prepare("INSERT INTO sessions (id,tenant_id,instructor_id,scenario_id,scenario_version,status,created_at) VALUES (?,?,?,'x',1,'active',?)")
+      .run(SESSION, 'ufv', 'u-prof', NEWER);
+    expect((await context.call('GET', `/api/sessions/${SESSION}/live`, { as: PROF, headers: WS })).status).toBe(404);
+  });
+
+  it('la CSP de la consola admite el WebSocket del propio host y nada más', async () => {
+    const { call } = setup();
+    const csp = (await call('GET', '/')).headers.get('content-security-policy') ?? '';
+    expect(csp).toContain("connect-src 'self' wss://axyro.test;");
+    expect(csp).not.toMatch(/connect-src[^;]*\b(ws|wss):(\s|;)/);
+  });
+
+  it('clase simulada: solo el instructor de la sesión, 1-40 participantes, con auditoría', async () => {
+    const { call, sessions, db } = withSession();
+    const path = `/api/sessions/${SESSION}/demo-class`;
+    expect((await call('POST', path, { body: { count: 5 } })).status).toBe(401);
+    expect((await call('POST', path, { as: ALUMNA, body: { count: 5 } })).status).toBe(403);
+    expect((await call('POST', path, { as: OWNER, body: { count: 5 } })).status).toBe(403);
+    expect((await call('POST', path, { as: OTRO, body: { count: 5 } })).status).toBe(404);
+    for (const count of [0, 41, 2.5, '5', null]) expect((await call('POST', path, { as: PROF, body: { count } })).status).toBe(400);
+    expect((await call('POST', path, { as: PROF, raw: '{', headers: {} })).status).toBe(400);
+    // Sin JSON de tipo correcto, CSRF.
+    expect((await call('POST', path, { as: PROF, raw: 'count=5', headers: { 'content-type': 'text/plain' } })).status).toBe(403);
+    expect(sessions.calls.filter(item => item.op === 'demo-add')).toEqual([]);
+
+    expect((await call('POST', path, { as: PROF, body: { count: 12 } })).status).toBe(201);
+    expect((await call('POST', path, { as: PROF, body: {} })).status).toBe(201);
+    expect(sessions.calls.filter(item => item.op === 'demo-add').map(item => item.count)).toEqual([12, 20]);
+
+    expect((await call('DELETE', path, { as: ALUMNA })).status).toBe(403);
+    expect((await call('DELETE', path, { as: OWNER })).status).toBe(403);
+    expect((await call('DELETE', path, { as: PROF })).status).toBe(200);
+    expect(sessions.calls.at(-1)).toEqual({ name: `ufv:${SESSION}`, op: 'demo-remove' });
+    expect(db.prepare("SELECT action FROM audit_log WHERE session_id = ? ORDER BY rowid").all(SESSION).map(row => row.action))
+      .toEqual(['demo_class_added', 'demo_class_added', 'demo_class_removed']);
   });
 });

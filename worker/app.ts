@@ -9,7 +9,10 @@ import type { Env } from './types';
 import { flags } from './flags';
 import { serveSimulator } from './simulator';
 import { codeSummaries, consumeLoginAttempt, issueCode, pruneAuth, revokeCodes, signInWithCode, signOut } from './access-codes';
-import { queueSafeEvent } from './room';
+import { queueSafeEvent, ROOM_ACTOR_HEADER, type RoomActor } from './room';
+import { DEFAULT_SIMULATED, MAX_SIMULATED } from './demo-class';
+import { CLEF_MODEL, MAX_PHRASE_LENGTH, clefRequest, interpretClef } from './voice-intent';
+import type { SessionState } from '../shared/simulation';
 
 /** Error con código HTTP explícito (400 cuerpo no válido, 403, 404, 409...). */
 export class HttpError extends Error {
@@ -97,12 +100,28 @@ function surfaceOf(path: string): SurfaceKind {
   return 'console';
 }
 
+/**
+ * CSP de una superficie. La consola abre el WebSocket de tiempo real de su propio origen: `connect-src 'self'` no
+ * cubre ws:/wss: en todos los navegadores, así que se añade explícitamente el origen WebSocket del propio host.
+ */
+export function cspFor(kind: SurfaceKind, requestUrl?: string): string {
+  if (kind !== 'console' || !requestUrl) return CSP[kind];
+  let socketOrigin: string | null = null;
+  try {
+    const url = new URL(requestUrl);
+    socketOrigin = `${url.protocol === 'http:' ? 'ws:' : 'wss:'}//${url.host}`;
+  } catch { socketOrigin = null; }
+  return socketOrigin ? CSP.console.replace("connect-src 'self'", `connect-src 'self' ${socketOrigin}`) : CSP.console;
+}
+
 /** Copia la respuesta (las de ASSETS y Durable Objects tienen cabeceras inmutables) y añade las cabeceras de seguridad. */
-export function withSecurityHeaders(response: Response, path: string, requestId: string): Response {
+export function withSecurityHeaders(response: Response, path: string, requestId: string, requestUrl?: string): Response {
+  // 101 (WebSocket aceptado): la respuesta del Durable Object lleva el socket y no admite copia ni cabeceras nuevas.
+  if (response.status === 101) return response;
   const kind = surfaceOf(path);
   const out = new Response(response.body, response);
   const headers = out.headers;
-  headers.set('content-security-policy', CSP[kind]);
+  headers.set('content-security-policy', cspFor(kind, requestUrl));
   headers.set('strict-transport-security', 'max-age=31536000; includeSubDomains');
   headers.set('x-content-type-options', 'nosniff');
   headers.set('x-frame-options', kind === 'simulator' ? 'SAMEORIGIN' : 'DENY');
@@ -136,7 +155,8 @@ export function createApp(demo = false) {
     const requestId = c.req.header('cf-ray') ?? crypto.randomUUID();
     c.set('requestId', requestId);
     await next();
-    c.res = withSecurityHeaders(c.res, c.req.path, requestId);
+    // Reasignar c.res copiaría la respuesta 101 y perdería el WebSocket: se deja tal cual.
+    if (c.res.status !== 101) c.res = withSecurityHeaders(c.res, c.req.path, requestId, c.req.url);
     const identity = c.get('identity') as Identity | undefined;
     console.log(JSON.stringify({
       code: 'REQUEST', requestId, method: c.req.method, path: c.req.path, status: c.res.status, durationMs: Date.now() - started,
@@ -217,7 +237,7 @@ export function createApp(demo = false) {
   });
   app.post('/api/voice/temporary-key', async c => {
     const service = voiceService(c.env);
-    if (!service) return c.json({ error: 'El reconocimiento de voz UE todavía no está disponible.' }, 503);
+    if (!service) return c.json({ error: 'El reconocimiento de voz todavía no está disponible.' }, 503);
     const body = await readJson(c) as { sessionId?: unknown };
     const sessionId = typeof body.sessionId === 'string' ? body.sessionId : '';
     const identity = c.get('identity');
@@ -247,6 +267,34 @@ export function createApp(demo = false) {
     if (typeof data.api_key !== 'string' || !data.api_key.startsWith('snx_temp_'))
       return c.json({ error: 'Soniox no devolvió una credencial temporal válida.' }, 502);
     return c.json({ apiKey: data.api_key, websocketUrl: service.websocketUrl, expiresAt: data.expires_at });
+  });
+  // Respuesta libre por voz: Clef asigna la frase del participante a una de las opciones que está viendo.
+  // Las opciones salen del estado de la sesión en el servidor (vista del participante), nunca del cliente.
+  // La frase no se registra en logs ni eventos; la decisión se sigue registrando por el camino normal (Unity).
+  app.post('/api/voice/interpret', async c => {
+    const identity = c.get('identity');
+    if (identity.role !== 'participant') return c.json({ error: 'La respuesta por voz está reservada al participante.' }, 403);
+    if (!c.env.AI) return c.json({ error: 'La interpretación de respuestas libres no está disponible.' }, 503);
+    const body = await readJson(c) as { sessionId?: unknown; phrase?: unknown };
+    const sessionId = typeof body.sessionId === 'string' ? body.sessionId : '';
+    const phrase = typeof body.phrase === 'string' ? body.phrase.trim().slice(0, MAX_PHRASE_LENGTH) : '';
+    if (!phrase) return c.json({ error: 'No se ha recibido ninguna frase.' }, 400);
+    if (!/^[\w-]{8,80}$/.test(sessionId) || !await sessionFor(c.env, identity.tenantId, sessionId))
+      return c.json({ error: 'Sesión no encontrada.' }, 404);
+    const current = await room(c.env, identity.tenantId, sessionId, { op: 'state', tenantId: identity.tenantId, actor: identity });
+    if (!current.ok) return current;
+    const { state } = await current.json() as { state: SessionState };
+    const phase = state.status === 'active' ? state.scenario.phases[state.phaseIndex] : undefined;
+    if (!phase?.options.length) return c.json({ error: 'Ahora mismo no hay opciones entre las que elegir.' }, 409);
+    let result: unknown;
+    try {
+      result = await c.env.AI.run(CLEF_MODEL, clefRequest(phase, phrase));
+    } catch (error) {
+      console.warn(JSON.stringify({ code: 'CLEF_FAILED', requestId: c.get('requestId'), message: String(error).slice(0, 200) }));
+      return c.json({ error: 'No he podido interpretar la respuesta. Di el número de la opción.' }, 502);
+    }
+    const intent = interpretClef(result, phase.options.length);
+    return c.json({ ...intent, phaseId: phase.id });
   });
   app.get('/api/scenarios', async c => c.json({ scenarios: await listScenarios(c.env, c.get('identity').tenantId) }));
   app.get('/api/scenarios/:id', async c => {
@@ -430,6 +478,59 @@ export function createApp(demo = false) {
     // `participantView(state, actor.id)` y su informe individual; por eso `actor` debe ser siempre la identidad real.
     return room(c.env, identity.tenantId, c.req.param('id'), { op: 'state', tenantId: identity.tenantId, actor: identity, client: clientKind(c.req.header('x-axyro-client')) });
   });
+  // Tiempo real: WebSocket con la vista de la sesión de cada identidad (ver roomPayload y SessionRoom.openLive).
+  // Mismas comprobaciones que GET /api/sessions/:id (identidad, límite de peticiones y sesión de su organización)
+  // y, como un WebSocket no pasa por la comprobación CSRF de tipo de contenido, Origin igual al propio origen.
+  app.get('/api/sessions/:id/live', async c => {
+    const identity = c.get('identity');
+    const id = c.req.param('id');
+    if (!flags(c.env).realtime_websocket) return c.json({ error: 'El tiempo real no está activado.' }, 404);
+    const rejected = liveRejection(c.req.raw, demo);
+    if (rejected) {
+      if (rejected.status === 403) console.warn(JSON.stringify({ code: 'WS_ORIGIN_REJECTED', requestId: c.get('requestId'), path: c.req.path }));
+      return c.json({ error: rejected.message }, rejected.status);
+    }
+    if (!await sessionFor(c.env, identity.tenantId, id)) return c.json({ error: 'Sesión no encontrada.' }, 404);
+    // Asegura el estado en el Durable Object (y recupera las sesiones anteriores a la jurisdicción UE) antes del upgrade.
+    const ready = await room(c.env, identity.tenantId, id, { op: 'state', tenantId: identity.tenantId, actor: identity });
+    if (!ready.ok) return ready;
+    const namespace = sessionNamespace(c.env);
+    const stub = namespace.get(namespace.idFromName(`${identity.tenantId}:${id}`));
+    // Petición interna nueva: solo lleva la identidad que fija el Worker, nunca cabeceras del cliente.
+    const actor: RoomActor = { id: identity.id, name: identity.name, role: identity.role, tenantId: identity.tenantId };
+    return stub.fetch('https://room.internal/live', { headers: { upgrade: 'websocket', [ROOM_ACTOR_HEADER]: JSON.stringify(actor) } });
+  });
+  // Clase simulada para demostraciones (worker/demo-class.ts). Solo el instructor que creó la sesión.
+  app.post('/api/sessions/:id/demo-class', async c => {
+    const identity = c.get('identity');
+    const id = c.req.param('id');
+    if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
+    const session = await sessionFor(c.env, identity.tenantId, id);
+    if (!session) return c.json({ error: 'Sesión no encontrada.' }, 404);
+    if (session.instructorId !== identity.id) return c.json({ error: 'Solo el instructor de la sesión puede añadir una clase simulada.' }, 403);
+    const body = await readJson(c, true) as { count?: unknown } | null;
+    const count = body?.count === undefined ? DEFAULT_SIMULATED : body.count;
+    if (typeof count !== 'number' || !Number.isInteger(count) || count < 1 || count > MAX_SIMULATED)
+      return c.json({ error: `Indica entre 1 y ${MAX_SIMULATED} participantes simulados.` }, 400);
+    const response = await room(c.env, identity.tenantId, id, { op: 'demo-add', tenantId: identity.tenantId, actor: identity, count });
+    if (!response.ok) return response;
+    const payload = await response.json() as { demoClass?: { added?: number } };
+    await audit(c.env, identity, id, 'demo_class_added', { count: payload.demoClass?.added ?? 0 });
+    return c.json(payload, 201);
+  });
+  app.delete('/api/sessions/:id/demo-class', async c => {
+    const identity = c.get('identity');
+    const id = c.req.param('id');
+    if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
+    const session = await sessionFor(c.env, identity.tenantId, id);
+    if (!session) return c.json({ error: 'Sesión no encontrada.' }, 404);
+    if (session.instructorId !== identity.id) return c.json({ error: 'Solo el instructor de la sesión puede retirar la clase simulada.' }, 403);
+    const response = await room(c.env, identity.tenantId, id, { op: 'demo-remove', tenantId: identity.tenantId, actor: identity });
+    if (!response.ok) return response;
+    const payload = await response.json() as { demoClass?: { removed?: number } };
+    await audit(c.env, identity, id, 'demo_class_removed', { count: payload.demoClass?.removed ?? 0 });
+    return c.json(payload);
+  });
   app.post('/api/sessions/:id/commands', async c => {
     const identity = c.get('identity');
     const id = c.req.param('id');
@@ -490,6 +591,24 @@ export function createApp(demo = false) {
   // Páginas de la consola (run_worker_first; HEAD también llega aquí): se sirven desde los static assets con las cabeceras de seguridad.
   app.get('*', async c => c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.json({ error: 'No encontrado.' }, 404));
   return app;
+}
+
+/**
+ * Motivo de rechazo del upgrade a WebSocket, o null si se acepta. Exige `Upgrade: websocket` y un `Origin` igual al
+ * origen de la propia petición (un sitio ajeno no puede abrir el socket con la cookie de la persona). En la demo
+ * local (createApp(true)) se admite además cualquier origen de 127.0.0.1/localhost, por el proxy de Vite.
+ */
+export function liveRejection(request: Request, demo = false): { status: 403 | 426; message: string } | null {
+  if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket') return { status: 426, message: 'Se esperaba una conexión WebSocket.' };
+  const origin = request.headers.get('origin');
+  let allowed = false;
+  try {
+    const own = new URL(request.url);
+    const from = origin ? new URL(origin) : null;
+    allowed = Boolean(from && from.origin === own.origin)
+      || Boolean(demo && from && ['127.0.0.1', 'localhost', '[::1]'].includes(from.hostname) && from.hostname === own.hostname);
+  } catch { allowed = false; }
+  return allowed ? null : { status: 403, message: 'Conexión de otro origen rechazada.' };
 }
 
 function clientKind(value?: string): 'unity' | undefined {

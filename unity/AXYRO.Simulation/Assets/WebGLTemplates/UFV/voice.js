@@ -23,8 +23,13 @@
     registerProcessor('axyro-capture', AxyroCapture);
   `;
 
+  const OPTION_WORDS = ['uno', 'dos', 'tres', 'cuatro'];
+  // Mismas palabras que reconoce AxyroWebVoice.cs: se envían tal cual, sin pasar por Clef.
+  const COMMAND_WORDS = /\b(1|2|3|4|uno|dos|tres|cuatro|primer[oa]?|segund[oa]|tercer[oa]?|cuart[oa]|repetir|repite|escuchar|otra vez)\b/;
+  const normalize = value => value.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9ñ ]+/g, ' ').replace(/\s+/g, ' ').trim();
+
   const voice = {
-    unity: null, button: null, status: null, active: false, starting: false, websocketUrl: null, region: 'eu', noticeAccepted: false,
+    unity: null, button: null, status: null, active: false, starting: false, websocketUrl: null, region: 'eu', noticeAccepted: false, pendingOption: null,
     speaking: false, canDecide: false, optionCount: 0, interrupted: false,
     socket: null, stream: null, context: null, source: null, processor: null, sink: null,
     finalText: '', lastSpeechAt: 0, speechMs: 0, voiceStartAt: 0, generation: 0,
@@ -135,7 +140,7 @@
         this.button.disabled = false;
         this.button.classList.add('activo');
         this.button.textContent = '● Voz activa';
-        this.setStatus('Te escucho. Di «uno», «dos», «tres», «cuatro» o «repetir». Puedes interrumpir a VictorIA.');
+        this.setStatus('Te escucho. Explica qué harías con tus palabras o di el número de la opción; puedes interrumpir a VictorIA. Un modelo de IA asigna tu frase a una opción y te pide confirmación si duda.');
         this.send('OnWebVoiceState', '1');
       } catch {
         if (generation === this.generation) this.fail('No se pudo procesar el audio de este navegador.');
@@ -188,13 +193,58 @@
       if (ended) {
         const phrase = this.finalText.trim();
         this.finalText = '';
-        if (phrase) {
-          this.send('OnWebVoiceTranscript', phrase);
-          this.setStatus('He oído: ' + phrase.slice(0, 110));
-        }
+        if (phrase) this.handlePhrase(phrase);
         this.interrupted = false;
       }
       if (payload.finished) this.fail('La sesión de voz terminó. Actívala de nuevo.');
+    },
+    /**
+     * Frase final. Los números y «repetir» van directos a Unity; una respuesta con palabras propias se interpreta
+     * con Clef en el servidor (`/api/voice/interpret`), que confirma antes de decidir si no está seguro.
+     */
+    handlePhrase(phrase) {
+      const text = normalize(phrase);
+      if (this.pendingOption != null) {
+        const option = this.pendingOption;
+        this.pendingOption = null;
+        if (/^(si|vale|correcto|exacto|eso|confirmo|claro)\b/.test(text)) { this.choose(option, 'Confirmado'); return; }
+        if (/^no\b/.test(text)) { this.setStatus('De acuerdo. Dime qué harías o di el número de la opción.'); return; }
+      }
+      // Solo las órdenes cortas («la dos», «repetir») van directas: en «primero quitaría los datos…»
+      // «primero» no es la opción 1, así que las frases largas siempre se interpretan.
+      const command = COMMAND_WORDS.test(text) && text.split(' ').length <= 4;
+      if (command || !this.canDecide || this.optionCount === 0) {
+        this.send('OnWebVoiceTranscript', phrase);
+        this.setStatus('He oído: ' + phrase.slice(0, 110));
+        return;
+      }
+      return this.interpret(phrase);
+    },
+    async interpret(phrase) {
+      const generation = this.generation;
+      this.setStatus('Interpretando: «' + phrase.slice(0, 90) + '»…');
+      let result = null;
+      try {
+        const response = await fetch('/api/voice/interpret', {
+          method: 'POST', credentials: 'same-origin', cache: 'no-store',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ sessionId: new URL(location.href).searchParams.get('sesion'), phrase })
+        });
+        result = response.ok ? await response.json() : null;
+      } catch { result = null; }
+      if (generation !== this.generation || !this.canDecide) return;
+      if (!result || result.kind === 'unclear' || !(result.option >= 0 && result.option < this.optionCount)) {
+        this.setStatus('No lo he entendido. Dilo de otra forma, di el número de la opción o elige con el ratón.');
+      } else if (result.kind === 'decide') {
+        this.choose(result.option, 'Entendido');
+      } else {
+        this.pendingOption = result.option;
+        this.setStatus('¿Te refieres a la opción ' + (result.option + 1) + '? Di «sí» o «no».');
+      }
+    },
+    choose(option, prefix) {
+      this.send('OnWebVoiceTranscript', OPTION_WORDS[option]);
+      this.setStatus(prefix + ': opción ' + (option + 1) + ' (interpretado automáticamente).');
     },
     fail(message) { this.stop(); this.setStatus(message); },
     stop() {
@@ -203,6 +253,7 @@
       this.starting = false;
       this.finalText = '';
       this.interrupted = false;
+      this.pendingOption = null;
       this.send('OnWebVoiceState', '0');
       if (this.processor) { this.processor.port.onmessage = null; this.processor.disconnect(); this.processor = null; }
       if (this.source) { this.source.disconnect(); this.source = null; }

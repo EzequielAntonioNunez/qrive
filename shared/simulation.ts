@@ -56,6 +56,8 @@ export interface Participant {
   userId: string;
   name: string;
   joinedAt: string;
+  /** Participante simulado de la «clase simulada» de demostración (no es una persona ni un usuario). Ausente en los reales. */
+  simulated?: true;
 }
 
 export interface Decision {
@@ -139,6 +141,8 @@ export interface ParticipantReport extends ReportCore {
   userId: string;
   name: string;
   joinedAt: string;
+  /** Presente (true) solo en los participantes simulados de la clase de demostración, para etiquetarlos o excluirlos. */
+  simulated?: true;
 }
 
 export interface DebriefEntry {
@@ -526,7 +530,11 @@ export function performanceReport(state: SessionState, userId?: string): Perform
     ...summarize(current, classMeters(current), current.decisions, current.events.filter(event => event.type === 'timer_expired').length),
     participants: current.participants.length,
     completedAt,
-    participantReports: current.participants.map(person => ({ userId: person.userId, name: person.name, joinedAt: person.joinedAt, ...individualCore(current, person.userId) }))
+    participantReports: current.participants.map(person => ({
+      userId: person.userId, name: person.name, joinedAt: person.joinedAt,
+      ...(person.simulated ? { simulated: true as const } : {}),
+      ...individualCore(current, person.userId)
+    }))
   };
 }
 

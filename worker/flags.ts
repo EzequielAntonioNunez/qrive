@@ -6,7 +6,7 @@ import type { Env } from './types';
  */
 export type FeatureFlag = 'ai_characters' | 'realtime_websocket' | 'phase_timers';
 
-const defaults: Record<FeatureFlag, boolean> = { ai_characters: false, realtime_websocket: false, phase_timers: true };
+const defaults: Record<FeatureFlag, boolean> = { ai_characters: false, realtime_websocket: true, phase_timers: true };
 
 export function flags(env: Pick<Env, 'FEATURE_FLAGS'>): Record<FeatureFlag, boolean> {
   let overrides: Record<string, unknown> = {};

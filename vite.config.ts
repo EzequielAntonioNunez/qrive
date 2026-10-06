@@ -7,5 +7,5 @@ export default defineConfig(({ mode }) => ({
   root: 'web',
   define: mode === 'standalone' ? { 'import.meta.env.VITE_STANDALONE': JSON.stringify('1') } : {},
   build: { outDir: mode === 'standalone' ? '../dist/standalone' : '../dist/web', emptyOutDir: true },
-  server: { proxy: { '/api': 'http://127.0.0.1:8787' } }
+  server: { proxy: { '/api': { target: 'http://127.0.0.1:8787', ws: true } } }
 }));

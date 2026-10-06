@@ -23,6 +23,8 @@ export interface Env {
   AUDIT_RETENTION_DAYS?: string;
   API_LIMITER?: RateLimit;
   VOICE_LIMITER?: RateLimit;
+  /** Workers AI: modelo de decisión Clef para interpretar la respuesta libre por voz. */
+  AI?: { run(model: string, input: unknown): Promise<unknown> };
   AUTH_LIMITER?: RateLimit;
   AUTH_IP_LIMITER?: RateLimit;
   ACCESS_CODE_PEPPER?: string;

@@ -70,7 +70,7 @@ Responsables: **Dev** (equipo de desarrollo), **UFV-SI** (Servicios Informático
 - [ ] Texto de los avisos de transparencia sobre VictorIA (ya visibles en el simulador y en la consola) aprobado. (UFV-DPO)
 - [ ] Confirmado que no se infieren emociones ni estados psicológicos y que no se usa la cámara. (Dev)
 - [ ] Confirmado que las valoraciones son de la decisión y no de la persona, y que el informe usa reglas fijas. (Dev)
-- [ ] Confirmado que no hay llamadas a proveedores de IA en ejecución ni claves de IA en el simulador; personajes con IA desactivados. (Dev)
+- [ ] Confirmado que el simulador no contiene claves de IA y que la única IA en ejecución es Clef (Cloudflare Workers AI) para asignar la respuesta libre por voz a una opción, con confirmación del participante si duda; ubicación del procesamiento confirmada con Cloudflare; personajes con IA desactivados. (Dev, UFV-DPO)
 - [ ] Documentada la procedencia de la voz: locuciones del guion generadas con Soniox TTS, voz «Carmen», desde el proyecto actual en región Estados Unidos; el navegador reproduce los WAV ya compilados y no envía audio ni texto a Soniox. Revisar las condiciones de uso antes del piloto. (Dev, UFV-DPO)
 - [ ] Si se sustituye por una locutora real o se clona una voz: contrato y consentimiento expreso firmados antes de usarla. (UFV, Dev)
 
