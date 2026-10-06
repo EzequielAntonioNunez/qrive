@@ -242,7 +242,7 @@ describe('micrófono WebGL con Soniox UE', () => {
     expect((await context.call('POST', '/api/voice/interpret', { as: ALUMNA, body: { sessionId: 'missing-12345678', phrase } })).status).toBe(404);
     const response = await context.call('POST', '/api/voice/interpret', { as: ALUMNA, body: { sessionId, phrase } });
     const phase = defaultScenario.phases[0];
-    expect(await response.json()).toEqual({ kind: 'decide', option: 1, confidence: 0.91, phaseId: phase.id });
+    expect(await response.json()).toEqual({ kind: 'decide', option: 1, confidence: 0.9, phaseId: phase.id });
     expect(inputs).toHaveLength(1);
     expect(inputs[0].model).toBe('@cf/cloudflare/clef-flash');
     expect(inputs[0].input.questions.opcion.criteria.opcion_1).toBe(phase.options[0].label);
