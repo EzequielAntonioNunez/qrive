@@ -10,7 +10,7 @@ Responsables: **Dev** (equipo de desarrollo), **UFV-SI** (Servicios Informático
 
 ### Código y calidad
 
-- [ ] Cambios locales confirmados y subidos al repositorio; la rama principal compila. (Dev)
+- [x] Cambios locales confirmados y subidos al repositorio; la rama principal compila y CI pasa. (Dev)
 - [x] La verificación completa del proyecto (tests, comprobación de tipos y compilación) pasa sin errores. (Dev)
 - [ ] Prueba de humo contra la API desplegada superada, incluida la puerta de calidad de 50 simulaciones. (Dev)
 - [ ] Despliegue automático activado en la integración continua (variable de repositorio `CLOUDFLARE_DEPLOY` y credenciales de despliegue) o despliegue manual documentado. Hoy se despliega a mano. (Dev)
