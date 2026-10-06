@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 69bbe5dda1a1afe47ba174ea801be1d5
+guid: dff090564105a674cadc13f5064ac83d
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -2835392582033186075
-    second: elena-speaking_0
+      213: -7456365285765727339
+    second: tutor_body_color_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -113,13 +113,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: elena-speaking_0
+      name: tutor_body_color_0
       rect:
         serializedVersion: 2
-        x: 13
+        x: 0
         y: 0
-        width: 1146
-        height: 1358
+        width: 2048
+        height: 2048
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -128,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 5e2622d1879a6a8d0800000000000000
-      internalID: -2835392582033186075
+      spriteID: 59b3162374ba58890800000000000000
+      internalID: -7456365285765727339
       vertices: []
       indices: 
       edges: []
@@ -148,7 +148,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      elena-speaking_0: -2835392582033186075
+      tutor_body_color_0: -7456365285765727339
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

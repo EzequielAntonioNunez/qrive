@@ -10,8 +10,7 @@ namespace Axyro
 {
     public sealed class AxyroAvatarDemo : MonoBehaviour
     {
-        [SerializeField] private UnityEngine.Renderer portrait;
-        [SerializeField] private Transform portraitRig;
+        [SerializeField] private AxyroTutor3D tutor;
         [SerializeField] private RiveWidget hud;
         [SerializeField] private AudioSource voice;
         [SerializeField] private AudioClip[] lines;
@@ -28,15 +27,9 @@ namespace Axyro
             "Estamos cerca de un acuerdo. Para cerrarlo hoy, necesito una decisión final y una forma clara de comprobar que cumplimos los compromisos."
         };
 
-        private readonly float[] samples = new float[256];
-        private Material portraitMaterial;
         private SMIBool hudSpeaking;
-        private Vector3 initialPosition;
         private int phase;
         private bool speaking;
-        private float speechAmount;
-        private float blinkTimer = 2.7f;
-        private float blinkProgress = -1f;
         private bool linkedSession;
         private int phaseCount = 3;
         private bool voiceAvailable = true;
@@ -71,8 +64,6 @@ namespace Axyro
 
         private void Start()
         {
-            if (portrait != null) portraitMaterial = portrait.material;
-            if (portraitRig != null) initialPosition = portraitRig.localPosition;
             if (playButton != null) playButton.onClick.AddListener(ToggleVoice);
             SetPhase(0);
             BindHud();
@@ -93,14 +84,9 @@ namespace Axyro
         {
             yield return new WaitForEndOfFrame();
             yield return new WaitForEndOfFrame();
-            yield return new WaitForSeconds(autoplay ? 0.8f : 2.0f);
+            yield return new WaitForSeconds(autoplay ? 2.5f : 3.0f);
             ScreenCapture.CaptureScreenshot(path);
             Debug.Log($"AXYRO_CAPTURE_READY {path}");
-        }
-
-        private void OnDestroy()
-        {
-            if (portraitMaterial != null) Destroy(portraitMaterial);
         }
 
         private void Update()
@@ -113,7 +99,6 @@ namespace Axyro
             if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame) Quit();
             if (keyboard != null && (keyboard.f11Key.wasPressedThisFrame || (keyboard.altKey.isPressed && keyboard.enterKey.wasPressedThisFrame))) ToggleFullScreen();
             if (speaking && voice != null && !voice.isPlaying) SetSpeaking(false);
-            AnimatePortrait();
         }
 
         private void Quit()
@@ -139,45 +124,6 @@ namespace Axyro
             else
             {
                 Screen.SetResolution(1600, 900, FullScreenMode.Windowed);
-            }
-        }
-
-        private void AnimatePortrait()
-        {
-            if (portraitRig != null)
-            {
-                var t = Time.time;
-                portraitRig.localPosition = initialPosition + new Vector3(0f, Mathf.Sin(t * 1.35f) * 0.025f, 0f);
-                portraitRig.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(t * 0.73f) * 0.24f);
-            }
-
-            float target = 0f;
-            if (speaking && voice != null && voice.isPlaying)
-            {
-                voice.GetOutputData(samples, 0);
-                float sum = 0f;
-                for (int i = 0; i < samples.Length; i++) sum += samples[i] * samples[i];
-                target = Mathf.Clamp01((Mathf.Sqrt(sum / samples.Length) - 0.008f) * 27f);
-            }
-            speechAmount = Mathf.MoveTowards(speechAmount, target, Time.deltaTime * 12f);
-
-            blinkTimer -= Time.deltaTime;
-            if (blinkTimer <= 0f && blinkProgress < 0f) blinkProgress = 0f;
-            float blink = 0f;
-            if (blinkProgress >= 0f)
-            {
-                blink = Mathf.Sin(Mathf.PI * blinkProgress / 0.18f);
-                blinkProgress += Time.deltaTime;
-                if (blinkProgress >= 0.18f)
-                {
-                    blinkProgress = -1f;
-                    blinkTimer = UnityEngine.Random.Range(2.4f, 4.8f);
-                }
-            }
-            if (portraitMaterial != null)
-            {
-                portraitMaterial.SetFloat("_SpeechAmount", speechAmount);
-                portraitMaterial.SetFloat("_BlinkAmount", Mathf.Clamp01(blink));
             }
         }
 
@@ -249,6 +195,7 @@ namespace Axyro
         private void SetSpeaking(bool value)
         {
             speaking = value;
+            if (tutor != null) tutor.SetSpeaking(value);
             if (hudSpeaking != null) hudSpeaking.Value = value;
             if (playLabel != null) playLabel.text = value ? "■  DETENER VOZ" : "▶  ESCUCHAR INTERVENCIÓN";
         }

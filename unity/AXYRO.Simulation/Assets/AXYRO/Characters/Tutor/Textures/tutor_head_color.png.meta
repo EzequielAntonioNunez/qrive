@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: d61387de96696864fa24980e3330ddcd
+guid: 5c4e2974328e16149864921bc8d99c13
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -4349230722521205732
-    second: elena-blink_0
+      213: -5145171808344194309
+    second: tutor_head_color_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -113,13 +113,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: elena-blink_0
+      name: tutor_head_color_0
       rect:
         serializedVersion: 2
-        x: 14
+        x: 0
         y: 0
-        width: 1137
-        height: 1358
+        width: 2048
+        height: 2048
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -128,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: c1478e973bd64a3c0800000000000000
-      internalID: -4349230722521205732
+      spriteID: bf24a47208da898b0800000000000000
+      internalID: -5145171808344194309
       vertices: []
       indices: 
       edges: []
@@ -148,7 +148,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      elena-blink_0: -4349230722521205732
+      tutor_head_color_0: -5145171808344194309
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

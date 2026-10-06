@@ -1,16 +1,16 @@
 fileFormatVersion: 2
-guid: 06b86b4d4f7be334ea4ce18fca5dcd0b
+guid: 14120001080794545a47a947c0c15209
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -5411086854387717461
-    second: elena-neutral_0
+      213: 5096009538189508895
+    second: tutor_body_normal_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
     mipMapMode: 0
-    enableMipMap: 0
-    sRGBTexture: 1
+    enableMipMap: 1
+    sRGBTexture: 0
     linearTexture: 0
     fadeOut: 0
     borderMipMap: 0
@@ -55,9 +55,9 @@ TextureImporter:
   spriteBorder: {x: 0, y: 0, z: 0, w: 0}
   spriteGenerateFallbackPhysicsShape: 1
   alphaUsage: 1
-  alphaIsTransparency: 1
+  alphaIsTransparency: 0
   spriteTessellationDetail: -1
-  textureType: 8
+  textureType: 1
   textureShape: 1
   singleChannelComponent: 0
   flipbookRows: 1
@@ -113,13 +113,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: elena-neutral_0
+      name: tutor_body_normal_0
       rect:
         serializedVersion: 2
-        x: 13
+        x: 0
         y: 0
-        width: 1136
-        height: 1357
+        width: 2048
+        height: 2048
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -128,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: baa2f63dc25f7e4b0800000000000000
-      internalID: -5411086854387717461
+      spriteID: f11c9c7dca9a8b640800000000000000
+      internalID: 5096009538189508895
       vertices: []
       indices: 
       edges: []
@@ -148,7 +148,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      elena-neutral_0: -5411086854387717461
+      tutor_body_normal_0: 5096009538189508895
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
