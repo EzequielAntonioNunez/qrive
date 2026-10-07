@@ -36,12 +36,14 @@ Plataforma de simulación para formación y toma de decisiones. Primer despliegu
 - Los escenarios publicados son inmutables; un cambio es una versión nueva.
 - Texto de interfaz y documentación en español.
 
-## Estado y siguientes pasos (2026-10-06)
+## Estado y siguientes pasos (2026-10-07)
+Añadido el 7 de octubre (desplegado): tiempo real por WebSocket con `liveTally` para el docente; clase simulada; consola con rutas (Inicio, Sesiones, Nueva sesión, detalle con pestañas, Analítica, Escenarios, Participantes y accesos); nombres de sesión, renombrar y duplicar (migración 0006); finalizar en cualquier momento (`completed.early`); `GET /api/analytics`; unión de invitados por QR/PIN con alias limitada a una sesión (migración 0007, `worker/guests.ts`) y vista móvil sin Unity (`/unirse`, `/jugar/:id`, locuciones en `web/public/voz/`); respuesta libre por voz con Clef.
+
 Hecho: escenarios de IA con VictorIA (por defecto `ia-buenas-practicas`), marca UFV en consola y Unity, tutor 3D con lip sync y 12 locuciones Soniox TTS RT v2 (voz española `Carmen`, guion público generado fuera de la aplicación); modo individual (indicadores e informe por participante, media de clase, unión en cualquier fase, vista filtrada); seguridad (membresías con una organización por usuario, códigos personales de seis cifras, sesiones propias, auditoría de usos, límite de intentos transaccional en D1, CSRF, CSP, `x-request-id`, observability); RGPD (Durable Objects en la UE, retención de sesiones no completadas y de `audit_log` a 730 días, cola con lista blanca; la cola sigue sin jurisdicción UE); simulador WebGL publicado en `/simulador/`; `BOOTSTRAP_OWNER_EMAIL` y `ACCESS_CODE_PEPPER` como secretos; CI con despliegue condicionado a `CLOUDFLARE_DEPLOY`. La aplicación Cloudflare Access «Simulador UFV» y sus dos políticas AXYRO están retiradas. La entrada pública y el acceso propio se han probado en producción con propietario, docente y dos participantes. Se verificaron permisos, aislamiento, revocación y bloqueo de intentos; las sesiones de prueba se borraron.
 
 Pendiente:
 1. Activar el despliegue automático (`CLOUDFLARE_DEPLOY=true` con sus secretos, o Workers Builds).
-2. Probar una sesión completa de extremo a extremo con los equipos y la red de la UFV.
+2. Probar una sesión completa de extremo a extremo con los equipos y la red de la UFV, incluida la voz con micrófono real en iPhone y Android y el escaneo del QR. El QR no muestra la dirección mientras el dominio no sea de la UFV.
 3. Decisiones de la UFV de `docs/checklist-entrega-ufv.md` (dominio definitivo, DPA, base jurídica, plazos, ubicación de datos, etc.).
 4. Personaje definitivo con Reallusion Character Creator 4.
 5. Voz por micrófono en WebGL: implementada (`AxyroWebVoice.cs`, `Plugins/WebGL/AxyroVoice.jslib`, plantilla `voice.js`, `/api/voice/*` con claves temporales Soniox de un solo uso). Se activa con el secreto `SONIOX_API_KEY`; `SONIOX_REGION` (`wrangler.jsonc`) indica la región del proyecto: hoy `us`, con aviso de transferencia internacional antes de abrir el micrófono y pendiente del DPO; `eu` cuando haya proyecto UE.
