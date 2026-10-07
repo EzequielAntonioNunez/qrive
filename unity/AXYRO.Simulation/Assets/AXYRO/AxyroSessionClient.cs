@@ -78,6 +78,12 @@ namespace Axyro
         /// <summary>Selección desde el ratón o la voz (índice 0..3).</summary>
         public void SelectOption(int index)
         {
+            // Modo IA en vivo: la tarjeta solo avisa al navegador, que es quien habla con la API.
+            if (aiMode)
+            {
+                AxyroAiLive.Instance?.Choose(index);
+                return;
+            }
             // Solo con las opciones a la vista: primero se escucha la situación, después se decide.
             if (CanDecide && shownOptions != null && !commandBusy) Decide(index);
             else if (demoMode && !CanDecide) DemoDecide(index);
@@ -130,6 +136,12 @@ namespace Axyro
             if (optionsGroup != null) optionsGroup.SetActive(false);
             if (choicePanel != null) choicePanel.SetActive(false);
 
+            // Modo IA en vivo (?ia= en WebGL): sin sesión ni consulta periódica; lo pinta AxyroAiLive.
+            if (AxyroAiLive.Active)
+            {
+                EnterAiMode();
+                return;
+            }
             if (WebClient) ConfigureWeb();
             else ConfigureLocal();
             if (!stopped) StartCoroutine(Poll());
@@ -189,7 +201,7 @@ namespace Axyro
             else if (connectionLabel != null) connectionLabel.text = "Conectando…";
         }
 
-        private static string QueryValue(string query, string name)
+        internal static string QueryValue(string query, string name)
         {
             if (string.IsNullOrEmpty(query)) return null;
             foreach (var pair in query.TrimStart('?').Split('&'))
@@ -202,7 +214,7 @@ namespace Axyro
             return null;
         }
 
-        private static bool IsSafeId(string value)
+        internal static bool IsSafeId(string value)
         {
             foreach (var character in value)
                 if (!(char.IsLetterOrDigit(character) || character == '-' || character == '_')) return false;
@@ -225,6 +237,7 @@ namespace Axyro
 
         private void Update()
         {
+            if (aiMode) return;
             RefreshTimer();
             RefreshDemo();
             RefreshCards();
@@ -499,6 +512,62 @@ namespace Axyro
                 cards[i].gameObject.SetActive(visible);
                 if (visible && cardLabels != null && i < cardLabels.Length) cardLabels[i].text = options[i].label;
             }
+        }
+
+        // ---------- Modo IA en vivo (solo lo usa AxyroAiLive) ----------
+
+        private bool aiMode;
+
+        /// <summary>Deja este componente como simple vista: sin sesión, sin consulta periódica y sin teclado propio.</summary>
+        public void EnterAiMode()
+        {
+            if (aiMode) return;
+            aiMode = true;
+            stopped = true;
+            CanDecide = false;
+            demoMode = false;
+            state = null;
+            baseLabel = null;
+            currentOptions = null;
+            shownOptions = null;
+            ShowCards(null);
+            if (optionsGroup != null) optionsGroup.SetActive(false);
+            if (choicePanel != null) choicePanel.SetActive(false);
+            if (connectionLabel != null) connectionLabel.text = "Modo IA en vivo";
+        }
+
+        /// <summary>Tarjetas de la situación generada (null las oculta). <paramref name="pending"/> resalta la opción por confirmar.</summary>
+        public void ShowAiOptions(string[] labels, int pending)
+        {
+            if (!aiMode) return;
+            if (labels == null || labels.Length == 0)
+            {
+                shownOptions = null;
+                ShowCards(null);
+                if (optionsGroup != null) optionsGroup.SetActive(false);
+                return;
+            }
+            var count = Math.Min(labels.Length, cards != null ? cards.Length : 0);
+            // VisibleOptionCount (cámara de opciones) refleja las tarjetas visibles igual que en el flujo con sesión.
+            shownOptions = new ChoiceData[count];
+            for (var i = 0; i < count; i++)
+                shownOptions[i] = new ChoiceData { id = i.ToString(CultureInfo.InvariantCulture), label = i == pending ? $"<color=#9CC2FF><b>¿{labels[i]}?</b></color>" : labels[i] };
+            ShowCards(shownOptions);
+            if (optionsGroup != null) optionsGroup.SetActive(true);
+        }
+
+        /// <summary>Tarjeta de resultado (consecuencia de la decisión, resumen o error); null la oculta.</summary>
+        public void ShowAiPanel(string richText)
+        {
+            if (!aiMode) return;
+            if (choiceList != null) choiceList.text = richText ?? "";
+            if (choicePanel != null) choicePanel.SetActive(!string.IsNullOrEmpty(richText));
+        }
+
+        /// <summary>Línea de estado de arriba (preparando, pensando, te escucho…).</summary>
+        public void SetAiStatus(string text)
+        {
+            if (aiMode && connectionLabel != null) connectionLabel.text = string.IsNullOrEmpty(text) ? "Modo IA en vivo" : text;
         }
 
         private static string StatusLabel(string status) => status switch

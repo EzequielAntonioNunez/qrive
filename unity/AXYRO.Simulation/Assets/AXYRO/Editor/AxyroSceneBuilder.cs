@@ -171,6 +171,19 @@ public static class AxyroSceneBuilder
             if (status != null) status.text = "";
             UnityEngine.Object.DestroyImmediate(voiceCommands);
         }
+        // Modo IA en vivo (/simulador/?ia=<runId>): solo en la build web; sin ?ia= el componente se desactiva solo.
+        var sessionClient = UnityEngine.Object.FindAnyObjectByType<AxyroSessionClient>(FindObjectsInactive.Include);
+        if (sessionClient != null)
+        {
+            var aiLive = sessionClient.gameObject.AddComponent<AxyroAiLive>();
+            var aiData = new SerializedObject(aiLive);
+            aiData.FindProperty("session").objectReferenceValue = sessionClient;
+            aiData.FindProperty("avatar").objectReferenceValue = UnityEngine.Object.FindAnyObjectByType<AxyroAvatarDemo>(FindObjectsInactive.Include);
+            aiData.FindProperty("tutor").objectReferenceValue = UnityEngine.Object.FindAnyObjectByType<AxyroTutor3D>(FindObjectsInactive.Include);
+            aiData.FindProperty("screen").objectReferenceValue = UnityEngine.Object.FindAnyObjectByType<AxyroSceneScreen>(FindObjectsInactive.Include);
+            aiData.FindProperty("feedback").objectReferenceValue = UnityEngine.Object.FindAnyObjectByType<AxyroDecisionFeedback>(FindObjectsInactive.Include);
+            aiData.ApplyModifiedPropertiesWithoutUndo();
+        }
         EditorSceneManager.SaveScene(scene, WebScenePath, true);
         EditorSceneManager.OpenScene(WebScenePath, OpenSceneMode.Single);
     }

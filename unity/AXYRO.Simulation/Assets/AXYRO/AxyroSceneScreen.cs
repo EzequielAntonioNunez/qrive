@@ -69,7 +69,92 @@ namespace Axyro
 
         private void Start()
         {
-            if (shownKey == null) Show(null, null);
+            if (AxyroAiLive.Active) external = true;
+            if (shownKey == null && !external) Show(null, null);
+        }
+
+        // ---------- Modo IA en vivo: contenido que manda AxyroAiLive (no se deduce de la fase del avatar) ----------
+
+        private bool external;
+
+        /// <summary>Reposo del modo IA mientras se prepara la primera situación.</summary>
+        public void ShowAiWaiting()
+        {
+            external = true;
+            ShowCustom("ia|espera", c => AiFrame(c, "MODO IA EN VIVO · UFV", "Conversa con VictorIA", "Situaciones generadas a partir de tus documentos", null));
+        }
+
+        /// <summary>Situación generada: documento genérico con el título y los nombres de los documentos fuente.</summary>
+        public void ShowAiSituation(string title, string[] sources, int index, int total)
+        {
+            external = true;
+            var key = $"ia|{index}|{title}";
+            if (key == shownKey) return;
+            ShowCustom(key, c => AiDocument(c, title, sources ?? Array.Empty<string>(), index, total));
+        }
+
+        /// <summary>Resumen final de la conversación.</summary>
+        public void ShowAiSummary(int optimal, int total)
+        {
+            external = true;
+            ShowCustom("ia|resumen", c => AiFrame(c, "FIN DE LA SIMULACIÓN", "Resumen", $"{optimal} de {total} decisiones óptimas", Ok));
+        }
+
+        private void ShowCustom(string key, Action<Content> build)
+        {
+            shownKey = key;
+            CurrentPhaseId = null;
+            if (current != null)
+            {
+                current.leftAt = Time.time;
+                leaving.Add(current);
+            }
+            current = NewContent(key);
+            glowTarget = Accent;
+            build(current);
+            current.group.alpha = 0f;
+            PhaseChanged?.Invoke(null);
+        }
+
+        private void AiDocument(Content c, string title, string[] sources, int index, int total)
+        {
+            var file = sources.Length > 0 && !string.IsNullOrEmpty(sources[0]) ? sources[0] : "Documentos del docente";
+            Window(c, file, "Documento", false);
+            var page = Box(c.rect, 24, 92, 600, 404, Panel);
+            Label(page, string.IsNullOrEmpty(title) ? "Situación" : title, 28, 18, 400, 64, 22, Ink, FontStyle.Bold);
+            var badge = Box(page, 434, 26, 146, 24, new Color(0.39f, 0.62f, 1f, 0.2f));
+            Label(badge, "Generado con IA", 0, 0, 146, 24, 12, Accent, FontStyle.Bold, TextAnchor.MiddleCenter);
+            for (var i = 0; i < 9; i++) Redacted(page, 28, 104 + i * 26, 540 - (i % 3) * 80, 9, 0.26f);
+            var highlight = Box(page, 20, 176, 560, 60, new Color(0.39f, 0.62f, 1f, 0.10f));
+            Pulse(c, highlight.GetComponent<Image>(), new Color(0.39f, 0.62f, 1f, 0.05f), new Color(0.39f, 0.62f, 1f, 0.18f), 2f);
+            Label(page, "Puede contener errores: contrasta con el documento original.", 28, 356, 540, 30, 12, Muted, FontStyle.Italic);
+
+            var side = Box(c.rect, 648, 92, 288, 404, Panel);
+            Label(side, "Fuentes", 20, 16, 250, 30, 16, Ink, FontStyle.Bold);
+            var shown = 0;
+            foreach (var source in sources)
+            {
+                if (string.IsNullOrEmpty(source) || shown >= 5) continue;
+                var row = Box(side, 20, 58 + shown * 54, 248, 46, Panel2);
+                Box(row, 12, 13, 14, 20, Accent);
+                Label(row, source, 36, 0, 204, 46, 13, Ink, FontStyle.Normal);
+                shown++;
+            }
+            if (shown == 0) Label(side, "Sin fuentes citadas en esta situación.", 20, 58, 250, 46, 13, Muted, FontStyle.Italic);
+            if (total > 0) Tag(c.rect, $"Situación {Mathf.Min(index + 1, total)} de {total}", 24, 506, Accent);
+            glowTarget = Hex(0x7FA9F0);
+        }
+
+        private void AiFrame(Content c, string eyebrow, string heading, string detail, Color? tone)
+        {
+            var frame = Box(c.rect, 0, 0, CanvasWidth, CanvasHeight, Bg);
+            Box(frame, 0, 0, 10, CanvasHeight, Accent);
+            Label(frame, eyebrow, 70, 150, 820, 30, 16, Accent, FontStyle.Bold);
+            Label(frame, heading, 70, 190, 820, 120, 54, Ink, FontStyle.Bold);
+            Label(frame, detail, 70, 330, 820, 50, 26, tone ?? Muted, FontStyle.Normal);
+            var line = Box(frame, 70, 400, 0, 3, Accent);
+            c.animations.Add(t => line.sizeDelta = new Vector2(220f * Ease(Mathf.Clamp01((t - 0.4f) / 1.2f)), 3f));
+            Label(frame, "Generado con IA a partir de tus documentos · puede contener errores", 70, 470, 820, 30, 14, Muted, FontStyle.Italic);
         }
 
         /// <summary>
@@ -85,7 +170,7 @@ namespace Axyro
 
         private void Update()
         {
-            if (Time.unscaledTime >= nextPoll)
+            if (!external && Time.unscaledTime >= nextPoll)
             {
                 nextPoll = Time.unscaledTime + 0.2f;
                 var id = PhaseId;
@@ -463,7 +548,7 @@ namespace Axyro
         }
 
         /// <summary>Marco de aplicación: barra superior con icono, nombre del archivo y aviso de contenido ficticio.</summary>
-        private void Window(Content c, string fileName, string app)
+        private void Window(Content c, string fileName, string app, bool fictional = true)
         {
             Box(c.rect, 0, 0, CanvasWidth, CanvasHeight, Bg);
             var bar = Box(c.rect, 0, 0, CanvasWidth, 64, Panel);
@@ -473,6 +558,7 @@ namespace Axyro
             Dot(bar, 880, 26, 12, Line);
             Dot(bar, 900, 26, 12, Line);
             Dot(bar, 920, 26, 12, Line);
+            if (!fictional) return;
             var fiction = Box(c.rect, 760, 506, 176, 22, new Color(1f, 1f, 1f, 0.05f));
             Label(fiction, "Contenido ficticio", 0, 0, 176, 22, 11, Muted, FontStyle.Italic, TextAnchor.MiddleCenter);
         }

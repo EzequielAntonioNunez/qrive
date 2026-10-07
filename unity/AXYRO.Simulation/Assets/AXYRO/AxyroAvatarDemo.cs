@@ -51,7 +51,7 @@ namespace Axyro
         public bool IsReacting => reacting;
 
         /// <summary>Id de la fase que se muestra ahora (la demo sin sesión elige sus opciones con él).</summary>
-        public string CurrentPhaseId => phase >= 0 && phase < phaseIds.Length ? phaseIds[phase] : null;
+        public string CurrentPhaseId => !external && phase >= 0 && phase < phaseIds.Length ? phaseIds[phase] : null;
 
         /// <summary>Índice de la fase visible (la pantalla de la sala y la cámara lo siguen).</summary>
         public int CurrentPhaseIndex => phase;
@@ -114,7 +114,7 @@ namespace Axyro
 
         private void RefreshPlayButton()
         {
-            var available = CurrentClip() != null;
+            var available = !external && CurrentClip() != null;
             if (playButton != null) playButton.interactable = available && sessionStatus == "active";
             if (playButton != null) playButton.gameObject.SetActive(available);
             if (playLabel != null && !speaking) playLabel.text = LineFinished ? "↻  Repetir voz" : "▶  Escuchar";
@@ -143,6 +143,13 @@ namespace Axyro
         private void Start()
         {
             if (playButton != null) playButton.onClick.AddListener(ToggleVoice);
+            // Modo IA en vivo: la voz llega del navegador; ni locuciones de la demo ni fase inicial.
+            if (AxyroAiLive.Active)
+            {
+                EnterExternalMode();
+                BindHud();
+                return;
+            }
             SetPhase(0);
             BindHud();
             var arguments = Environment.GetCommandLineArgs();
@@ -177,6 +184,12 @@ namespace Axyro
         private void Update()
         {
             var keyboard = Keyboard.current;
+            if (external)
+            {
+                // Las teclas de opción y «R» las atiende AxyroAiLive; aquí solo la pantalla completa.
+                if (keyboard != null && (keyboard.f11Key.wasPressedThisFrame || (keyboard.altKey.isPressed && keyboard.enterKey.wasPressedThisFrame))) ToggleFullScreen();
+                return;
+            }
             if (!linkedSession && keyboard != null && keyboard.digit1Key.wasPressedThisFrame) SetPhase(0);
             if (!linkedSession && keyboard != null && keyboard.digit2Key.wasPressedThisFrame) SetPhase(1);
             if (!linkedSession && keyboard != null && keyboard.digit3Key.wasPressedThisFrame) SetPhase(2);
@@ -293,7 +306,7 @@ namespace Axyro
 
         public void SetPhase(int next)
         {
-            if (next < 0 || next >= scripts.Length) return;
+            if (external || next < 0 || next >= scripts.Length) return;
             // Una fase nueva corta la reacción a la decisión anterior sin bloquear la siguiente situación.
             CancelPendingReaction();
             reactionText = null;
@@ -333,6 +346,7 @@ namespace Axyro
         /// </summary>
         public void ToggleVoice()
         {
+            if (external) return;
             var clip = CurrentClip();
             if (voice == null || clip == null) return;
             if (speaking && !reacting) { voice.Stop(); SetSpeaking(false); return; }
@@ -350,6 +364,7 @@ namespace Axyro
         /// <summary>El participante toma la palabra: detener audio y lip sync sin volver a reproducirlo.</summary>
         public void InterruptVoice()
         {
+            if (external) return;
             CancelPendingReaction();
             if (!speaking) return;
             voice?.Stop();
@@ -363,6 +378,7 @@ namespace Axyro
         /// </summary>
         public void PlayReaction(string phaseId, string optionId, string quality, string fallbackText)
         {
+            if (external) return;
             CancelPendingReaction();
             if (speaking) { voice?.Stop(); SetSpeaking(false); }
             if (autoSpeak != null) { StopCoroutine(autoSpeak); autoSpeak = null; }
@@ -418,6 +434,7 @@ namespace Axyro
 
         public void SetLinkedSession(bool linked)
         {
+            if (external) return;
             linkedSession = linked;
 #if UNITY_WEBGL && !UNITY_EDITOR
             if (inputHint != null) inputHint.text = linked
@@ -432,6 +449,7 @@ namespace Axyro
 
         public void SetSessionStatus(string status)
         {
+            if (external) return;
             sessionStatus = status;
             RefreshPlayButton();
             if (status != "active") CancelPendingReaction();
@@ -440,6 +458,72 @@ namespace Axyro
                 voice?.Stop();
                 SetSpeaking(false);
             }
+        }
+
+        // ---------- Modo IA en vivo: la voz, el título y los subtítulos llegan del navegador (AxyroAiLive) ----------
+
+        private bool external;
+
+        /// <summary>True en el modo IA en vivo: este componente ya no reproduce locuciones propias.</summary>
+        public bool IsExternal => external;
+
+        public void EnterExternalMode()
+        {
+            if (external) return;
+            CancelPendingReaction();
+            if (autoSpeak != null) { StopCoroutine(autoSpeak); autoSpeak = null; }
+            if (voice != null) voice.Stop();
+            if (speaking) SetSpeaking(false);
+            external = true;
+            linkedSession = true;
+            sessionStatus = "ia";
+            reactionText = null;
+            LineFinished = true;
+            lineDeadline = float.MaxValue;
+            phase = 0;
+            phaseCount = 1;
+            if (playButton != null) playButton.gameObject.SetActive(false);
+            if (phaseTitle != null) phaseTitle.text = "MODO IA EN VIVO";
+            if (dialogue != null) dialogue.text = "";
+            if (inputHint != null) inputHint.text = "Habla con VictorIA, o elige con el ratón o las teclas 1 a 4  ·  R: repetir  ·  F11: pantalla completa";
+        }
+
+        /// <summary>Situación generada número <paramref name="index"/> (0..) de <paramref name="total"/>.</summary>
+        public void SetExternalPhase(int index, int total, string title)
+        {
+            if (!external) return;
+            index = Mathf.Clamp(index, 0, 99);
+            if (titles.Length <= index) Array.Resize(ref titles, index + 1);
+            if (scripts.Length <= index) Array.Resize(ref scripts, index + 1);
+            titles[index] = title;
+            phase = index;
+            phaseCount = Mathf.Max(total, index + 1);
+            PhaseVersion++;
+            LineFinished = true;
+            if (phaseTitle != null) phaseTitle.text = PhaseHeading();
+        }
+
+        public void SetExternalHeading(string text)
+        {
+            if (external && phaseTitle != null) phaseTitle.text = text ?? "";
+        }
+
+        public void SetSubtitle(string text)
+        {
+            if (external && dialogue != null) dialogue.text = text ?? "";
+        }
+
+        /// <summary>VictorIA habla (o reacciona a una decisión) con la voz del navegador.</summary>
+        public void SetExternalSpeaking(bool value, bool reaction)
+        {
+            if (!external) return;
+            if (value == speaking && (reaction && value) == reacting) return;
+            if (value)
+            {
+                reacting = reaction;
+                SetSpeaking(true);
+            }
+            else SetSpeaking(false);
         }
 
         private void SetSpeaking(bool value)

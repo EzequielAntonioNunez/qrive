@@ -67,6 +67,70 @@ namespace Axyro
         [SerializeField, Range(0f, 35f)] private float concernBrow = 22f;
         [SerializeField, Range(0.5f, 4f)] private float concernSeconds = 1.5f;
 
+        [Header("Boca con voz externa (modo IA en vivo)")]
+        [Tooltip("Visemas A, I, U, E, O y N: los mismos que mueve uLipSync en el flujo con locuciones.")]
+        [SerializeField] private string[] visemeShapes =
+        {
+            "blendShape1.AA_VI_10_aa", "blendShape1.AA_VI_12_I", "blendShape1.AA_VI_14_U",
+            "blendShape1.AA_VI_11_E", "blendShape1.AA_VI_13_O", "blendShape1.AA_VI_08_nn"
+        };
+        [SerializeField] private float[] visemeMaxWeights = { 85f, 70f, 75f, 75f, 80f, 50f };
+        [Tooltip("Suavizado de la boca (s): bajo para que siga las sílabas sin temblar.")]
+        [SerializeField, Range(0.02f, 0.2f)] private float externalLipSmoothing = 0.06f;
+
+        public const int VisemeA = 0, VisemeI = 1, VisemeU = 2, VisemeE = 3, VisemeO = 4, VisemeRest = 5;
+
+        private bool externalLip;
+        private float externalLevel;
+        private int externalViseme = VisemeRest;
+        private float externalAt = -10f;
+        private int[] visemeIndices;
+        private float[] visemeWeights;
+
+        /// <summary>
+        /// Modo IA en vivo: la voz suena en el navegador (WebAudio), así que uLipSync no la oye. Desactiva sus
+        /// visemas y deja la boca a <see cref="SetExternalLip"/>. Fuera del modo IA no se llama nunca.
+        /// </summary>
+        public void UseExternalLip(bool value)
+        {
+            externalLip = value;
+            // Por nombre de tipo: el ensamblado del juego no depende de uLipSync para esto.
+            foreach (var component in GetComponents<MonoBehaviour>())
+                if (component != null && component.GetType().Name == "uLipSyncBlendShape") component.enabled = !value;
+            if (!value && visemeIndices != null)
+                for (var i = 0; i < visemeIndices.Length; i++) { visemeWeights[i] = 0f; SetWeight(visemeIndices[i], 0f); }
+        }
+
+        /// <summary>Nivel de la voz (0-1) y visema aproximado (A, I, U, E, O o reposo) que calcula el navegador.</summary>
+        public void SetExternalLip(float level, int viseme)
+        {
+            externalLevel = Mathf.Clamp01(level);
+            externalViseme = viseme >= 0 && viseme <= VisemeRest ? viseme : VisemeA;
+            externalAt = Time.unscaledTime;
+        }
+
+        private void ApplyExternalMouth(float dt)
+        {
+            if (visemeIndices == null)
+            {
+                visemeIndices = new int[visemeShapes.Length];
+                visemeWeights = new float[visemeShapes.Length];
+                for (var i = 0; i < visemeShapes.Length; i++) visemeIndices[i] = face.sharedMesh.GetBlendShapeIndex(visemeShapes[i]);
+            }
+            // Si dejan de llegar niveles (pestaña en segundo plano, fallo de red), la boca se cierra sola.
+            var level = Time.unscaledTime - externalAt > 0.3f ? 0f : externalLevel;
+            var open = Mathf.Clamp01((level - 0.04f) / 0.5f);
+            var k = 1f - Mathf.Exp(-dt / externalLipSmoothing);
+            for (var i = 0; i < visemeIndices.Length; i++)
+            {
+                var max = i < visemeMaxWeights.Length ? visemeMaxWeights[i] : 60f;
+                // El visema dominante abre según el nivel; una «A» suave acompaña siempre para que la mandíbula se mueva.
+                var target = i == externalViseme ? open * max : i == VisemeA && externalViseme != VisemeRest ? open * max * 0.3f : 0f;
+                visemeWeights[i] = Mathf.Lerp(visemeWeights[i], target, k);
+                SetWeight(visemeIndices[i], visemeWeights[i]);
+            }
+        }
+
         private Animator animator;
         private int blinkL = -1, blinkR = -1, smileL = -1, smileR = -1;
         private int browInner = -1, browOuterL = -1, browOuterR = -1;
@@ -236,6 +300,7 @@ namespace Axyro
             SetWeight(blinkR, Mathf.Clamp01(blink) * 100f);
 
             ApplyFace(dt);
+            if (externalLip) ApplyExternalMouth(dt);
         }
 
         private void Update()
@@ -261,7 +326,9 @@ namespace Axyro
         private void UpdateEmphasis(float dt)
         {
             var level = 0f;
-            if (speaking && voice != null && voice.isPlaying)
+            // Voz externa (modo IA): el nivel del navegador, escalado al orden de magnitud del RMS de la fuente de audio.
+            if (externalLip) level = speaking && Time.unscaledTime - externalAt < 0.3f ? externalLevel * 0.08f : 0f;
+            else if (speaking && voice != null && voice.isPlaying)
             {
                 voice.GetOutputData(samples, 0);
                 var sum = 0f;
