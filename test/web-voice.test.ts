@@ -61,3 +61,30 @@ describe('voz WebGL: turnos e interrupción', () => {
     expect(calls).toEqual([]);
   });
 });
+
+describe('voz en el móvil: interrupción de VictorIA (misma regla que voice.js)', async () => {
+  const { shouldBargeIn, nextSpeechMs } = await import('../web/voice-mobile');
+  const base = { speakingForMs: 1200, interrupted: false, sinceSpeechMs: 200, heard: 'quiero' };
+  it('corta el audio con habla reciente y una palabra reconocida mientras suena VictorIA', () => {
+    expect(shouldBargeIn(base)).toBe(true);
+  });
+  it('no corta sin audio sonando, en los primeros 350 ms, sin energía reciente, con una sola letra o si ya se cortó', () => {
+    expect(shouldBargeIn({ ...base, speakingForMs: null })).toBe(false);
+    expect(shouldBargeIn({ ...base, speakingForMs: 200 })).toBe(false);
+    expect(shouldBargeIn({ ...base, sinceSpeechMs: 1500 })).toBe(false);
+    expect(shouldBargeIn({ ...base, heard: 'u' })).toBe(false);
+    expect(shouldBargeIn({ ...base, heard: '1 2' })).toBe(false);
+    expect(shouldBargeIn({ ...base, interrupted: true })).toBe(false);
+  });
+  it('acumula voz por energía y la descarta con silencio', () => {
+    const loud = new Float32Array(1600).fill(0.1);
+    const quiet = new Float32Array(1600);
+    let ms = 0;
+    ms = nextSpeechMs(ms, loud, 16000);
+    expect(ms).toBe(100);
+    ms = nextSpeechMs(ms, loud, 16000);
+    expect(ms).toBe(200);
+    ms = nextSpeechMs(ms, quiet, 16000);
+    expect(ms).toBe(0);
+  });
+});

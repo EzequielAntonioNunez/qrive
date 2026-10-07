@@ -2,13 +2,14 @@
 
 Plataforma de simulación para formación y toma de decisiones. Primer despliegue: Universidad Francisco de Vitoria (UFV). Todo lo que ve el usuario lleva la marca UFV: la consola web se presenta como «Simulador de decisiones» (`web/brand.ts`) y el cliente Unity como «Simulador UFV». **AXYRO** es solo el nombre interno del código, del repositorio y de los recursos de Cloudflare.
 
-Incluye una consola web para instructor y participante, API Hono en Cloudflare Workers, estado de sesión en Durable Objects, datos en D1 y eventos persistidos a través de Queues.
+Piezas:
 
-La consola web permite ver participantes, dar de alta miembros internos, controlar fases, lanzar incidentes y ajustar indicadores; la cronología registra cada acción. La web no muestra ningún personaje.
+- **API** Hono en Cloudflare Workers: estado vivo de cada sesión en Durable Objects (UE), datos en D1, eventos por Queues, ficheros en R2 (UE), tiempo real por WebSocket y Workers AI (Clef para la respuesta libre por voz; modelos del Modo IA).
+- **Web (React + Vite):** consola del docente (Inicio, Sesiones, Nueva sesión, Analítica, Escenarios, Participantes y accesos), **proyector** para el aula, **vista móvil** del participante (`/unirse`, `/jugar/:id`, acceso de invitados por QR/PIN y alias, con la voz y las reacciones de VictorIA) y **Modo IA en vivo (demo)** para docentes.
+- **Unity** (cliente 3D en WebGL y Windows): personaje, escena, animación, audio, lip sync e interacción. **Rive** se usa solo para el HUD dentro de Unity.
+- **Voz:** locuciones y reacciones pregrabadas con Soniox TTS; reconocimiento de voz opcional y síntesis en tiempo real con Soniox (proyecto en EE. UU.).
 
-Según la arquitectura v1.1, **Unity** es el cliente de simulación y se hace cargo del personaje, renderizado, animación, audio, interacción y ejecución local. **Rive** se usa solo para el HUD dentro de Unity (indicadores de hablando/escuchando). **React** es solo la consola del instructor y administración.
-
-La definición de alcance está en [AXYRO_MVP_ARCHITECTURE_FINAL_v1.1.md](./AXYRO_MVP_ARCHITECTURE_FINAL_v1.1.md). VR, personajes IA y RAG avanzado pertenecen a fases posteriores.
+La definición de alcance está en [AXYRO_MVP_ARCHITECTURE_FINAL_v1.1.md](./AXYRO_MVP_ARCHITECTURE_FINAL_v1.1.md) (con un addendum del estado real). VR y la IA avanzada pertenecen a fases posteriores; como excepción, el Modo IA en vivo (IA generativa y RAG sobre documentos del docente) está construido como demostración detrás del flag `ai_live_demo`, solo para docentes.
 
 ## Desarrollo local
 
@@ -37,6 +38,11 @@ pnpm demo:stop
 
 Los logs quedan en `.local-state/logs/`. Si no existe la compilación Windows de Unity, abre la escena en el editor y pulsa Play.
 
+Otros comandos:
+
+- `pnpm dev:api:ai`: como `dev:api`, con el flag `ai_live_demo` y Workers AI remoto (`wrangler.ai.local.jsonc`; requiere `wrangler login` y consume neuronas de la cuenta).
+- `pnpm ship`: todo en uno con el editor de Unity cerrado: compila WebGL (`unity:webgl`), despliega (`deploy:cloud`), compila Windows (`unity:build`) y arranca la demo local (`demo`).
+
 ## Cliente Unity
 
 El proyecto `unity/AXYRO.Simulation` usa Unity **6000.3.25f1** con URP, el paquete Rive para Unity **v0.5.1** y uLipSync **v3.1.5** (MIT). La escena `Assets/Scenes/AXYRO Avatar Demo.unity` se genera con el menú `AXYRO > Crear escena de avatar` (`Editor/AxyroSceneBuilder.cs`). `pnpm unity:build` (con el editor cerrado) la regenera y compila el ejecutable Windows `unity/AXYRO.Simulation/Build/Simulador-UFV.exe`; la carpeta `Build/` está ignorada por Git.
@@ -46,7 +52,11 @@ El proyecto `unity/AXYRO.Simulation` usa Unity **6000.3.25f1** con URP, el paque
 - Modelo provisional: Microsoft Rocketbox `Business_Female_04` (MIT), importado por `Editor/AxyroTutorSetup.cs` en `Characters/Tutor/` (FBX, texturas, animaciones y `Tutor.controller`). El personaje definitivo está previsto con Reallusion Character Creator 4.
 - `AxyroTutor3D.cs`: alterna animaciones de escucha y de habla, parpadeo aleatorio y mirada a cámara por IK.
 - Lip sync con uLipSync (perfil femenino de ejemplo): las vocales A, I, U, E, O y la N se mapean a los visemas del modelo.
-- Escena de oficina con fondo desenfocado, iluminación de estudio y postproceso URP (`Rendering/AXYRO-Volume.asset`).
+- Escena de despacho generada por `AxyroSceneBuilder` (recursos hechos en el propio proyecto), iluminación de estudio y postproceso URP (`Rendering/AXYRO-Volume.asset`).
+- Pantalla de pared diegética (`AxyroSceneScreen.cs`): muestra el objeto de cada situación según el id de fase (la hoja de notas, el chat del asistente, el detector…), con contenido ficticio y nombres tachados o desenfocados; las fases desconocidas muestran el título.
+- Dirección de cámara (`AxyroCinematics.cs`): acercamiento mientras VictorIA plantea la situación, plano abierto con las opciones y plano cercano tras la decisión, sin que la interfaz tape la cara.
+- Reacciones habladas a cada decisión (`AxyroReactions.cs`, ver «Reacciones de VictorIA a cada decisión»); las opciones aparecen siempre aunque falle el audio.
+- Pantalla de carga propia en la plantilla WebGL `UFV`, con `Build/` en caché inmutable.
 
 ### Interacción
 
@@ -69,7 +79,7 @@ El participante abre el simulador 3D en el navegador, sin instalar nada, desde `
 
 1. El instructor crea la sesión en la consola. En «Experiencia del participante» aparece el enlace para participantes con «Copiar enlace» y «Abrir simulador».
 2. El docente registra a cada persona en «Vista general › Personas y códigos» con cualquier dirección de correo, le asigna un rol y genera su código personal de seis cifras. El código se muestra una sola vez; el docente lo entrega por un canal privado. Cada persona pertenece a una sola organización.
-3. Al abrir el enlace, la persona introduce correo y código en la página de AXYRO. El Worker crea una sesión propia de 24 horas con cookie segura. El código se guarda en D1 como HMAC con un secreto del Worker; no viaja dentro de la build WebGL. Cambiar o revocar el código invalida las sesiones activas.
+3. Al abrir el enlace, la persona introduce correo y código en la página propia de acceso. El Worker crea una sesión propia de 24 horas con cookie segura. El código se guarda en D1 como HMAC con un secreto del Worker; no viaja dentro de la build WebGL. Cambiar o revocar el código invalida las sesiones activas.
 4. El cliente consulta `GET /api/me` para conocer su identidad y rol, se une a la sesión y decide con el ratón o con la tecla correspondiente a una opción. Se puede unir en cualquier fase mientras la sesión no haya terminado: quien llega tarde empieza en la fase actual con los indicadores iniciales.
 
 ### Acceso invitado con PIN de sesión
@@ -83,7 +93,7 @@ Para clases abiertas y demostraciones, cualquiera en el aula puede entrar sin cu
 - Ámbito: un invitado (`guest-<uuid>`) solo puede usar `GET /api/me`, su sesión (`GET`, `/live` y comandos `join`/`decide`), la voz para su sesión y `POST /api/auth/logout`; el resto responde 403 «Acceso de invitado limitado a su sesión.». Cuenta como participante real (no simulado) y recibe la misma vista filtrada que cualquier participante.
 - Caducidad: 12 horas o, al finalizar la sesión, dos horas de margen para leer su informe. El cron borra los invitados caducados.
 
-Comportamiento del cliente en WebGL (`AxyroSessionClient.cs`, `#if UNITY_WEBGL && !UNITY_EDITOR`): la API es `<origen>/api`, sin cabecera `x-demo-user`, y la sesión sale del parámetro `sesion`. Sin él muestra «Abre el simulador desde el enlace que te comparta tu docente». Un instructor que abre el enlace ve la sesión sin poder decidir. La escena web sustituye Vosk por `AxyroWebVoice`, que recibe las órdenes de Soniox desde el navegador cuando hay una clave UE configurada. El lip sync de uLipSync funciona en WebGL leyendo las muestras del clip (`autoAudioSyncOnWebGL`); por eso las locuciones llevan en WebGL `Decompress On Load`. El navegador no reproduce audio hasta el primer clic del participante.
+Comportamiento del cliente en WebGL (`AxyroSessionClient.cs`, `#if UNITY_WEBGL && !UNITY_EDITOR`): la API es `<origen>/api`, sin cabecera `x-demo-user`, y la sesión sale del parámetro `sesion`. Sin él muestra «Abre el simulador desde el enlace que te comparta tu docente». Un instructor que abre el enlace ve la sesión sin poder decidir. La escena web sustituye Vosk por `AxyroWebVoice`, que recibe las órdenes de Soniox desde el navegador cuando hay una clave Soniox configurada (región de `SONIOX_REGION`, hoy `us`, con aviso de transferencia antes de abrir el micrófono). Los invitados también pueden abrir el 3D de su sesión (`guestSimulatorGate` en `worker/simulator.ts`; «Abrir en 3D» en la vista móvil). El lip sync de uLipSync funciona en WebGL leyendo las muestras del clip (`autoAudioSyncOnWebGL`); por eso las locuciones llevan en WebGL `Decompress On Load`. El navegador no reproduce audio hasta el primer clic del participante.
 
 ### Compilar y publicar
 
@@ -94,12 +104,12 @@ pnpm deploy:cloud
 
 - `scripts/unity-webgl.ps1` ejecuta `AxyroSceneBuilder.BuildWebGL` (escena regenerada, plantilla `Assets/WebGLTemplates/UFV/`, Brotli con `decompressionFallback`, nombres con hash, sin el modelo Vosk) en `unity/AXYRO.Simulation/Build/WebGL` y lo copia a `web/public/simulador/`. Esta salida se versiona para que GitHub Actions despliegue el mismo simulador sin instalar Unity. Vite lo incluye en `dist/web` y el despliegue lo sube como static assets.
 - Los static assets de Workers admiten como máximo 25 MiB por fichero. Los ficheros que lo superan se suben a R2 (`axyro-files/simulador/<ruta>`, jurisdicción UE) con `wrangler r2 object put --remote`. `pnpm unity:webgl -SkipBuild` repite solo la publicación.
-- El Worker atiende `/simulador` y `/simulador/*` antes que los assets (`run_worker_first`): sirve el asset si existe y, si no, el objeto de R2 con su `Content-Type` (`.wasm` → `application/wasm`, `.data`/`.unityweb` → `application/octet-stream`) y caché `immutable` para `Build/` (`worker/simulator.ts`). `/simulador` redirige a `/simulador/` conservando `?sesion=` y, si no hay sesión de AXYRO, muestra la página propia de acceso antes de cargar Unity.
+- El Worker atiende `/simulador` y `/simulador/*` antes que los assets (`run_worker_first`): sirve el asset si existe y, si no, el objeto de R2 con su `Content-Type` (`.wasm` → `application/wasm`, `.data`/`.unityweb` → `application/octet-stream`) y caché `immutable` para `Build/` (`worker/simulator.ts`). `/simulador` redirige a `/simulador/` conservando `?sesion=` y, si no hay una sesión válida (miembro o invitado), muestra la página propia de acceso antes de cargar Unity.
 - En local: con `pnpm dev:api` y `pnpm dev:web`, el enlace de la consola apunta a `http://127.0.0.1:5173/simulador/index.html?sesion=<id>` (Vite no resuelve la carpeta). Con la API local el cliente WebGL detecta el modo demo en `/api/me` y actúa como participante demo.
 
 ## Voz del tutor
 
-Las locuciones son WAV generados con la API de Soniox a partir del guion público e incluidos en Unity. En tiempo de ejecución no hay ninguna llamada a Soniox ni clave en el cliente.
+Las locuciones de situación y las reacciones son WAV (y MP3 para el móvil) generados con la API de Soniox a partir del guion público e incluidos en Unity y en `web/public/voz/`. Reproducir estas grabaciones no llama a Soniox y ningún cliente contiene su clave. Soniox sí se usa en tiempo de ejecución para el reconocimiento de voz opcional (abajo) y para la síntesis en tiempo real del proyector y del Modo IA, siempre con credenciales temporales que emite el Worker.
 
 - Motor: Soniox TTS RT v2, voz `Carmen` (femenina, español de España). Se envía a Soniox únicamente `characterLine` de los escenarios versionados, sin audio ni datos de participantes.
 - Cada WAV se nombra por el id de fase (`Assets/AXYRO/Audio/<idDeFase>.wav`). Los escenarios sin locución no reproducen voz.
@@ -144,7 +154,11 @@ El botón «Activar voz» pide permiso al navegador. El Worker autentica al part
 
 Para pruebas **locales exclusivamente**, `worker/local.ts` acepta `SONIOX_TEST_API_KEY` en `.dev.vars` y usa el endpoint global de Soniox. El Worker de producción ignora esta clave aunque se configure por error. En Windows, las órdenes de voz siguen reconociéndose localmente con Vosk.
 
-`export-lines.mjs` vuelca las frases (`characterLine`) de los escenarios de catálogo. `generate_voice.py` admite `--only <ids>`, `--exaggeration`, `--cfg`, `--seed` y `--variants` (tres combinaciones de expresividad para elegir de oído).
+**Vista móvil.** `web/voice-mobile.ts` usa el mismo protocolo (`/api/voice/config` → `/api/voice/temporary-key` → WebSocket de Soniox) con el aviso previo, órdenes cortas locales («la dos», «opción B», «tercera»), Clef para frases libres con confirmación e interrupción de VictorIA al hablar. Solo depende de que haya clave Soniox configurada, no del flag `ai_live_demo`.
+
+### Herramientas antiguas (TTS local)
+
+`export-lines.mjs` vuelca las frases (`characterLine`) de los escenarios de catálogo. Antes de Soniox, las locuciones se generaban en local con Chatterbox Multilingual sobre una referencia sintética Kokoro (`generate_voice.py`, `make_reference.py`, `master.py`, `generate_parler.py`); se conservan solo como referencia. `generate_voice.py` admite `--only <ids>`, `--exaggeration`, `--cfg`, `--seed` y `--variants`.
 
 Entorno Python en `.local-state/tts/.venv`, creado con uv: Python 3.11 y PyTorch 2.8 con CUDA 12.8 (`cu128`), necesario para la GPU Blackwell. En la red de la UFV, que inspecciona TLS, hay que exportar `UV_SYSTEM_CERTS=1` al instalar y tener `truststore` en el entorno (los scripts lo inyectan si está disponible).
 
@@ -161,15 +175,17 @@ pnpm smoke
 
 - CI (`.github/workflows/ci.yml`): `pnpm check` en cada push y pull request. En push a `main`, el job `deploy` aplica las migraciones D1 remotas, despliega el Worker y comprueba `/api/health`, pero **solo si la variable de repositorio `CLOUDFLARE_DEPLOY` vale `true`** (Settings › Secrets and variables › Actions › Variables) y existen los secretos `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID`. Sin la variable el job queda omitido, no fallido. Hoy no está activado.
 - Mientras tanto: `pnpm deploy:cloud` desde un equipo con sesión `wrangler login` activa (tests, migraciones D1 remotas y despliegue).
-- Secretos del Worker: `BOOTSTRAP_OWNER_EMAIL` identifica al propietario inicial y `ACCESS_CODE_PEPPER` protege los códigos de seis cifras. Se guardan como secretos de Cloudflare, nunca en `wrangler.jsonc` ni en Git. En local la API usa la identidad demo.
+- Secretos del Worker: `BOOTSTRAP_OWNER_EMAIL` identifica al propietario inicial, `ACCESS_CODE_PEPPER` protege los códigos de seis cifras y `SONIOX_API_KEY` activa la voz (reconocimiento y síntesis). Se guardan como secretos de Cloudflare, nunca en `wrangler.jsonc` ni en Git. En local la API usa la identidad demo.
 - Tras cambiar la escena o el código de Unity, ejecuta `pnpm unity:webgl` y confirma también `web/public/simulador/` en Git. El CI comprueba que la build está presente; en el navegador se pulsa «Escuchar» para iniciar la locución y después aparecen las opciones.
 - En la red de la UFV, `curl.exe` necesita `--ssl-no-revoke` para las comprobaciones HTTPS.
 
 ## Cloudflare
 
-Los recursos en la cuenta de desarrollo son `axyro-db` (D1, EU), `axyro-files` (R2, EU) y `axyro-events` (Queue). `wrangler.jsonc` contiene el ID público de D1 y reserva `axyro.qhel.dev` para el Worker. Las credenciales se mantienen fuera de Git. La URL `workers.dev` y las URL de vista previa están desactivadas. La autenticación de usuarios la ofrece AXYRO con correo y código; Cloudflare solo sirve la infraestructura.
+Los recursos en la cuenta de desarrollo son el Worker `axyro-sim-lab`, `axyro-db` (D1, EU), `axyro-files` (R2, EU: ficheros grandes del simulador y, en `knowledge/`, documentos y vectores del Modo IA), `axyro-events` (Queue), el Durable Object `SessionRoom`, el binding `AI` (Workers AI), seis limitadores (`API_LIMITER` 300/min, `VOICE_LIMITER` 6/min, `AI_LIMITER` 20/min, `TTS_LIMITER` 30/min, `AUTH_LIMITER` 5/min y `AUTH_IP_LIMITER` 120/min) y el cron diario `17 3 * * *`. `wrangler.jsonc` contiene el ID público de D1 y reserva `axyro.qhel.dev` para el Worker. Las credenciales se mantienen fuera de Git. `workers_dev` y `preview_urls` están a `false`. La autenticación de usuarios es propia (correo y código, o PIN y alias); Cloudflare solo sirve la infraestructura.
 
-Otras variables de `wrangler.jsonc`: `SESSIONS_JURISDICTION` (`eu`: Durable Objects de sesión en la UE), `RETENTION_DAYS` (365), `AUDIT_RETENTION_DAYS` (730) y `FEATURE_FLAGS`. `ACCESS_CODE_PEPPER` y `BOOTSTRAP_OWNER_EMAIL` son secretos del Worker. `observability` está activado (logs del Worker en el panel).
+Otras variables de `wrangler.jsonc`: `SESSIONS_JURISDICTION` (`eu`: Durable Objects de sesión en la UE), `RETENTION_DAYS` (365), `AUDIT_RETENTION_DAYS` (730), `FEATURE_FLAGS` (hoy `phase_timers`, `realtime_websocket` y `ai_live_demo` activos), `SONIOX_REGION` (`us`) y, opcional, `AI_LIVE_MODEL` (por defecto `@cf/openai/gpt-oss-120b`). `ACCESS_CODE_PEPPER`, `BOOTSTRAP_OWNER_EMAIL` y `SONIOX_API_KEY` son secretos del Worker. `observability` está activado (logs del Worker en el panel).
+
+El código conserva una vía antigua de identidad por Cloudflare Access, desactivada salvo que se configure `LEGACY_ACCESS_AUTH=true`; la aplicación de Access está retirada y no debe reactivarse.
 
 Entorno cloud de desarrollo: <https://axyro.qhel.dev/>. Se entra con correo y código personal.
 
@@ -229,7 +245,7 @@ El participante solo recibe `participantView` y `participantReport` (`roomPayloa
 ### Proyector: VictorIA comenta y comparación con la media
 
 - **Comentario al revelar** (`web/projector-voice.ts`). Al mostrarse la respuesta («Mostrar respuesta», avance, fin o tiempo agotado) de una situación que el proyector vio abierta, VictorIA dice una frase de **plantilla** (sin IA generativa, ≤ 35 palabras, tres variantes por tono según la situación) con los agregados reales: porcentaje de la mejor opción y la opción no óptima más elegida si llega al 15 %. Habla de «la clase» y de decisiones, nunca de personas. Sin votos no hay comentario. Siempre aparece como subtítulo (insignia, onda y nota «Comentario automático generado a partir de los votos»), descartable con × o Esc.
-- **Voz**: Soniox en tiempo real (`POST /api/voice/tts-key`, voz Carmen) solo para el docente con el flag `ai_live_demo`. Botón «Voz de VictorIA» (tecla V, recordado en `localStorage`); Esc o cambiar de situación cortan la voz. El audio se desbloquea con el primer gesto en el proyector. La credencial temporal admite un único stream, así que cada frase abre su conexión. Sin voz (demo sin conexión, sin flag, error) queda solo el subtítulo: el proyector no usa la síntesis del navegador.
+- **Voz**: Soniox en tiempo real (`POST /api/voice/tts-key`, voz Carmen) para el docente que conduce la sesión, siempre que haya clave Soniox configurada (no depende del flag `ai_live_demo`). Solo se envía a Soniox la frase de plantilla, sin nombres. Botón «Voz de VictorIA» (tecla V, recordado en `localStorage`); Esc o cambiar de situación cortan la voz. El audio se desbloquea con el primer gesto en el proyector. La credencial temporal admite un único stream, así que cada frase abre su conexión. Sin voz (demo sin conexión, sin flag, error) queda solo el subtítulo: el proyector no usa la síntesis del navegador.
 - **Vuestra clase frente a la media**: botón «Comparar con la media» y apertura automática al finalizar la sesión con el proyector abierto. `GET /api/sessions/:id/benchmark[?includeSimulated=true]` (instructor de la organización; participantes 403; los invitados quedan fuera por la lista cerrada de `guests.ts`; 404 si la sesión no es del tenant) devuelve `{ session: { decisions, optimalRate }, organization: { sessions, decisions, optimalRate }, includeSimulated }`. Solo D1 (`worker/benchmark.ts`, dos consultas): la organización agrega las **otras** sesiones del tenant de los últimos 365 días, sin simulados salvo `includeSimulated`; tasas sin denominador → `null`. Como las decisiones llegan a D1 por la cola (pueden ir unos segundos por detrás), el proyector calcula la cifra de la clase con el estado en vivo y del servidor solo usa `organization`; si la clase visible incluye simulados, pide la media con ellos. Sin otras sesiones con datos muestra «Primera sesión de la organización: aún no hay media con la que comparar» (nunca una cifra inventada).
 
 ## Modo IA en vivo (demo)
@@ -246,7 +262,7 @@ Modo aparte del producto determinista, para demostraciones: no cambia escenarios
 
 **Modelo.** `@cf/openai/gpt-oss-120b` (cambiable con la variable `AI_LIVE_MODEL`), con `response_format` `json_schema`, `reasoning_effort: low` y validación estricta propia; una salida no válida se reintenta una vez y después es 502 `AI_INVALID`. Evaluado el 7 de octubre con la misma guía en español: gpt-oss-120b dio JSON válido con narraciones y opciones más concretas, ~12-15 s y ~85 neuronas por situación (~670 tokens de salida) y respuestas a preguntas en 1-3 s (~35-40 neuronas); `llama-3.3-70b-instruct-fp8-fast` también válido pero más genérico, 15-24 s y ~135-155 neuronas; `qwen3.8-27b` agotó los tokens sin JSON (26 s, ~450 neuronas). Para que la espera no se note, la primera situación se genera al crear la partida y cada `/next` genera por adelantado solo la siguiente (`ctx.waitUntil`); `ai_turns` evita generar dos veces la misma (reclamación en D1 y espera). Las reacciones a cada opción se generan con la situación, así que decidir es inmediato; el resumen final se prepara al responder la última.
 
-**Voz.** Atajos locales sin IA («la dos», «opción 3», «repite», «siguiente», «sí»/«no» tras una confirmación); si no, Clef con el conjunto ampliado `opcion_1..4`, `pregunta`, `repetir`, `siguiente`, `ninguna` y el mismo doble umbral que en las sesiones. Las preguntas se responden con los cinco fragmentos más parecidos («No lo sé con estos documentos» si no está). Claves Soniox: `POST /api/voice/tts-key` (TTS, instructor, `TTS_LIMITER` 30/min) y `POST /api/voice/temporary-key` con `{ aiRunId }` (STT, solo el instructor dueño de la partida). Con el flag, la consola admite micrófono (`Permissions-Policy`), los WebSocket de Soniox en `connect-src` y `blob:` en `media-src`.
+**Voz.** Atajos locales sin IA («la dos», «opción 3», «repite», «siguiente», «sí»/«no» tras una confirmación); si no, Clef con el conjunto ampliado `opcion_1..4`, `pregunta`, `repetir`, `siguiente`, `ninguna` y el mismo doble umbral que en las sesiones. Las preguntas se responden con los cinco fragmentos más parecidos («No lo sé con estos documentos» si no está). Claves Soniox: `POST /api/voice/tts-key` (TTS, instructor, `TTS_LIMITER` 30/min) y `POST /api/voice/temporary-key` con `{ aiRunId }` (STT, solo el instructor dueño de la partida). Con la clave Soniox configurada (no depende del flag), la consola admite micrófono (`Permissions-Policy`), los WebSocket de Soniox en `connect-src` y `blob:` en `media-src`.
 
 **Contrato** (todas las rutas: flag, instructor, organización; recurso de otra organización o persona = 404; errores `{ error, code? }`):
 
@@ -278,7 +294,9 @@ Modo aparte del producto determinista, para demostraciones: no cambia escenarios
 - Retención: un cron diario (`17 3 * * *`) borra las sesiones finalizadas hace más de `RETENTION_DAYS` días (365 por defecto) y las no finalizadas creadas hace más de ese plazo (hasta 200 por ejecución), y lo audita; también borra las entradas de `audit_log` con más de `AUDIT_RETENTION_DAYS` días (730).
 - Durable Objects de sesión en la jurisdicción UE (`SESSIONS_JURISDICTION = "eu"`). D1 y R2 también en la UE; la cola no (ver «Cloudflare»).
 - Los eventos y la cola solo llevan IDs seudónimos; la cola, además, solo los campos de `QUEUE_DETAIL_FIELDS` (la nota del incidente se queda en el Durable Object y no llega a D1 por la cola). El consumidor vuelve a filtrar por si llegan mensajes antiguos.
-- Voz en Unity: el reconocimiento es local y por palabras clave; no se graba ni se envía audio.
+- Voz: en Windows, reconocimiento local por palabras clave (Vosk), sin enviar audio. En el navegador (3D y móvil), opcional con Soniox (región `SONIOX_REGION`, hoy `us`: transferencia internacional avisada antes de abrir el micrófono); el audio va del navegador a Soniox y el Worker no lo recibe. Las frases libres pasan por Clef (Workers AI) sin identificadores y no se registran. A Soniox solo llega el ID seudónimo como `client_reference_id`.
+- Modo IA en vivo: documentos subidos por el docente en R2 (UE) y fragmentos en D1 hasta que se borran a mano (las colecciones no tienen retención automática); partidas a los `RETENTION_DAYS`; textos de documentos y frases fuera de logs, eventos y auditoría. Workers AI no garantiza procesamiento en la UE. No se deben subir datos personales.
+- Navegador: alias del invitado, preferencia de voz del proyector y borrador del editor de escenarios en `localStorage`; marca de «Empezar» en `sessionStorage`.
 - Acceso invitado: solo alias, sin correo; limitado a una sesión y con caducidad (12 horas, o dos horas tras finalizar la sesión). En D1 quedan el alias y el hash del token hasta que el cron los borra o se borra la sesión; el alias vive además en el estado de la sesión como nombre del participante. Eventos, cola y auditoría solo llevan el ID seudónimo `guest-<uuid>`.
 
 ## Demo en navegador
@@ -296,25 +314,30 @@ Cada fase del escenario define `timeLimitSec` y `timeoutRiskDelta`. El reloj de 
 ## Contratos y configuración
 
 - `shared/events.ts`: catálogo versionado de eventos (`EVENT_SCHEMA_VERSION`). Solo IDs seudónimos.
-- `shared/contracts/ai-provider.ts` y `shared/contracts/context-engine.ts`: interfaces de AI Provider y Context Engine. Sin implementación hasta la macrofase de IA avanzada.
+- `shared/contracts/ai-provider.ts` y `shared/contracts/context-engine.ts`: interfaces de AI Provider y Context Engine de la arquitectura. El Modo IA en vivo no las usa todavía: llama a Workers AI directamente desde `worker/ai-live.ts` y `worker/knowledge.ts`.
 - `worker/flags.ts`: feature flags desde la variable `FEATURE_FLAGS` (JSON). `phase_timers` desactiva las alarmas del reloj; `realtime_websocket` (activo por defecto) habilita el WebSocket de tiempo real; `ai_live_demo` habilita el «Modo IA en vivo (demo)»; `ai_characters` está reservado.
-- Rate limiting: binding `API_LIMITER`, 300 peticiones por minuto y usuario en el entorno cloud. No se aplica en modo local.
+- Rate limiting (solo en cloud): `API_LIMITER` 300/min por usuario; `VOICE_LIMITER` 6/min (credenciales STT); `TTS_LIMITER` 30/min (credenciales TTS, docentes); `AI_LIMITER` 20/min (Modo IA, por docente); `AUTH_LIMITER` 5/min por correo y `AUTH_IP_LIMITER` 120/min por IP (acceso y unión de invitados).
 
 ## Seguridad
 
 - Identidad (`worker/auth.ts`, `worker/access-codes.ts`): la API resuelve la cookie de sesión contra D1 en cada petición y comprueba que el código siga activo y la membresía vigente. El código tiene seis cifras, es único y se almacena como HMAC con `ACCESS_CODE_PEPPER`; el secreto no está en D1. D1 aplica de forma transaccional un máximo de cinco intentos por correo y 120 por IP en 60 segundos; los limitadores de Cloudflare quedan como defensa adicional. La sesión dura 24 horas. La unión a una simulación se registra también de forma síncrona para que aparezca al instante en la lista del participante.
 - Membresías: un usuario pertenece a una sola organización. Solo el propietario inicial asigna el rol docente; un docente puede registrar participantes. Los permisos efectivos se derivan de la membresía en el servidor. Cambiar o revocar el código invalida la sesión. Cada uso correcto, y cada intento con un código revocado conocido, queda en `access_code_uses`; la consola muestra contador y últimos accesos.
 - CSRF: `POST`/`PUT`/`PATCH`/`DELETE` en `/api/*` exigen `Sec-Fetch-Site` `same-origin` o `none` (o, sin esa cabecera, un `Origin` del mismo host) y cuerpo `application/json` (salvo `DELETE` sin cuerpo); si no, 403. Un JSON mal formado es un 400 «Cuerpo JSON no válido.».
-- Cabeceras: CSP distinta para API, consola y `/simulador` (esta admite WebAssembly y los scripts en línea de la plantilla de Unity), HSTS, `nosniff`, `X-Frame-Options`, `Referrer-Policy: same-origin`, COOP/CORP y `Permissions-Policy` sin cámara ni micrófono. El Worker atiende todo salvo `/assets/*` y `/brand/*` (`run_worker_first`) para poder añadirlas.
+- Cabeceras: CSP distinta para API, consola y `/simulador` (esta admite WebAssembly y los scripts en línea de la plantilla de Unity), HSTS, `nosniff`, `X-Frame-Options`, `Referrer-Policy: same-origin`, COOP/CORP y `Permissions-Policy` sin cámara; micrófono `(self)` en `/simulador` y en las páginas web (vista móvil y consola) cuando la voz está disponible (clave Soniox configurada), y `()` en el resto. Con la voz disponible, la CSP de la consola añade los WebSocket de Soniox a `connect-src` y `blob:` a `media-src`. El Worker atiende todo salvo `/assets/*` y `/brand/*` (`run_worker_first`) para poder añadirlas.
 - Observabilidad: cada respuesta lleva `x-request-id` (el `cf-ray` si existe) y cada petición deja un log JSON con método, ruta, estado, duración y los IDs seudónimos de organización y usuario, sin correos. Un 500 devuelve el `requestId`, no el detalle del error.
 
 ## Contrato de API
 
-- Cualquier miembro: `GET /api/me`, `GET /api/scenarios`, `GET /api/scenarios/:id`, `GET /api/sessions` (el participante, solo las suyas), `GET /api/sessions/:id` (vista por rol), `GET /api/sessions/:id/live` (WebSocket) y `POST /api/sessions/:id/commands`.
-- Instructor: `POST /api/scenarios`, `POST /api/sessions`, `POST /api/sessions/:id/duplicate`, `PATCH /api/sessions/:id` (quien puede gestionarla), `POST/DELETE /api/sessions/:id/demo-class` (el de la sesión), `GET /api/sessions/:id/events`, `GET /api/analytics`, `GET /api/sessions/:id/export`, `DELETE /api/sessions/:id`, `GET/POST /api/memberships`, `DELETE /api/memberships/:userId` y gestión de códigos con `GET /api/access-codes`, `POST/DELETE /api/access-codes/:userId`.
-- Acceso: `POST /api/auth/login` acepta correo y código; `POST /api/auth/logout` cierra la sesión. La entrega del código es responsabilidad del docente; nunca se envía correo desde la plataforma.
-- Acceso invitado (ver «Acceso invitado con PIN de sesión»): públicas `GET /api/join/:pin` y `POST /api/join`; instructor `GET/POST /api/sessions/:id/pin`.
-- `GET /api/health` sin autenticación de la API.
+Lista consolidada (todas las rutas bajo `/api`):
+
+- **Públicas:** `GET /health`; `POST /auth/login` (correo y código); `GET /join/:pin` y `POST /join` (invitados).
+- **Cualquier identidad (miembro o invitado; el invitado solo su sesión):** `GET /me`, `POST /auth/logout`, `GET /sessions/:id` (vista por rol), `GET /sessions/:id/live` (WebSocket), `POST /sessions/:id/commands` (invitado: solo `join` y `decide`), `GET /voice/config`.
+- **Miembros:** `GET /scenarios`, `GET /scenarios/:id`, `GET /sessions` (el participante, solo las suyas).
+- **Participantes (miembros e invitados):** `POST /voice/temporary-key` `{ sessionId }` (credencial STT de un solo uso, 60 s) y `POST /voice/interpret` `{ sessionId, phrase }` (Clef).
+- **Docentes:** `POST /scenarios`, `POST /sessions`, `PATCH /sessions/:id` (quien puede gestionarla), `POST /sessions/:id/duplicate` (cualquiera), `GET/POST /sessions/:id/pin`, `POST/DELETE /sessions/:id/demo-class` (el de la sesión), `GET /sessions/:id/events`, `GET /sessions/:id/export` y `DELETE /sessions/:id` (quien puede gestionarla), `GET /sessions/:id/benchmark`, `GET /analytics`, `GET/POST /memberships`, `DELETE /memberships/:userId`, `GET /access-codes`, `POST/DELETE /access-codes/:userId`, `POST /voice/tts-key` (credencial TTS de 15 min).
+- **Docentes, solo con `ai_live_demo` (si no, 404):** `GET/POST /knowledge/collections`, `DELETE /knowledge/collections/:id`, `GET/POST /knowledge/collections/:id/documents`, `DELETE /knowledge/documents/:id`, `GET/POST /ai-runs`, `GET/DELETE /ai-runs/:id`, `POST /ai-runs/:id/next`, `POST /ai-runs/:id/answer`, `POST /ai-runs/:id/draft`, `POST /ai-runs/:id/publish`; además `POST /voice/temporary-key` con `{ aiRunId }`.
+
+La entrega del código es responsabilidad del docente; nunca se envía correo desde la plataforma.
 
 Los comandos incluyen un `id` para idempotencia. Los roles y la organización se resuelven en el servidor; la identidad demo solo existe en `wrangler.local.jsonc` (`worker/local.ts`).
 

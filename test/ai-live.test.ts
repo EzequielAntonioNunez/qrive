@@ -178,12 +178,39 @@ async function collectionWithGuide(context: ReturnType<typeof setup>) {
 }
 
 describe('modo IA en vivo: acceso', () => {
-  it('con el flag desactivado las rutas no existen (404) y la consola no abre el micrófono', async () => {
+  it('con el flag desactivado las rutas IA no existen (404); sin servicio de voz, la consola no abre el micrófono', async () => {
     const { call } = setup({ flag: false });
     expect((await call('GET', '/api/knowledge/collections', { as: PROF })).status).toBe(404);
     expect((await call('POST', '/api/ai-runs', { as: PROF, body: { collectionId: 'abcdefgh-1' } })).status).toBe(404);
-    expect((await call('POST', '/api/voice/tts-key', { as: PROF, body: {} })).status).toBe(404);
+    expect((await call('POST', '/api/voice/tts-key', { as: PROF, body: {} })).status).toBe(503);
     expect(cspFor('console', 'https://axyro.test/')).not.toContain('soniox');
+    const page = await call('GET', '/jugar/s-1');
+    expect(page.headers.get('permissions-policy')).toContain('microphone=()');
+    expect(page.headers.get('content-security-policy')).not.toContain('soniox');
+  });
+
+  it('la voz no depende del flag: con SONIOX_API_KEY la consola admite el micrófono y el docente obtiene la clave TTS', async () => {
+    const { call } = setup({ flag: false, vars: { SONIOX_API_KEY: 'server-only-key' } });
+    const page = await call('GET', '/jugar/s-1');
+    expect(page.headers.get('permissions-policy')).toContain('microphone=(self)');
+    expect(page.headers.get('content-security-policy')).toContain('wss://stt-rt.eu.soniox.com');
+    expect(page.headers.get('content-security-policy')).toContain('wss://tts-rt.soniox.com');
+    // Las rutas del modo IA siguen detrás del flag.
+    expect((await call('GET', '/api/knowledge/collections', { as: PROF })).status).toBe(404);
+    expect((await call('POST', '/api/ai-runs', { as: PROF, body: { collectionId: 'abcdefgh-1' } })).status).toBe(404);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      expect(String(input)).toBe('https://api.eu.soniox.com/v1/auth/temporary-api-key');
+      expect(JSON.parse(String(init?.body))).toMatchObject({ usage_type: 'tts_rt' });
+      return Response.json({ api_key: 'snx_temp_tts', expires_at: NOW }, { status: 201 });
+    }) as typeof fetch;
+    try {
+      const tts = await call('POST', '/api/voice/tts-key', { as: PROF, body: {} });
+      expect(tts.status).toBe(200);
+      expect(await json(tts)).toMatchObject({ apiKey: 'snx_temp_tts', websocketUrl: 'wss://tts-rt.eu.soniox.com/tts-websocket' });
+      expect((await call('POST', '/api/voice/tts-key', { as: ALUMNA, body: {} })).status).toBe(403);
+      expect((await call('POST', '/api/voice/tts-key', { as: PROF, body: {}, headers: { 'sec-fetch-site': 'cross-site' } })).status).toBe(403);
+    } finally { globalThis.fetch = originalFetch; }
   });
 
   it('solo instructores: participante 403, invitado fuera por lista cerrada, sin identidad 401', async () => {

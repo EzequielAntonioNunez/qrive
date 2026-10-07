@@ -125,7 +125,7 @@ function surfaceOf(path: string): SurfaceKind {
  * CSP de una superficie. La consola abre el WebSocket de tiempo real de su propio origen: `connect-src 'self'` no
  * cubre ws:/wss: en todos los navegadores, así que se añade explícitamente el origen WebSocket del propio host.
  */
-export function cspFor(kind: SurfaceKind, requestUrl?: string, aiLive = false): string {
+export function cspFor(kind: SurfaceKind, requestUrl?: string, voice = false): string {
   if (kind !== 'console' || !requestUrl) return CSP[kind];
   let socketOrigin: string | null = null;
   try {
@@ -133,19 +133,20 @@ export function cspFor(kind: SurfaceKind, requestUrl?: string, aiLive = false): 
     socketOrigin = `${url.protocol === 'http:' ? 'ws:' : 'wss:'}//${url.host}`;
   } catch { socketOrigin = null; }
   let policy = socketOrigin ? CSP.console.replace("connect-src 'self'", `connect-src 'self' ${socketOrigin}`) : CSP.console;
-  // Modo IA en vivo (flag ai_live_demo): voz de Soniox desde la consola y audio sintetizado en blob:.
-  if (aiLive) policy = policy.replace(/connect-src ([^;]*);/, (_match, sources: string) => `connect-src ${sources} ${SONIOX_SOCKETS};`).replace("media-src 'self'", "media-src 'self' blob:");
+  // Servicio de voz configurado (independiente del flag ai_live_demo): voz de Soniox desde la consola (/jugar,
+  // proyector y modo IA) y audio sintetizado en blob:.
+  if (voice) policy = policy.replace(/connect-src ([^;]*);/, (_match, sources: string) => `connect-src ${sources} ${SONIOX_SOCKETS};`).replace("media-src 'self'", "media-src 'self' blob:");
   return policy;
 }
 
 /** Copia la respuesta (las de ASSETS y Durable Objects tienen cabeceras inmutables) y añade las cabeceras de seguridad. */
-export function withSecurityHeaders(response: Response, path: string, requestId: string, requestUrl?: string, aiLive = false): Response {
+export function withSecurityHeaders(response: Response, path: string, requestId: string, requestUrl?: string, voice = false): Response {
   // 101 (WebSocket aceptado): la respuesta del Durable Object lleva el socket y no admite copia ni cabeceras nuevas.
   if (response.status === 101) return response;
   const kind = surfaceOf(path);
   const out = new Response(response.body, response);
   const headers = out.headers;
-  headers.set('content-security-policy', cspFor(kind, requestUrl, aiLive));
+  headers.set('content-security-policy', cspFor(kind, requestUrl, voice));
   headers.set('strict-transport-security', 'max-age=31536000; includeSubDomains');
   headers.set('x-content-type-options', 'nosniff');
   headers.set('x-frame-options', kind === 'simulator' ? 'SAMEORIGIN' : 'DENY');
@@ -153,8 +154,8 @@ export function withSecurityHeaders(response: Response, path: string, requestId:
   headers.set('referrer-policy', 'same-origin');
   headers.set('cross-origin-opener-policy', 'same-origin');
   headers.set('cross-origin-resource-policy', 'same-origin');
-  // Micrófono: simulador y, con el modo IA en vivo activado, la consola del instructor.
-  headers.set('permissions-policy', `camera=(), microphone=${kind === 'simulator' || (kind === 'console' && aiLive) ? '(self)' : '()'}, geolocation=(), payment=(), usb=()`);
+  // Micrófono: simulador y, si hay servicio de voz, la consola (voz en /jugar, proyector y modo IA).
+  headers.set('permissions-policy', `camera=(), microphone=${kind === 'simulator' || (kind === 'console' && voice) ? '(self)' : '()'}, geolocation=(), payment=(), usb=()`);
   if (kind === 'api' && !headers.has('cache-control')) headers.set('cache-control', 'no-store');
   headers.set('x-request-id', requestId);
   return out;
@@ -162,6 +163,12 @@ export function withSecurityHeaders(response: Response, path: string, requestId:
 
 export function createApp(demo = false) {
   const app = new Hono<AuthContext>();
+  // La región la fija el proyecto Soniox de la clave: SONIOX_REGION debe coincidir con él («eu» por defecto).
+  const voiceService = (env: Env) => env.SONIOX_API_KEY
+    ? { key: env.SONIOX_API_KEY, ...SONIOX_REGIONS[env.SONIOX_REGION === 'us' ? 'us' : 'eu'] }
+    : demo && env.SONIOX_TEST_API_KEY
+      ? { key: env.SONIOX_TEST_API_KEY, ...SONIOX_REGIONS.us }
+      : null;
   app.onError((error, c) => {
     const requestId = c.get('requestId');
     if (error instanceof HttpError) return c.json({ error: error.message }, error.status);
@@ -185,7 +192,7 @@ export function createApp(demo = false) {
     c.set('requestId', requestId);
     await next();
     // Reasignar c.res copiaría la respuesta 101 y perdería el WebSocket: se deja tal cual.
-    if (c.res.status !== 101) c.res = withSecurityHeaders(c.res, c.req.path, requestId, c.req.url, flags(c.env).ai_live_demo);
+    if (c.res.status !== 101) c.res = withSecurityHeaders(c.res, c.req.path, requestId, c.req.url, Boolean(voiceService(c.env)));
     const identity = c.get('identity') as Identity | undefined;
     console.log(JSON.stringify({
       code: 'REQUEST', requestId, method: c.req.method, path: c.req.path, status: c.res.status, durationMs: Date.now() - started,
@@ -331,12 +338,6 @@ export function createApp(demo = false) {
       viewAccessAudit: identity.role === 'instructor'
     } });
   });
-  // La región la fija el proyecto Soniox de la clave: SONIOX_REGION debe coincidir con él («eu» por defecto).
-  const voiceService = (env: Env) => env.SONIOX_API_KEY
-    ? { key: env.SONIOX_API_KEY, ...SONIOX_REGIONS[env.SONIOX_REGION === 'us' ? 'us' : 'eu'] }
-    : demo && env.SONIOX_TEST_API_KEY
-      ? { key: env.SONIOX_TEST_API_KEY, ...SONIOX_REGIONS.us }
-      : null;
   app.get('/api/voice/config', c => {
     const service = voiceService(c.env);
     return c.json({ enabled: Boolean(service), region: service?.region ?? 'eu', websocketUrl: service?.websocketUrl ?? null });
@@ -382,12 +383,11 @@ export function createApp(demo = false) {
       return c.json({ error: 'Soniox no devolvió una credencial temporal válida.' }, 502);
     return c.json({ apiKey: data.api_key, websocketUrl: service.websocketUrl, expiresAt: data.expires_at });
   });
-  // Modo IA en vivo: clave temporal de Soniox para la voz de VictorIA en tiempo real (TTS). Solo instructores con el
-  // flag ai_live_demo (los invitados quedan fuera por la lista cerrada de guests.ts). Clave de un solo uso: el
-  // cliente abre un único WebSocket por partida y envía cada locución como un stream_id distinto.
+  // Clave temporal de Soniox para la voz de VictorIA en tiempo real (TTS): proyector y modo IA en vivo. Solo
+  // instructores y solo con servicio de voz, sin depender del flag ai_live_demo (los invitados quedan fuera por la
+  // lista cerrada de guests.ts).
   app.post('/api/voice/tts-key', async c => {
     const identity = c.get('identity');
-    if (!flags(c.env).ai_live_demo) return c.json({ error: 'Ruta no encontrada.' }, 404);
     if (identity.role !== 'instructor') return c.json({ error: 'La voz en tiempo real está reservada al instructor.' }, 403);
     await readJson(c, true);
     const service = voiceService(c.env);

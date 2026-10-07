@@ -4,6 +4,7 @@
  * PCM 16 bits a 16 kHz desde un AudioWorklet y detección de fin de frase (`<end>`).
  * Las órdenes cortas («la dos», «opción B») deciden directamente; las frases libres se interpretan en el servidor
  * (`/api/voice/interpret`) con un modelo de IA, que pide confirmación si duda. El audio no se guarda.
+ * Interrupción: si la persona empieza a hablar mientras suena VictorIA, se corta su audio (shouldBargeIn).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { guestApi } from './guest';
@@ -44,15 +45,42 @@ export function shortOption(phrase: string, count: number): number | null {
   return index >= 0 && index < count ? index : null;
 }
 
+/** Umbral de energía (RMS) y tiempos de la interrupción: los mismos que el simulador web (voice.js). */
+const SPEECH_RMS = 0.035;
+const BARGE_IN_GRACE_MS = 350;
+const BARGE_IN_RECENT_MS = 1000;
+
+/**
+ * Interrumpir a VictorIA: solo si suena su audio desde hace más de 350 ms, hay evidencia acústica reciente (< 1 s) y
+ * el texto provisional ya tiene una palabra (≥ 2 letras). Así la música o un golpe no la detienen. Igual que voice.js.
+ */
+export function shouldBargeIn(input: { speakingForMs: number | null; interrupted: boolean; sinceSpeechMs: number; heard: string }): boolean {
+  return input.speakingForMs !== null && !input.interrupted && input.speakingForMs > BARGE_IN_GRACE_MS
+    && input.sinceSpeechMs < BARGE_IN_RECENT_MS && /[a-záéíóúñ]{2,}/i.test(input.heard);
+}
+
+/** Acumula voz detectada por energía (ms con RMS > umbral; decae al doble de velocidad), como voice.js. */
+export function nextSpeechMs(previous: number, samples: Float32Array, sampleRate: number): number {
+  let energy = 0;
+  for (let i = 0; i < samples.length; i++) energy += samples[i] * samples[i];
+  const rms = Math.sqrt(energy / Math.max(1, samples.length));
+  const durationMs = (1000 * samples.length) / sampleRate;
+  return rms > SPEECH_RMS ? Math.min(500, previous + durationMs) : Math.max(0, previous - durationMs * 2);
+}
+
 type Options = {
   sessionId: string;
   optionCount: number;
   canDecide: boolean;
   /** Decide la opción (índice). Devuelve una promesa para mostrar el resultado. */
   onChoose: (index: number) => void;
+  /** Milisegundos que lleva sonando la voz de VictorIA (situación o reacción), o null si no suena. */
+  speakingForMs?: () => number | null;
+  /** La persona empieza a hablar mientras suena VictorIA: cortar el audio. */
+  onBargeIn?: () => void;
 };
 
-export function useMobileVoice({ sessionId, optionCount, canDecide, onChoose }: Options) {
+export function useMobileVoice({ sessionId, optionCount, canDecide, onChoose, speakingForMs, onBargeIn }: Options) {
   const [config, setConfig] = useState<VoiceConfig | null>(null);
   const [phase, setPhase] = useState<VoicePhase>('unavailable');
   const [status, setStatus] = useState('');
@@ -60,6 +88,8 @@ export function useMobileVoice({ sessionId, optionCount, canDecide, onChoose }: 
   const [pending, setPending] = useState<number | null>(null);
   const live = useRef({ optionCount, canDecide, onChoose, pending: null as number | null });
   live.current.optionCount = optionCount; live.current.canDecide = canDecide; live.current.onChoose = onChoose; live.current.pending = pending;
+  const barge = useRef({ speakingForMs, onBargeIn, speechMs: 0, lastSpeechAt: -Infinity, interrupted: false });
+  barge.current.speakingForMs = speakingForMs; barge.current.onBargeIn = onBargeIn;
   const res = useRef<{ socket: WebSocket | null; stream: MediaStream | null; context: AudioContext | null; source: MediaStreamAudioSourceNode | null; node: AudioWorkletNode | null; sink: GainNode | null; finalText: string; generation: number; accepted: boolean }>({ socket: null, stream: null, context: null, source: null, node: null, sink: null, finalText: '', generation: 0, accepted: false });
 
   const supported = typeof window !== 'undefined' && !!navigator.mediaDevices?.getUserMedia && typeof AudioContext !== 'undefined' && typeof AudioWorkletNode !== 'undefined' && window.isSecureContext;
@@ -74,6 +104,7 @@ export function useMobileVoice({ sessionId, optionCount, canDecide, onChoose }: 
   const release = useCallback(() => {
     const r = res.current;
     r.generation += 1; r.finalText = '';
+    Object.assign(barge.current, { speechMs: 0, lastSpeechAt: -Infinity, interrupted: false });
     if (r.node) { r.node.port.onmessage = null; r.node.disconnect(); r.node = null; }
     if (r.source) { r.source.disconnect(); r.source = null; }
     if (r.sink) { r.sink.disconnect(); r.sink = null; }
@@ -170,8 +201,18 @@ export function useMobileVoice({ sessionId, optionCount, canDecide, onChoose }: 
           if (token.is_final) res.current.finalText += token.text; else provisional += token.text;
         }
         const now = (res.current.finalText + provisional).trim();
-        if (now) setHeard(now);
-        if (ended) { const phrase = res.current.finalText.trim(); res.current.finalText = ''; if (phrase) handlePhrase(phrase); }
+        if (now) {
+          setHeard(now);
+          // Interrupción: la persona habla mientras suena VictorIA → se corta su audio (como en el simulador web).
+          const b = barge.current;
+          const speaking = b.speakingForMs?.() ?? null;
+          if (speaking === null) b.interrupted = false;
+          if (shouldBargeIn({ speakingForMs: speaking, interrupted: b.interrupted, sinceSpeechMs: performance.now() - b.lastSpeechAt, heard: now })) {
+            b.interrupted = true;
+            b.onBargeIn?.();
+          }
+        }
+        if (ended) { const phrase = res.current.finalText.trim(); res.current.finalText = ''; barge.current.interrupted = false; if (phrase) handlePhrase(phrase); }
         if (payload.finished) stop('La sesión de voz terminó. Actívala de nuevo.');
       };
       socket.onopen = async () => {
@@ -188,6 +229,9 @@ export function useMobileVoice({ sessionId, optionCount, canDecide, onChoose }: 
           node.port.onmessage = event => {
             const samples = event.data as Float32Array;
             if (socket.readyState !== WebSocket.OPEN) return;
+            const b = barge.current;
+            b.speechMs = nextSpeechMs(b.speechMs, samples, context.sampleRate);
+            if (b.speechMs > 100) b.lastSpeechAt = performance.now();
             // Remuestreo simple si el navegador no aceptó 16 kHz (Safari suele dar 44,1 o 48 kHz).
             const ratio = context.sampleRate / TARGET_RATE;
             const out = new Int16Array(Math.ceil(samples.length / ratio));
@@ -202,7 +246,7 @@ export function useMobileVoice({ sessionId, optionCount, canDecide, onChoose }: 
           Object.assign(res.current, { source, node, sink });
           await context.resume();
           setPhase('listening');
-          setStatus('Te escucho. Explica qué harías con tus palabras o di la letra de la opción.');
+          setStatus('Te escucho. Explica qué harías con tus palabras o di la letra de la opción; puedes interrumpir a VictorIA.');
         } catch { if (generation === res.current.generation) stop('Este navegador no permite procesar el audio. Responde tocando la opción.'); }
       };
     } catch (cause) {

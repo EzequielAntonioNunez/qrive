@@ -5,6 +5,7 @@
  * Al revelarla, VictorIA comenta el resultado de la clase con una frase de plantilla (projector-voice.ts): en voz
  * (Soniox) si está disponible y activada («Voz de VictorIA», tecla V) y siempre como subtítulo. «Comparar con la media»
  * muestra la clase frente a la media de la organización (GET /api/sessions/:id/benchmark); solo datos de grupo.
+ * El docente que conduce la sesión tiene en la barra superior «Pausar»/«Reanudar» y «Finalizar» (con confirmación).
  */
 import React, { useEffect, useRef, useState } from 'react';
 import type { SessionState } from '../shared/simulation';
@@ -17,7 +18,6 @@ import { Bar, CountUp, LiveBadge, ProgressRing, Timer } from './ui';
 import type { Api } from './app-context';
 import { JoinShare } from './share-qr';
 import './projector-extras.css';
-import { aiLiveFlag } from './ai-live-types';
 import type { TtsGrant } from './tts-stream';
 import { benchmarkComment, benchmarkSentence, revealComment, useProjectorVoice, type BenchmarkView, type ProjectorVoice } from './projector-voice';
 
@@ -25,11 +25,19 @@ type Props = {
   state: SessionState; liveTally?: LiveTally; remainingMs: number | null; phaseExpired: boolean; mode: LiveMode; standalone: boolean;
   canControl: boolean; busy: boolean; exclude?: Set<string>;
   onClose: () => void; onCommand: (type: 'advance' | 'complete' | 'pause' | 'resume') => void;
+  /** Finalizar con confirmación (misma lógica y textos que la consola: «¿Finalizar la sesión antes de tiempo?»). */
+  onFinish?: () => void;
   /** Con la API, se muestra el panel «Únete» (QR + código) mientras no hay votos, o con la tecla Q. */
   api?: Api;
 };
 
-export function ProjectorView({ state, liveTally, remainingMs, phaseExpired, mode, standalone, canControl, busy, exclude, onClose, onCommand, api }: Props) {
+/** Teclas rápidas del proyector: no actúan mientras se escribe ni con un diálogo de confirmación abierto. */
+function ignoreKey(event: KeyboardEvent): boolean {
+  const target = event.target as HTMLElement | null;
+  return event.ctrlKey || event.metaKey || event.altKey || !!target?.closest?.('input,textarea,select,.modal') || !!document.querySelector('.modal-backdrop');
+}
+
+export function ProjectorView({ state, liveTally, remainingMs, phaseExpired, mode, standalone, canControl, busy, exclude, onClose, onCommand, onFinish, api }: Props) {
   const [joinPanel, setJoinPanel] = useState<'auto' | 'shown' | 'hidden'>('auto');
   const phases = state.scenario.phases;
   const current = state.phaseIndex;
@@ -37,8 +45,16 @@ export function ProjectorView({ state, liveTally, remainingMs, phaseExpired, mod
   const [revealed, setRevealed] = useState<Set<string>>(() => new Set());
   const previous = useRef(current);
   const closeRef = useRef<HTMLButtonElement>(null);
-  // Voz de VictorIA: solo el docente con la API real y la bandera ai_live_demo; si no, solo subtítulo.
-  const voice = useProjectorVoice(api && !standalone && canControl && aiLiveFlag.enabled
+  // Voz de VictorIA: el docente con la API real y servicio de voz (GET /api/voice/config), con o sin el modo IA en
+  // vivo; si no, solo subtítulo.
+  const [ttsReady, setTtsReady] = useState(false);
+  useEffect(() => {
+    if (!api || standalone || !canControl) return;
+    let alive = true;
+    api<{ enabled?: boolean }>('/voice/config').then(config => { if (alive && config?.enabled) setTtsReady(true); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [api, standalone, canControl]);
+  const voice = useProjectorVoice(api && ttsReady
     ? () => api<TtsGrant>('/voice/tts-key', { method: 'POST', body: '{}' }) : null);
   const voiceRef = useRef<ProjectorVoice>(voice);
   voiceRef.current = voice;
@@ -60,7 +76,7 @@ export function ProjectorView({ state, liveTally, remainingMs, phaseExpired, mod
     // En pantalla completa, Esc la cierra el navegador; un segundo Esc cierra el panel.
     // Esc corta antes la voz/subtítulo de VictorIA y la comparación; después cierra el panel.
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
+      if (event.key !== 'Escape' || document.querySelector('.modal-backdrop')) return;
       const current = voiceRef.current;
       if (current.speaking || current.caption) { current.dismiss(); return; }
       if (benchOpenRef.current) { setBenchOpen(false); return; }
@@ -91,7 +107,7 @@ export function ProjectorView({ state, liveTally, remainingMs, phaseExpired, mod
   useEffect(() => {
     if (!api) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== 'q' || event.ctrlKey || event.metaKey || event.altKey || (event.target as HTMLElement | null)?.closest?.('input,textarea,select')) return;
+      if (event.key.toLowerCase() !== 'q' || ignoreKey(event)) return;
       setJoinPanel(showJoinRef.current ? 'hidden' : 'shown');
     };
     window.addEventListener('keydown', onKey);
@@ -101,7 +117,7 @@ export function ProjectorView({ state, liveTally, remainingMs, phaseExpired, mod
   // V activa o desactiva la voz de VictorIA (salvo si se está escribiendo en un campo).
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== 'v' || event.ctrlKey || event.metaKey || event.altKey || (event.target as HTMLElement | null)?.closest?.('input,textarea,select')) return;
+      if (event.key.toLowerCase() !== 'v' || ignoreKey(event)) return;
       if (voiceRef.current.available) voiceRef.current.toggle();
     };
     window.addEventListener('keydown', onKey);
@@ -146,6 +162,8 @@ export function ProjectorView({ state, liveTally, remainingMs, phaseExpired, mod
     return () => window.clearInterval(timer);
   }, [state.status]);
   const hasDecisions = state.decisions.some(decision => !exclude?.has(decision.userId));
+  /** Con confirmación si la página la ofrece; si no (uso aislado), el comando directo. */
+  const finish = () => { if (onFinish) onFinish(); else onCommand('complete'); };
 
   async function toggleFullscreen() {
     try {
@@ -162,6 +180,9 @@ export function ProjectorView({ state, liveTally, remainingMs, phaseExpired, mod
         <LiveBadge mode={mode} standalone={standalone}/>
         {api && state.status !== 'complete' && <button type="button" className="pj-ghost pj-join-toggle" aria-pressed={showJoin} onClick={() => setJoinPanel(showJoin ? 'hidden' : 'shown')}>{showJoin ? 'Ocultar QR' : 'Únete (QR)'}<kbd>Q</kbd></button>}
         {voice.available && <button type="button" className={`pj-ghost pj-voice-toggle ${voice.enabled ? 'on' : ''}`} aria-pressed={voice.enabled} title="VictorIA comenta en voz alta los resultados al mostrar la respuesta" onClick={voice.toggle}><i aria-hidden="true"/>Voz de VictorIA<kbd>V</kbd></button>}
+        {canControl && state.status === 'active' && <button type="button" className="pj-ghost pj-control" disabled={busy} onClick={() => onCommand('pause')}>Pausar</button>}
+        {canControl && state.status === 'paused' && <button type="button" className="pj-ghost pj-control" disabled={busy} onClick={() => onCommand('resume')}>Reanudar</button>}
+        {canControl && state.status !== 'complete' && <button type="button" className="pj-ghost pj-control" disabled={busy} onClick={() => { voice.unlock(); finish(); }}>Finalizar</button>}
         <button type="button" className="pj-ghost" onClick={toggleFullscreen}>Pantalla completa</button>
         <button type="button" className="pj-ghost" ref={closeRef} onClick={onClose}>Salir <kbd>Esc</kbd></button>
       </div>
@@ -203,7 +224,7 @@ export function ProjectorView({ state, liveTally, remainingMs, phaseExpired, mod
           {isCurrent && !reveal && hasAnswer && votes > 0 && <button type="button" className="pj-ghost" onClick={() => { voice.unlock(); setRevealed(current => new Set(current).add(phase.id)); }}>Mostrar respuesta</button>}
           {!isCurrent && <button type="button" className="pj-primary" onClick={() => setShown(current)}>Ver situación {current + 1} →</button>}
           {isCurrent && state.status === 'active' && !last && <button type="button" className="pj-primary" disabled={busy || votes === 0} onClick={() => { voice.unlock(); onCommand('advance'); }}>Siguiente situación →</button>}
-          {isCurrent && state.status === 'active' && last && <button type="button" className="pj-primary" disabled={busy || votes === 0} onClick={() => { voice.unlock(); onCommand('complete'); }}>Finalizar sesión</button>}
+          {isCurrent && state.status === 'active' && last && <button type="button" className="pj-primary" disabled={busy || votes === 0} onClick={() => { voice.unlock(); finish(); }}>Finalizar sesión</button>}
           {state.status === 'paused' && <button type="button" className="pj-primary" disabled={busy} onClick={() => onCommand('resume')}>Reanudar</button>}
           {isCurrent && state.status === 'active' && votes === 0 && <small>Podrás avanzar cuando haya al menos una decisión.</small>}
           {api && hasDecisions && <button type="button" className={state.status === 'complete' ? 'pj-primary' : 'pj-ghost'} aria-pressed={benchOpen} onClick={() => { voice.unlock(); setBenchOpen(open => !open); }}>{benchOpen ? 'Ocultar comparación' : 'Comparar con la media'}</button>}

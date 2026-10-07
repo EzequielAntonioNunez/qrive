@@ -144,7 +144,7 @@ function AddMemberDialog({ canAssignInstructor, onClose, onAdded }: { canAssignI
   return <Modal title="Dar de alta" description="La persona podrá entrar con su correo y el código personal que le entregues." onClose={onClose}>
     <form className="form-stack" onSubmit={submit}>
       <label className="field" htmlFor={ids.name}><span>Nombre y apellidos</span><input id={ids.name} data-autofocus value={name} onChange={event => setName(event.target.value)} maxLength={100} required autoComplete="off"/></label>
-      <label className="field" htmlFor={ids.email}><span>Correo institucional</span><input id={ids.email} type="email" placeholder="nombre@ufv.es" value={email} onChange={event => setEmail(event.target.value)} maxLength={254} required autoComplete="off"/></label>
+      <label className="field" htmlFor={ids.email}><span>Correo electrónico</span><input id={ids.email} type="email" placeholder="nombre@ufv.es" value={email} onChange={event => setEmail(event.target.value)} maxLength={254} required autoComplete="off"/></label>
       {canAssignInstructor && <label className="field" htmlFor={ids.role}><span>Rol</span><select id={ids.role} value={role} onChange={event => setRole(event.target.value as Role)}><option value="participant">Participante</option><option value="instructor">Docente</option></select></label>}
       <label className="check"><input type="checkbox" checked={withCode} onChange={event => setWithCode(event.target.checked)}/>Generar su código de acceso ahora</label>
       {error && <p className="error" role="alert">{error}</p>}

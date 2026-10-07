@@ -255,6 +255,8 @@ describe('borrador de escenario a partir de una partida (conversión determinist
     const hidden = participantView(state, ana.id).scenario.phases[0];
     expect(hidden.takeaway).toBeUndefined();
     expect(hidden.options.every(option => option.quality === undefined && option.rationale === undefined && (option as { effects?: unknown }).effects === undefined)).toBe(true);
+    // El origen IA llega al participante: el móvil y el informe muestran el aviso de transparencia adecuado.
+    expect(participantView(state, ana.id).scenario.origin?.kind).toBe('ai');
     draft.phases.forEach((phase, index) => {
       run({ id: `a-${index}`, type: 'decide', optionId: 'opcion-a' }, ana);
       run({ id: `l-${index}`, type: 'decide', optionId: 'opcion-c' }, luis);

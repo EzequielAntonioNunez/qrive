@@ -75,6 +75,8 @@
 .play-progress span.current{background:linear-gradient(90deg,var(--p-sky),#9CC0FF);animation:play-blink 2s infinite}
 .play-banner{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;font-size:14px;font-weight:700}
 .play-banner.paused{background:#FFF4DE;color:#7A4A00;border:1px solid #F3D49A}
+.play-banner.expired{margin:0 0 10px;background:#FFF4DE;color:#7A4A00;border:1px solid #F3D49A;font-weight:600;line-height:1.4}
+.play-ai-note{margin:16px auto 4px;max-width:420px;text-align:center;font-size:12px;line-height:1.5;color:var(--p-muted)}
 .pause-icon{width:12px;height:14px;border-left:4px solid currentColor;border-right:4px solid currentColor}
 .play-situation-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .play-timer{display:inline-flex;align-items:center;gap:6px;font:700 15px/1 Arial,sans-serif;font-variant-numeric:tabular-nums;color:var(--p-navy);background:var(--p-wash);padding:6px 10px;border-radius:999px}

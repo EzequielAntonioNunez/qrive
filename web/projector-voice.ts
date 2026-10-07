@@ -3,7 +3,8 @@
  * leídas con la voz en tiempo real (Soniox, tts-stream.ts) y mostradas como subtítulo.
  *
  * - Solo datos de grupo («la clase», «un 20 %»): nunca personas. `quality` valora la opción, no a quien la elige.
- * - Sin voz (demo sin conexión, sin bandera ai_live_demo, error de Soniox): solo el subtítulo. En el proyector no se
+ * - Sin voz (demo sin conexión, sin servicio de voz SONIOX_API_KEY, error de Soniox): solo el subtítulo. No depende
+ *   del modo IA en vivo (bandera ai_live_demo). En el proyector no se
  *   usa la síntesis del navegador.
  * - El AudioContext se crea dentro de un gesto del docente (primer clic o tecla en el proyector).
  */
@@ -112,7 +113,7 @@ function writePref(on: boolean) {
 export type Caption = { id: number; text: string; kind: 'reveal' | 'benchmark' };
 
 export type ProjectorVoice = {
-  /** Hay voz en tiempo real (bandera, docente, con API y sin fallo). */
+  /** Hay voz en tiempo real (servicio de voz, docente, con API y sin fallo). */
   available: boolean;
   enabled: boolean;
   toggle: () => void;

@@ -127,5 +127,8 @@ function executiveSentence(report: Report, participants: number, state: SessionS
 
 function characterNote(state: SessionState): string {
   const name = state.scenario.character?.name || 'VictorIA';
-  return `${name} es un personaje virtual con imagen y voz sintéticas; sus intervenciones están guionizadas y grabadas de antemano. Los participantes aparecen con el nombre con el que figuran en la consola.`;
+  const origin = state.scenario.origin?.kind === 'ai'
+    ? 'el escenario se redactó con IA a partir de documentos y lo revisó un docente antes de publicarlo'
+    : 'sus intervenciones están guionizadas y grabadas de antemano';
+  return `${name} es un personaje virtual con imagen y voz sintéticas; ${origin}. Los participantes aparecen con el nombre con el que figuran en la consola.`;
 }

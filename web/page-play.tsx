@@ -26,11 +26,20 @@ function meterGood(meter: MeterName, delta: number): boolean { return meter === 
 
 /** Solo suena una voz a la vez: la situación o la reacción a la decisión. */
 let speakingAudio: HTMLAudioElement | null = null;
+let speakingSince = 0;
 function playExclusive(element: HTMLAudioElement): Promise<void> {
   if (speakingAudio && speakingAudio !== element) speakingAudio.pause();
   speakingAudio = element;
+  speakingSince = performance.now();
   return element.play();
 }
+/** Milisegundos que lleva sonando VictorIA, o null si no suena (para la interrupción por voz). */
+function speakingForMs(): number | null {
+  const element = speakingAudio;
+  return element && !element.paused && !element.ended ? performance.now() - speakingSince : null;
+}
+/** La persona habla por encima de VictorIA: se corta el audio al momento. */
+function stopSpeaking() { speakingAudio?.pause(); }
 /** Respuesta hablada de VictorIA a una opción, generada offline con la misma voz (scripts/tts/generate_reactions.mjs). */
 function reactionUrl(phaseId: string, optionId: string): string {
   return `/voz/reacciones/${encodeURIComponent(phaseId)}__${encodeURIComponent(optionId)}.mp3`;
@@ -93,7 +102,8 @@ function PlayView({ payload, userId, alias, mode, sessionId, started, onStart, o
   const decision = state.decisions.find(item => item.userId === userId && item.phaseId === phase.id);
   const remaining = useRemaining(state);
   const expired = remaining !== null && remaining <= 0 && !!state.phaseDeadline;
-  const canDecide = state.status === 'active' && joined && !decision && !expired;
+  // Tras agotarse el tiempo se puede decidir igualmente (el motor lo admite, igual que el 3D y la consola).
+  const canDecide = state.status === 'active' && joined && !decision;
   const [selected, setSelected] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -139,7 +149,7 @@ function PlayView({ payload, userId, alias, mode, sessionId, started, onStart, o
     } finally { setBusy(false); }
   }, [phase, busy, sessionId, onReplace, onAuthLost, reactionFor]);
 
-  const voice = useMobileVoice({ sessionId, optionCount: phase.options.length, canDecide, onChoose: index => { setSelected(index); void decide(index); } });
+  const voice = useMobileVoice({ sessionId, optionCount: phase.options.length, canDecide, onChoose: index => { setSelected(index); void decide(index); }, speakingForMs, onBargeIn: stopSpeaking });
 
   const meters = state.participantMeters[userId] ?? state.meters;
   const labels = meterLabels(scenario);
@@ -167,9 +177,9 @@ function PlayView({ payload, userId, alias, mode, sessionId, started, onStart, o
 
     {chosen ? <Result phase={phase} option={chosen} index={phase.options.indexOf(chosen)} labels={labels} last={state.phaseIndex === scenario.phases.length - 1}
         name={scenario.character.name} reactionFor={reactionFor}/>
-      : expired ? <section className="play-card play-wait enter"><h2>Se acabó el tiempo de esta situación</h2><p>No pasa nada: en la siguiente podrás volver a decidir.</p><WaitDots/></section>
       : <section className="play-options" aria-label="Opciones">
         <h2 className="play-options-title">¿Qué harías?</h2>
+        {expired && state.status === 'active' && <p className="play-banner expired" role="status">Se acabó el tiempo de esta situación: puedes decidir igualmente.</p>}
         <ol className="play-option-list">
           {phase.options.map((option, i) => <li key={option.id} style={{ '--i': i } as React.CSSProperties}>
             <button type="button" className={`play-option ${selected === i ? 'selected' : ''}`} aria-pressed={selected === i} disabled={!canDecide || busy}
@@ -188,7 +198,16 @@ function PlayView({ payload, userId, alias, mode, sessionId, started, onStart, o
         </div>
       </section>}
     <Open3D sessionId={sessionId}/>
+    <AiNote state={state}/>
   </Shell>;
+}
+
+/** Aviso de transparencia (AI Act): discreto pero siempre visible en la partida. */
+function AiNote({ state }: { state: SessionState }) {
+  const name = state.scenario.character?.name || 'VictorIA';
+  return <p className="play-ai-note" role="note">{state.scenario.origin?.kind === 'ai'
+    ? `Escenario redactado con IA a partir de documentos y revisado por un docente. ${name} es un personaje virtual.`
+    : `${name} es un personaje virtual: su imagen y su voz son sintéticas.`}</p>;
 }
 
 function useRemaining(state: SessionState): number | null {
@@ -328,7 +347,7 @@ function Result({ phase, option, index, labels, last, name, reactionFor }: { pha
 
 /**
  * «Abrir en 3D»: el simulador Unity WebGL de la misma sesión, en la misma pestaña (la cookie de invitado vale allí).
- * Solo en pantallas de ordenador o tableta (CSS): la descarga (~40 MB) y el 3D no están pensados para un móvil.
+ * Solo en pantallas de ordenador o tableta (CSS): la descarga (unos 38 MB) y el 3D no están pensados para un móvil.
  */
 function Open3D({ sessionId }: { sessionId: string }) {
   return <div className="play-3d">
@@ -357,6 +376,7 @@ function Welcome({ state, alias, onStart, sessionId }: { state: SessionState; al
     </ul>
     <button type="button" className="play-primary" onClick={() => { haptic(12); onStart(); }}>{state.phaseIndex > 0 ? `Ir a la situación ${state.phaseIndex + 1}` : 'Empezar'}</button>
     <Open3D sessionId={sessionId}/>
+    <AiNote state={state}/>
   </section>;
 }
 

@@ -216,7 +216,7 @@ export function SessionPage({ id }: { id: string }) {
 
     {tab === 'informe' && <div className="tab-panel"><ReportPanel state={statsState!} report={report} results={participantResults} simulatedCount={simCount} excludeSimulated={!!excluded} onToggleSimulated={() => setExcludeSimulated(value => !value)} sessionName={summary.name ?? undefined}/></div>}
 
-    {projecting && <ProjectorView state={state} liveTally={payload?.liveTally} remainingMs={remainingMs} phaseExpired={phaseExpired} mode={live.mode} standalone={app.standalone} canControl={canControl} busy={busy} exclude={excluded} api={app.api} onClose={closeProjector} onCommand={type => type === 'complete' ? void command('complete') : void command(type)}/>}
+    {projecting && <ProjectorView state={state} liveTally={payload?.liveTally} remainingMs={remainingMs} phaseExpired={phaseExpired} mode={live.mode} standalone={app.standalone} canControl={canControl} busy={busy} exclude={excluded} api={app.api} onClose={closeProjector} onCommand={type => type === 'complete' ? void finish() : void command(type)} onFinish={() => void finish()}/>}
   </div>;
 
   async function renameInline(name: string) {
@@ -288,7 +288,7 @@ function ParticipantSession({ state, report, title, busy, link, standalone, char
         <section className="panel report"><span className="eyebrow">Tus resultados</span><div className="score">{report.decisions > 0 ? <><CountUp value={report.score}/><small>/100</small></> : <span className="score-empty">Aún no has decidido</span>}</div>
           <div className="report-grid"><div><strong>{pct(report.correctDecisionsPct)}</strong><span>Decisiones óptimas</span></div><div><strong>{report.decisions}</strong><span>Decisiones</span></div></div>
           <p>Valora tus decisiones en el escenario, nunca a ti como persona.</p></section>
-        <p className="ai-notice" role="note"><span aria-hidden="true">i</span><span><strong>{characterName} es un personaje virtual.</strong> Su imagen y su voz son sintéticas y sus intervenciones están guionizadas.</span></p>
+        <p className="ai-notice" role="note"><span aria-hidden="true">i</span><span><strong>{characterName} es un personaje virtual.</strong> {state.scenario.origin?.kind === 'ai' ? 'Su imagen y su voz son sintéticas. Escenario redactado con IA a partir de documentos y revisado por un docente.' : 'Su imagen y su voz son sintéticas y sus intervenciones están guionizadas.'}</span></p>
       </aside>
     </div>
     {state.status === 'complete' && report.timeline.length > 0 && <Debrief state={state} report={report} instructor={false} participantName={() => 'Tú'}/>}

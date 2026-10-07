@@ -1673,3 +1673,42 @@ Eso aplica especialmente a:
 ## Objetivo
 
 > **Validar primero el valor del producto. Añadir complejidad solo cuando la validación o un cliente la justifique.**
+
+---
+
+# Addendum · Estado real y decisiones a 7 de octubre de 2026
+
+Este addendum no modifica el cuerpo del documento: recoge dónde la implementación se ha separado del plan y qué falta para cerrar el MVP. Detalle técnico en `README.md`; estado y pendientes en `CLAUDE.md`; documentación para la UFV en `docs/`.
+
+## Decisiones que difieren del plan
+
+- **Identidad.** Cloudflare Access está retirado. El acceso es propio: miembros con correo y código personal de seis cifras (HMAC en D1, sesión de 24 h) e **invitados** con el PIN de seis cifras de una sesión y un alias, con ámbito limitado a esa sesión y caducidad de 12 h (o 2 h tras finalizar). El código antiguo de Access solo existe tras `LEGACY_ACCESS_AUTH`.
+- **Recuperación (RAG).** Sin Vectorize ni AI Search: embeddings `bge-m3` guardados como vectores Float32 en R2 (UE), un fichero por documento, y similitud coseno en el propio Worker; fragmentos y citas en D1.
+- **Sin AI Gateway ni Workflows todavía.** El Worker llama a Workers AI directamente (`gpt-oss-120b`, `bge-m3`, `toMarkdown`, Clef). Las interfaces `shared/contracts/ai-provider.ts` y `context-engine.ts` siguen sin implementación.
+- **Proveedor de voz: Soniox**, proyecto en región **EE. UU.** (`SONIOX_REGION = us`, transferencia internacional avisada al usuario y pendiente del DPO). Locuciones y 33 reacciones pregrabadas con Soniox TTS; STT en tiempo real para participantes (credenciales de un solo uso) y TTS en tiempo real para el proyector y el Modo IA (credenciales de 15 min solo para docentes). En Windows, Vosk local.
+- **Funciones de la macrofase 3 adelantadas como demo** tras el flag `ai_live_demo` (activo en el entorno actual, solo docentes): Modo IA en vivo con colecciones de documentos, situaciones generadas con citas y voz en tiempo real (IA-1, IA-3 e IA-4 parciales); «Convertir en escenario para clase», que pasa una partida a un escenario versionado con **revisión docente obligatoria** antes de publicar (`origin: ai`). El producto de clase sigue siendo determinista; su única IA es Clef para asignar una respuesta libre por voz a una opción existente.
+- **La web es también cliente del participante.** Además de la consola, hay vista móvil (`/unirse`, `/jugar/:id`) con voz y reacciones, y proyector para el aula. Unity WebGL queda como experiencia 3D opcional («Abrir en 3D»).
+- **Tiempo real** por WebSocket con hibernación del Durable Object, con consulta periódica de respaldo.
+- **Analítica agregada** de la organización (`GET /api/analytics`) y comparación con la media (`/benchmark`), solo desde D1 y sin datos por persona.
+
+## Huecos del MVP
+
+**P1 · antes del piloto**
+
+- Copias de seguridad de D1: procedimiento de restauración documentado y probado.
+- Despliegue automático en CI (`CLOUDFLARE_DEPLOY`) y entorno de staging separado de producción.
+- RGPD por persona: borrado y exportación de un participante concreto dentro de una sesión.
+- Comprobación de ubicación UE (D1, R2) y confirmación de dónde procesa Workers AI.
+- Medición del piloto: encuesta e indicadores de la etapa 4.
+
+**P2**
+
+- Auditoría de IA: registro por llamada de modelo, versión, uso y resultado (hoy solo se auditan colecciones, documentos, partidas y publicaciones).
+- Telemetría de cliente (errores de Unity WebGL y de la vista móvil).
+- Seguridad de la cadena de suministro: escaneo de dependencias en CI.
+- Reintento de decisiones en Unity ante fallos de red.
+
+**P3**
+
+- Métricas del informe previstas en la etapa 3 aún no implementadas: «riesgos identificados» y «errores recuperados».
+- Puerta de calidad de 50 simulaciones (`SMOKE_RUNS=50`) dentro de CI, no solo en local.
