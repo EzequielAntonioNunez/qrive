@@ -6,6 +6,8 @@ import { EmptyState, Icon, PageHeader } from './kit';
 import { Link, navigate } from './router';
 import { optionLetter, plural, qualityLabel } from './types';
 import { Sk } from './ui';
+import { aiLiveFlag } from './ai-live-types';
+import { ScenarioTabs } from './page-knowledge';
 
 export function ScenariosPage() {
   const app = useApp();
@@ -13,6 +15,7 @@ export function ScenariosPage() {
   useEffect(() => { if (scenarios?.length) for (const item of scenarios) void app.loadScenario(item.id); }, [scenarios?.length]);
   return <div className="page">
     <PageHeader title="Escenarios" description="Situaciones de aprendizaje listas para usar. Revisa cada una antes de clase y crea una sesión con ella."/>
+    {aiLiveFlag.enabled && <ScenarioTabs current="catalog"/>}
     {scenarios === null ? <div className="scenario-grid">{[0, 1, 2].map(i => <div className="scenario-card" key={i} aria-hidden="true"><Sk w={120} h={10}/><Sk w="80%" h={20} className="sk-gap"/><Sk w="100%" h={12} className="sk-gap"/><Sk w="90%" h={12} className="sk-gap-s"/></div>)}</div>
     : scenarios.length === 0 ? <div className="card"><EmptyState icon="scenarios" title="No hay escenarios publicados">Tu organización aún no tiene escenarios disponibles.</EmptyState></div>
     : <div className="scenario-grid">{scenarios.map(item => {

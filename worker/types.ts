@@ -23,8 +23,20 @@ export interface Env {
   AUDIT_RETENTION_DAYS?: string;
   API_LIMITER?: RateLimit;
   VOICE_LIMITER?: RateLimit;
-  /** Workers AI: modelo de decisión Clef para interpretar la respuesta libre por voz. */
-  AI?: { run(model: string, input: unknown): Promise<unknown> };
+  /**
+   * Workers AI: Clef interpreta la respuesta libre por voz; el modo IA en vivo (flag ai_live_demo) usa además
+   * embeddings, un modelo de texto y `toMarkdown` (conversión de PDF y DOCX fuera de la CPU del Worker).
+   */
+  AI?: {
+    run(model: string, input: unknown): Promise<unknown>;
+    toMarkdown?(documents: { name: string; blob: Blob }[]): Promise<{ name?: string; format?: string; data?: string; error?: string }[]>;
+  };
+  /** Claves temporales de voz TTS del modo IA en vivo (por instructor, 30/min). */
+  TTS_LIMITER?: RateLimit;
+  /** Límite de generación del modo IA en vivo (por instructor). */
+  AI_LIMITER?: RateLimit;
+  /** Modelo de texto del modo IA en vivo; por defecto el de worker/ai-live.ts (LIVE_MODEL). */
+  AI_LIVE_MODEL?: string;
   AUTH_LIMITER?: RateLimit;
   AUTH_IP_LIMITER?: RateLimit;
   ACCESS_CODE_PEPPER?: string;

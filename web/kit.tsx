@@ -39,7 +39,11 @@ const paths: Record<string, React.ReactNode> = {
   logout: <><path d="M15 4h4v16h-4"/><path d="M10 8l-4 4 4 4M6 12h10"/></>,
   clock: <><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></>,
   layers: <><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></>,
-  chart: <><path d="M4 4v16h16"/><path d="M8 16v-4M12 16V8M16 16v-6"/></>
+  chart: <><path d="M4 4v16h16"/><path d="M8 16v-4M12 16V8M16 16v-6"/></>,
+  sparkles: <><path d="M12 3.5 13.8 9l5.7 1.8-5.7 1.8L12 18l-1.8-5.4-5.7-1.8L10.2 9z"/><path d="M19 3v4M17 5h4M5 17v3M3.5 18.5h3"/></>,
+  mic: <><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></>,
+  upload: <><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 20h16"/></>,
+  doc: <><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></>
 };
 
 export function Icon({ name, size = 18, className = '' }: { name: keyof typeof paths | string; size?: number; className?: string }) {

@@ -112,6 +112,22 @@ Remove-Item Env:SONIOX_API_KEY
 pnpm unity:webgl
 ```
 
+### Reacciones de VictorIA a cada decisión
+
+Tras confirmar una decisión, VictorIA responde por voz con la misma voz Carmen (mismo modelo, 48 kHz, WAV PCM 16 bits). El guion se deriva de forma determinista de los escenarios publicados, sin cambiarlos: una entrada breve según la valoración de la **decisión** (`best`: «Buena decisión.», «Bien visto.»…; `acceptable`: «Es un paso, pero se puede hacer mejor.»…; `poor`: «Cuidado.», «Ojo con esta decisión.»…, alternadas en orden fijo), la `consequence` de la opción y, si cabe en unos 230 caracteres y no repite la consecuencia, la primera frase de su `rationale`. Nunca valora a la persona. Solo hay reacciones en las fases con locución y personaje VictorIA (33 opciones de `ia-buenas-practicas`, `ia-docencia` e `ia-atencion-estudiantes`); la negociación con proveedor no las tiene.
+
+- `export-reactions.mjs` escribe `scripts/tts/reactions.json` (para revisar: `text` es el subtítulo y `speech` lo que se envía a Soniox, con siglas como RGPD desarrolladas) y el catálogo de Unity `Audio/Reacciones/Resources/Reacciones/reacciones.json`.
+- `generate_reactions.mjs` genera cada clip, lo iguala en sonoridad (RMS medio) a las locuciones de situación con pico máximo de -1 dBFS y comprueba duración, silencio y saturación. Con `--install` copia los WAV a `Assets/AXYRO/Audio/Reacciones/Resources/Reacciones/<idFase>__<idOpcion>.wav` (con su `.meta`: Decompress On Load en WebGL, como las locuciones) y una versión MP3 a `web/public/voz/reacciones/` para la vista móvil. `--only <id,...>` limita la generación y `--reuse` no llama a Soniox.
+- Unity (`AxyroAvatarDemo.PlayReaction`, `AxyroReactions.cs`) carga el clip con `Resources.Load` y lo reproduce por la misma fuente de voz, así que uLipSync mueve la boca; dispara el gesto de `AxyroTutor3D.React`, muestra la reacción como subtítulo y mantiene el panel de resultado. Si el docente avanza, la reacción se corta. «Repetir» vuelve a plantear la situación. En el modo demostración sin sesión (Windows y editor) también se puede elegir una opción con el ratón y escuchar la reacción.
+- La vista móvil (`/jugar/:id`) empieza la reacción al tocar «Confirmar» (gesto necesario en iOS) y ofrece «Escuchar a VictorIA» en la tarjeta del resultado. Si falta el audio, solo se muestra el texto.
+
+```powershell
+node scripts/tts/export-reactions.mjs
+$env:SONIOX_API_KEY = '<clave del proyecto Soniox>'
+node scripts/tts/generate_reactions.mjs --install
+Remove-Item Env:SONIOX_API_KEY
+```
+
 ### Respuesta por micrófono en WebGL
 
 En producción, guarda la clave del proyecto Soniox como secreto del Worker `SONIOX_API_KEY` e indica la región de ese proyecto en la variable `SONIOX_REGION` de `wrangler.jsonc` (`us` hoy; `eu` cuando haya proyecto en la UE). Sin la clave, el botón de micrófono permanece oculto y el simulador sigue funcionando con ratón y teclado. La clave requiere permisos de **Temporary API keys** y **Speech-to-Text real-time**. El secreto se lee en cada petición: no hace falta volver a desplegar.
@@ -210,6 +226,36 @@ El participante solo recibe `participantView` y `participantReport` (`roomPayloa
 
 `POST /api/sessions/:id/demo-class` con `{ "count": 1-40 }` (20 por defecto) añade participantes simulados, solo para el instructor que creó la sesión y mientras no haya terminado (máximo 40 a la vez). Son seudónimos (`sim-<8 caracteres de la sesión>-NN`, «Participante simulado NN»), no son usuarios ni membresías y llevan `simulated: true` en `state.participants` y en `report.participantReports`. Se unen y deciden por el mismo camino del motor que una persona: la alarma del Durable Object (multiplexada con el reloj de fase) hace decidir a cada uno a los 2-12 s de empezar la fase, con un reparto por valoración de la opción de 45 % mejor, 35 % aceptable y 20 % mala; en pausa esperan. `DELETE /api/sessions/:id/demo-class` los retira con sus decisiones e indicadores (los eventos ya emitidos se conservan con su ID `sim-…`). Ambas operaciones devuelven el cuerpo de `GET /api/sessions/:id` más `demoClass: { added, total }` o `{ removed, total }` y quedan en la auditoría.
 
+## Modo IA en vivo (demo)
+
+Modo aparte del producto determinista, para demostraciones: no cambia escenarios, motor, sesiones, invitados ni analítica. Flag `ai_live_demo` (activo en `wrangler.jsonc`; con el flag desactivado todas sus rutas son 404) y **solo instructores** (participante 403; los invitados quedan fuera por la lista cerrada de `guests.ts`). Código en `worker/ai-routes.ts` (rutas), `worker/knowledge.ts` (colecciones, extracción, fragmentos, vectores y recuperación), `worker/ai-live.ts` (partidas, voz, resumen) y `worker/ai-live-prompts.ts` (prompts, esquemas y validadores). Migración `0008_ai_live.sql`.
+
+1. El instructor crea una colección y sube contenido: PDF, DOCX, TXT, MD o texto pegado.
+2. Inicia una partida sobre la colección (3-6 situaciones, opcionalmente con un tema).
+3. Para cada situación el servidor recupera fragmentos de la colección y genera la narración y cuatro opciones (1 mejor, 1-2 aceptables, 1-2 malas) **solo** con esos fragmentos, citándolos. VictorIA la narra (TTS en tiempo real en el cliente), la persona responde por voz (STT en el cliente) y el servidor interpreta la frase, responde preguntas sobre el contenido y reacciona a la decisión.
+
+**Almacenamiento.** Originales en R2 (UE) en `knowledge/<tenant>/<colección>/<documento>`; vectores en `….vec` (Float32 normalizados, uno por fragmento): un binario por documento cuesta muy poca CPU frente a miles de BLOB de D1. En D1: `knowledge_collections`, `knowledge_documents`, `knowledge_chunks` (texto y pista de cita: página o encabezado), `ai_runs` (estado, tema, anclas) y `ai_turns` (una fila por situación: JSON generado, opción elegida y reacción; nunca la frase dicha). Todo con `tenant_id`.
+
+**Procesamiento.** PDF y DOCX se convierten con Workers AI `toMarkdown` (gratuito para estos formatos y fuera de la CPU del Worker; se quitan los metadatos del fichero); TXT y MD tal cual. Un PDF escaneado sin texto queda en estado `error` con un mensaje claro. Fragmentos de ~900 caracteres con ~150 de solapamiento; embeddings `@cf/baai/bge-m3` (1024 dimensiones, lotes de 50). Recuperación por coseno en el propio Worker sobre los vectores de la colección (caché por isolate). La subida es síncrona: `processing` → `ready` | `error`.
+
+**Modelo.** `@cf/openai/gpt-oss-120b` (cambiable con la variable `AI_LIVE_MODEL`), con `response_format` `json_schema`, `reasoning_effort: low` y validación estricta propia; una salida no válida se reintenta una vez y después es 502 `AI_INVALID`. Evaluado el 7 de octubre con la misma guía en español: gpt-oss-120b dio JSON válido con narraciones y opciones más concretas, ~12-15 s y ~85 neuronas por situación (~670 tokens de salida) y respuestas a preguntas en 1-3 s (~35-40 neuronas); `llama-3.3-70b-instruct-fp8-fast` también válido pero más genérico, 15-24 s y ~135-155 neuronas; `qwen3.8-27b` agotó los tokens sin JSON (26 s, ~450 neuronas). Para que la espera no se note, la primera situación se genera al crear la partida y cada `/next` genera por adelantado solo la siguiente (`ctx.waitUntil`); `ai_turns` evita generar dos veces la misma (reclamación en D1 y espera). Las reacciones a cada opción se generan con la situación, así que decidir es inmediato; el resumen final se prepara al responder la última.
+
+**Voz.** Atajos locales sin IA («la dos», «opción 3», «repite», «siguiente», «sí»/«no» tras una confirmación); si no, Clef con el conjunto ampliado `opcion_1..4`, `pregunta`, `repetir`, `siguiente`, `ninguna` y el mismo doble umbral que en las sesiones. Las preguntas se responden con los cinco fragmentos más parecidos («No lo sé con estos documentos» si no está). Claves Soniox: `POST /api/voice/tts-key` (TTS, instructor, `TTS_LIMITER` 30/min) y `POST /api/voice/temporary-key` con `{ aiRunId }` (STT, solo el instructor dueño de la partida). Con el flag, la consola admite micrófono (`Permissions-Policy`), los WebSocket de Soniox en `connect-src` y `blob:` en `media-src`.
+
+**Contrato** (todas las rutas: flag, instructor, organización; recurso de otra organización o persona = 404; errores `{ error, code? }`):
+
+- `GET /api/knowledge/collections` → `{ collections: [{ id, name, documentCount, chunkCount, createdAt }] }`; `POST` `{ name }` (1-80) → 201 `{ collection }`; `DELETE /api/knowledge/collections/:id` (R2, fragmentos, documentos y partidas).
+- `GET /api/knowledge/collections/:id/documents` → `{ documents: [{ id, name, mime, bytes, chars, status, error, createdAt }] }`; `POST` `{ name, mime, dataBase64 }` o `{ name, text }` → 201 `{ document }`, o 422 `{ error, code: 'DOCUMENT_UNREADABLE', document }` si no se ha podido leer (queda en la lista con `status: 'error'`); 413 si supera 20 MB (cuerpo JSON de hasta ~27 MB) o 300 000 caracteres; 415 formato no admitido. `DELETE /api/knowledge/documents/:id`.
+- `POST /api/ai-runs` `{ collectionId, situations?: 3-6 (4), focus?: ≤200 }` → 201 `{ run: { id, collectionId, situationsTotal, index: 0, status: 'active', focus, createdAt } }`; 409 si la colección no tiene documentos listos.
+- `GET /api/ai-runs/:id` → `{ run, current, history: [{ situation, chosen, reaction }], summary }`. `current` es la situación en curso **sin responder** (null si no hay); `index` y `situation.index` empiezan en 0. `DELETE /api/ai-runs/:id`.
+- `POST /api/ai-runs/:id/next` → `{ situation: { id, index, title, narration, options: [{ label, quality, consequence, rationale, sources }], sources: [{ id, document, location, excerpt }] } }` (la misma mientras no se responda; avanza tras responder) o, tras la última, `{ done: true, summary: { spoken, takeaways[3], optimalCount, total } }`. Las opciones llevan `quality`: la interfaz no debe mostrarla antes de responder.
+- `POST /api/ai-runs/:id/answer` `{ phrase } | { optionIndex: 0-3 }` → `{ kind: 'decision', optionIndex, reaction: { spoken, quality, sources } } | { kind: 'confirm', optionIndex, prompt } | { kind: 'answer', spoken, sources } | { kind: 'repeat' } | { kind: 'next' } | { kind: 'unclear', spoken }`. «Siguiente» sin responder salta la situación (`chosen: null`).
+- Códigos de error: `AI_QUOTA` (429, «Se ha alcanzado el límite diario de IA»: cuota de Workers AI agotada, p. ej. 10 000 neuronas al día del plan gratuito), `AI_FAILED`/`AI_INVALID` (502), `AI_PENDING` (503, la situación tarda más de 60 s), `RATE_LIMITED` (429, `AI_LIMITER` 20/min por instructor).
+
+**Límites.** 20 MB por fichero, 10 documentos y 1500 fragmentos por colección, 300 000 caracteres por documento, 50 colecciones por organización. Las partidas se borran con la retención diaria (`RETENTION_DAYS`); las colecciones las borra el instructor.
+
+**Local.** `pnpm dev:api:ai` (`wrangler.ai.local.jsonc`: como `dev:api` con el flag activo y Workers AI remoto; requiere `wrangler login` y consume neuronas de la cuenta).
+
 ## Datos personales (RGPD)
 
 - Exportación: `GET /api/sessions/:id/export` devuelve estado, eventos e informe. En la consola, «Exportar JSON».
@@ -237,7 +283,7 @@ Cada fase del escenario define `timeLimitSec` y `timeoutRiskDelta`. El reloj de 
 
 - `shared/events.ts`: catálogo versionado de eventos (`EVENT_SCHEMA_VERSION`). Solo IDs seudónimos.
 - `shared/contracts/ai-provider.ts` y `shared/contracts/context-engine.ts`: interfaces de AI Provider y Context Engine. Sin implementación hasta la macrofase de IA avanzada.
-- `worker/flags.ts`: feature flags desde la variable `FEATURE_FLAGS` (JSON). `phase_timers` desactiva las alarmas del reloj; `realtime_websocket` (activo por defecto) habilita el WebSocket de tiempo real; `ai_characters` está reservado.
+- `worker/flags.ts`: feature flags desde la variable `FEATURE_FLAGS` (JSON). `phase_timers` desactiva las alarmas del reloj; `realtime_websocket` (activo por defecto) habilita el WebSocket de tiempo real; `ai_live_demo` habilita el «Modo IA en vivo (demo)»; `ai_characters` está reservado.
 - Rate limiting: binding `API_LIMITER`, 300 peticiones por minuto y usuario en el entorno cloud. No se aplica en modo local.
 
 ## Seguridad

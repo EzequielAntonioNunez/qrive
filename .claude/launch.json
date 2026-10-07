@@ -8,6 +8,12 @@
       "port": 5199
     },
     {
+      "name": "standalone-ia",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["exec", "vite", "--mode", "standalone", "--port", "5311", "--strictPort"],
+      "port": 5311
+    },
+    {
       "name": "standalone-movil",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["exec", "vite", "--mode", "standalone", "--port", "5277", "--strictPort"],

@@ -26,17 +26,23 @@
   "ratelimits": [
     { "name": "API_LIMITER", "namespace_id": "1001", "simple": { "limit": 300, "period": 60 } },
     { "name": "VOICE_LIMITER", "namespace_id": "1004", "simple": { "limit": 6, "period": 60 } },
+    // Modo IA en vivo: subidas, partidas, situaciones y respuestas por instructor.
+    { "name": "AI_LIMITER", "namespace_id": "1005", "simple": { "limit": 20, "period": 60 } },
+    // Modo IA en vivo: claves temporales de voz TTS (una por WebSocket) por instructor.
+    { "name": "TTS_LIMITER", "namespace_id": "1006", "simple": { "limit": 30, "period": 60 } },
     { "name": "AUTH_LIMITER", "namespace_id": "1002", "simple": { "limit": 5, "period": 60 } },
     { "name": "AUTH_IP_LIMITER", "namespace_id": "1003", "simple": { "limit": 120, "period": 60 } }
   ],
   "triggers": { "crons": ["17 3 * * *"] },
   "observability": { "enabled": true },
   // Workers AI: Clef (modelo de decisión) interpreta la respuesta libre por voz entre las opciones de la fase.
+  // Modo IA en vivo (flag ai_live_demo): además bge-m3 (embeddings), gpt-oss-120b (texto) y toMarkdown (PDF/DOCX).
   "ai": { "binding": "AI" },
   "vars": {
     "RETENTION_DAYS": "365",
     "AUDIT_RETENTION_DAYS": "730",
-    "FEATURE_FLAGS": "{\"phase_timers\":true,\"ai_characters\":false,\"realtime_websocket\":true}",
+    // ai_live_demo: «Modo IA en vivo (demo)», solo instructores (worker/ai-routes.ts).
+    "FEATURE_FLAGS": "{\"phase_timers\":true,\"ai_characters\":false,\"realtime_websocket\":true,\"ai_live_demo\":true}",
     // ACCESS_CODE_PEPPER y BOOTSTRAP_OWNER_EMAIL se configuran como secretos del Worker.
     // La autenticación pública usa correo y código propio; Cloudflare Access no participa.
     // Durable Objects de sesión en la UE (RGPD). Cambiarlo deja inaccesibles las sesiones creadas con el valor anterior.

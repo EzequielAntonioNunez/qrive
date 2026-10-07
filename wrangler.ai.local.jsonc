@@ -1,0 +1,21 @@
+{
+  // Igual que wrangler.local.jsonc más el modo IA en vivo (flag ai_live_demo). Workers AI siempre es remoto:
+  // requiere `wrangler login` y consume neuronas de la cuenta. Uso: `pnpm dev:api:ai`.
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "axyro-sim-lab-local",
+  "main": "worker/local.ts",
+  "compatibility_date": "2026-10-05",
+  "workers_dev": false,
+  "d1_databases": [{ "binding": "DB", "database_name": "axyro-db", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "axyro-files" }],
+  "durable_objects": { "bindings": [{ "name": "SESSIONS", "class_name": "SessionRoom" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SessionRoom"] }],
+  "queues": {
+    "producers": [{ "binding": "EVENTS", "queue": "axyro-events" }],
+    "consumers": [{ "queue": "axyro-events", "max_batch_timeout": 1 }]
+  },
+  "ai": { "binding": "AI", "remote": true },
+  "vars": {
+    "FEATURE_FLAGS": "{\"phase_timers\":true,\"ai_characters\":false,\"realtime_websocket\":true,\"ai_live_demo\":true}"
+  }
+}

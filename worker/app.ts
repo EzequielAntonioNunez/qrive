@@ -16,6 +16,9 @@ import { codeSummaries, consumeLoginAttempt, issueCode, pruneAuth, revokeCodes, 
 import { queueSafeEvent, ROOM_ACTOR_HEADER, type RoomActor } from './room';
 import { DEFAULT_SIMULATED, MAX_SIMULATED } from './demo-class';
 import { CLEF_MODEL, MAX_PHRASE_LENGTH, clefRequest, interpretClef } from './voice-intent';
+import { AiServiceError } from './ai-common';
+import { ownsRun, pruneAiRuns } from './ai-live';
+import { aiErrorResponse, registerAiLiveRoutes } from './ai-routes';
 import type { SessionState } from '../shared/simulation';
 import {
   ALIAS_INVALID, GUEST_SCOPE_ERROR, JOIN_BLOCKED, PIN_INVALID, createGuest, dropCurrentSession, ensurePin, guestAllowed, guestFromCookie,
@@ -90,6 +93,15 @@ const SONIOX_REGIONS = {
   us: { region: 'us', api: 'https://api.soniox.com', websocketUrl: 'wss://stt-rt.soniox.com/transcribe-websocket' }
 } as const;
 
+/**
+ * Síntesis de voz en tiempo real (modo IA en vivo): WebSocket TTS de Soniox. La documentación solo publica el host
+ * global; el host UE sigue el patrón de STT y está pendiente de verificar cuando haya proyecto UE.
+ */
+const SONIOX_TTS = { eu: 'wss://tts-rt.eu.soniox.com/tts-websocket', us: 'wss://tts-rt.soniox.com/tts-websocket' } as const;
+export const TTS_VOICE = { model: 'tts-rt-v2', voice: 'Carmen', language: 'es' } as const;
+/** Orígenes WebSocket de Soniox (STT y TTS) que la consola necesita solo con el modo IA en vivo activado. */
+const SONIOX_SOCKETS = 'wss://stt-rt.eu.soniox.com wss://stt-rt.soniox.com wss://tts-rt.eu.soniox.com wss://tts-rt.soniox.com';
+
 const CSP = {
   // Respuestas JSON: no se interpretan como documento.
   api: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
@@ -112,24 +124,27 @@ function surfaceOf(path: string): SurfaceKind {
  * CSP de una superficie. La consola abre el WebSocket de tiempo real de su propio origen: `connect-src 'self'` no
  * cubre ws:/wss: en todos los navegadores, así que se añade explícitamente el origen WebSocket del propio host.
  */
-export function cspFor(kind: SurfaceKind, requestUrl?: string): string {
+export function cspFor(kind: SurfaceKind, requestUrl?: string, aiLive = false): string {
   if (kind !== 'console' || !requestUrl) return CSP[kind];
   let socketOrigin: string | null = null;
   try {
     const url = new URL(requestUrl);
     socketOrigin = `${url.protocol === 'http:' ? 'ws:' : 'wss:'}//${url.host}`;
   } catch { socketOrigin = null; }
-  return socketOrigin ? CSP.console.replace("connect-src 'self'", `connect-src 'self' ${socketOrigin}`) : CSP.console;
+  let policy = socketOrigin ? CSP.console.replace("connect-src 'self'", `connect-src 'self' ${socketOrigin}`) : CSP.console;
+  // Modo IA en vivo (flag ai_live_demo): voz de Soniox desde la consola y audio sintetizado en blob:.
+  if (aiLive) policy = policy.replace(/connect-src ([^;]*);/, (_match, sources: string) => `connect-src ${sources} ${SONIOX_SOCKETS};`).replace("media-src 'self'", "media-src 'self' blob:");
+  return policy;
 }
 
 /** Copia la respuesta (las de ASSETS y Durable Objects tienen cabeceras inmutables) y añade las cabeceras de seguridad. */
-export function withSecurityHeaders(response: Response, path: string, requestId: string, requestUrl?: string): Response {
+export function withSecurityHeaders(response: Response, path: string, requestId: string, requestUrl?: string, aiLive = false): Response {
   // 101 (WebSocket aceptado): la respuesta del Durable Object lleva el socket y no admite copia ni cabeceras nuevas.
   if (response.status === 101) return response;
   const kind = surfaceOf(path);
   const out = new Response(response.body, response);
   const headers = out.headers;
-  headers.set('content-security-policy', cspFor(kind, requestUrl));
+  headers.set('content-security-policy', cspFor(kind, requestUrl, aiLive));
   headers.set('strict-transport-security', 'max-age=31536000; includeSubDomains');
   headers.set('x-content-type-options', 'nosniff');
   headers.set('x-frame-options', kind === 'simulator' ? 'SAMEORIGIN' : 'DENY');
@@ -137,7 +152,8 @@ export function withSecurityHeaders(response: Response, path: string, requestId:
   headers.set('referrer-policy', 'same-origin');
   headers.set('cross-origin-opener-policy', 'same-origin');
   headers.set('cross-origin-resource-policy', 'same-origin');
-  headers.set('permissions-policy', `camera=(), microphone=${kind === 'simulator' ? '(self)' : '()'}, geolocation=(), payment=(), usb=()`);
+  // Micrófono: simulador y, con el modo IA en vivo activado, la consola del instructor.
+  headers.set('permissions-policy', `camera=(), microphone=${kind === 'simulator' || (kind === 'console' && aiLive) ? '(self)' : '()'}, geolocation=(), payment=(), usb=()`);
   if (kind === 'api' && !headers.has('cache-control')) headers.set('cache-control', 'no-store');
   headers.set('x-request-id', requestId);
   return out;
@@ -148,6 +164,10 @@ export function createApp(demo = false) {
   app.onError((error, c) => {
     const requestId = c.get('requestId');
     if (error instanceof HttpError) return c.json({ error: error.message }, error.status);
+    if (error instanceof AiServiceError) {
+      if (error.status >= 500 || error.status === 429) console.warn(JSON.stringify({ code: 'AI_REJECTED', requestId, path: c.req.path, errorCode: error.code, status: error.status }));
+      return aiErrorResponse(c, error);
+    }
     const known = error instanceof DomainError || error instanceof ScenarioError || error instanceof SessionNameError;
     if (known) {
       console.warn(JSON.stringify({ code: 'API_REJECTED', requestId, path: c.req.path, message: error.message }));
@@ -164,7 +184,7 @@ export function createApp(demo = false) {
     c.set('requestId', requestId);
     await next();
     // Reasignar c.res copiaría la respuesta 101 y perdería el WebSocket: se deja tal cual.
-    if (c.res.status !== 101) c.res = withSecurityHeaders(c.res, c.req.path, requestId, c.req.url);
+    if (c.res.status !== 101) c.res = withSecurityHeaders(c.res, c.req.path, requestId, c.req.url, flags(c.env).ai_live_demo);
     const identity = c.get('identity') as Identity | undefined;
     console.log(JSON.stringify({
       code: 'REQUEST', requestId, method: c.req.method, path: c.req.path, status: c.res.status, durationMs: Date.now() - started,
@@ -321,13 +341,20 @@ export function createApp(demo = false) {
   app.post('/api/voice/temporary-key', async c => {
     const service = voiceService(c.env);
     if (!service) return c.json({ error: 'El reconocimiento de voz todavía no está disponible.' }, 503);
-    const body = await readJson(c) as { sessionId?: unknown };
+    const body = await readJson(c) as { sessionId?: unknown; aiRunId?: unknown };
     const sessionId = typeof body.sessionId === 'string' ? body.sessionId : '';
     const identity = c.get('identity');
-    if (identity.role !== 'participant') return c.json({ error: 'La respuesta por voz está reservada al participante.' }, 403);
-    if (identity.guest && sessionId !== identity.guest.sessionId) return c.json({ error: GUEST_SCOPE_ERROR }, 403);
-    if (!/^[\w-]{8,80}$/.test(sessionId) || !await sessionFor(c.env, identity.tenantId, sessionId))
-      return c.json({ error: 'Sesión no encontrada.' }, 404);
+    if (identity.role === 'instructor') {
+      // Modo IA en vivo: el instructor responde por voz en su propia partida (flag ai_live_demo). Sin aiRunId, como antes.
+      const aiRunId = typeof body.aiRunId === 'string' ? body.aiRunId : '';
+      if (!aiRunId || !flags(c.env).ai_live_demo) return c.json({ error: 'La respuesta por voz está reservada al participante.' }, 403);
+      if (!await ownsRun(c.env, identity.tenantId, identity.id, aiRunId)) return c.json({ error: 'Partida no encontrada.' }, 404);
+    } else {
+      if (identity.role !== 'participant') return c.json({ error: 'La respuesta por voz está reservada al participante.' }, 403);
+      if (identity.guest && sessionId !== identity.guest.sessionId) return c.json({ error: GUEST_SCOPE_ERROR }, 403);
+      if (!/^[\w-]{8,80}$/.test(sessionId) || !await sessionFor(c.env, identity.tenantId, sessionId))
+        return c.json({ error: 'Sesión no encontrada.' }, 404);
+    }
     if (c.env.VOICE_LIMITER) {
       const { success } = await c.env.VOICE_LIMITER.limit({ key: identity.id });
       if (!success) return c.json({ error: 'Demasiados intentos de voz. Espera un minuto.' }, 429);
@@ -351,6 +378,35 @@ export function createApp(demo = false) {
     if (typeof data.api_key !== 'string' || !data.api_key.startsWith('snx_temp_'))
       return c.json({ error: 'Soniox no devolvió una credencial temporal válida.' }, 502);
     return c.json({ apiKey: data.api_key, websocketUrl: service.websocketUrl, expiresAt: data.expires_at });
+  });
+  // Modo IA en vivo: clave temporal de Soniox para la voz de VictorIA en tiempo real (TTS). Solo instructores con el
+  // flag ai_live_demo (los invitados quedan fuera por la lista cerrada de guests.ts). Clave de un solo uso: el
+  // cliente abre un único WebSocket por partida y envía cada locución como un stream_id distinto.
+  app.post('/api/voice/tts-key', async c => {
+    const identity = c.get('identity');
+    if (!flags(c.env).ai_live_demo) return c.json({ error: 'Ruta no encontrada.' }, 404);
+    if (identity.role !== 'instructor') return c.json({ error: 'La voz en tiempo real está reservada al instructor.' }, 403);
+    await readJson(c, true);
+    const service = voiceService(c.env);
+    if (!service) return c.json({ error: 'La voz en tiempo real todavía no está disponible.' }, 503);
+    // Límite propio (TTS_LIMITER, 30/min): el cliente pide una clave de un solo uso por WebSocket y reconecta tras inactividad.
+    if (c.env.TTS_LIMITER) {
+      const { success } = await c.env.TTS_LIMITER.limit({ key: identity.id });
+      if (!success) return c.json({ error: 'Demasiadas peticiones de voz. Espera un minuto.' }, 429);
+    }
+    const upstream = await fetch(`${service.api}/v1/auth/temporary-api-key`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${service.key}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ usage_type: 'tts_rt', expires_in_seconds: 60, single_use: true, max_session_duration_seconds: 1800, client_reference_id: identity.id })
+    });
+    if (!upstream.ok) {
+      console.warn(JSON.stringify({ code: 'SONIOX_TTS_KEY_FAILED', region: service.region, status: upstream.status, requestId: c.get('requestId') }));
+      return c.json({ error: 'No se ha podido activar la voz. Inténtalo de nuevo.' }, 502);
+    }
+    const data = await upstream.json() as { api_key?: unknown; expires_at?: unknown };
+    if (typeof data.api_key !== 'string' || !data.api_key.startsWith('snx_temp_'))
+      return c.json({ error: 'Soniox no devolvió una credencial temporal válida.' }, 502);
+    return c.json({ apiKey: data.api_key, websocketUrl: SONIOX_TTS[service.region], ...TTS_VOICE, expiresAt: data.expires_at ?? null });
   });
   // Respuesta libre por voz: Clef asigna la frase del participante a una de las opciones que está viendo.
   // Las opciones salen del estado de la sesión en el servidor (vista del participante), nunca del cliente.
@@ -725,6 +781,8 @@ export function createApp(demo = false) {
       .bind(identity.tenantId, id).all();
     return c.json({ events: rows.results.map(row => ({ seq: row.seq, type: row.type, at: row.at, actorId: row.actorId, detail: JSON.parse(String(row.detailJson)) })) });
   });
+  // Modo IA en vivo (demo): colecciones de conocimiento y partidas generadas (worker/ai-routes.ts).
+  registerAiLiveRoutes(app, { readJson, audit });
   app.all('/api/*', c => c.json({ error: 'Ruta no encontrada.' }, 404));
 
   // Páginas de la consola (run_worker_first; HEAD también llega aquí): se sirven desde los static assets con las cabeceras de seguridad.
@@ -819,6 +877,8 @@ export async function applyRetention(env: Env, now = new Date()): Promise<number
   const auditDeleted = pruned?.meta?.changes ?? 0;
   await pruneAuth(env, now);
   await pruneGuests(env, now);
+  // Partidas del modo IA en vivo: resultados de demostración, como mucho RETENTION_DAYS (las colecciones las borra el instructor).
+  await pruneAiRuns(env, days, now);
   if (rows.results.length || auditDeleted) console.log(JSON.stringify({ code: 'RETENTION_APPLIED', deleted: rows.results.length, retentionDays: days, auditDeleted, auditRetentionDays: auditDays }));
   return rows.results.length;
 }

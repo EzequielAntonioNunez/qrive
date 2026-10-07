@@ -24,6 +24,18 @@ function decisionTone(quality: string | null | undefined): { label: string; tone
 /** Para «riesgo», bajar es bueno. */
 function meterGood(meter: MeterName, delta: number): boolean { return meter === 'risk' ? delta < 0 : delta > 0; }
 
+/** Solo suena una voz a la vez: la situación o la reacción a la decisión. */
+let speakingAudio: HTMLAudioElement | null = null;
+function playExclusive(element: HTMLAudioElement): Promise<void> {
+  if (speakingAudio && speakingAudio !== element) speakingAudio.pause();
+  speakingAudio = element;
+  return element.play();
+}
+/** Respuesta hablada de VictorIA a una opción, generada offline con la misma voz (scripts/tts/generate_reactions.mjs). */
+function reactionUrl(phaseId: string, optionId: string): string {
+  return `/voz/reacciones/${encodeURIComponent(phaseId)}__${encodeURIComponent(optionId)}.mp3`;
+}
+
 export function PlayPage({ sessionId }: { sessionId: string }) {
   const [me, setMe] = useState<GuestMe | null>(null);
   const [authError, setAuthError] = useState<'expired' | 'network' | null>(null);
@@ -95,19 +107,37 @@ function PlayView({ payload, userId, alias, mode, sessionId, started, onStart, o
   }, [joined, sessionId, state.status, onReplace]);
   useEffect(() => { setSelected(null); setError(''); }, [phase.id]);
 
+  // Un único elemento de audio para la reacción de VictorIA: se reutiliza al repetirla desde la tarjeta de resultado.
+  const reaction = useRef<HTMLAudioElement | null>(null);
+  const reactionFor = useCallback((phaseId: string, optionId: string) => {
+    const src = reactionUrl(phaseId, optionId);
+    let element = reaction.current;
+    if (!element) { element = new Audio(); element.preload = 'none'; reaction.current = element; }
+    if (element.dataset.src !== src) { element.pause(); element.src = src; element.dataset.src = src; }
+    return element;
+  }, []);
+  // Si el docente pasa a la siguiente situación (o se sale de la vista), la reacción en curso se corta.
+  useEffect(() => () => { reaction.current?.pause(); }, [phase.id]);
+
   const decide = useCallback(async (index: number) => {
     const option = phase.options[index];
     if (!option || busy) return;
     setBusy(true); setError('');
     haptic([18, 40, 18]);
+    // La reacción empieza dentro del gesto de confirmar (iOS no deja reproducir audio después de una espera de red).
+    // Si falta el audio o el navegador lo bloquea, no pasa nada: queda el texto y el botón para escucharla.
+    const reply = reactionFor(phase.id, option.id);
+    reply.currentTime = 0;
+    playExclusive(reply).catch(() => undefined);
     try {
       const next = await guestApi<SessionPayload>(`/sessions/${encodeURIComponent(sessionId)}/commands`, { method: 'POST', body: JSON.stringify({ id: commandId(), type: 'decide', optionId: option.id }) });
       onReplace(next);
     } catch (cause) {
+      reply.pause();
       if ((cause as GuestError).status === 401) onAuthLost();
       else setError(errorText(cause));
     } finally { setBusy(false); }
-  }, [phase, busy, sessionId, onReplace, onAuthLost]);
+  }, [phase, busy, sessionId, onReplace, onAuthLost, reactionFor]);
 
   const voice = useMobileVoice({ sessionId, optionCount: phase.options.length, canDecide, onChoose: index => { setSelected(index); void decide(index); } });
 
@@ -135,7 +165,8 @@ function PlayView({ payload, userId, alias, mode, sessionId, started, onStart, o
       <CharacterLine phase={phase} name={scenario.character.name}/>
     </section>
 
-    {chosen ? <Result phase={phase} option={chosen} index={phase.options.indexOf(chosen)} labels={labels} last={state.phaseIndex === scenario.phases.length - 1}/>
+    {chosen ? <Result phase={phase} option={chosen} index={phase.options.indexOf(chosen)} labels={labels} last={state.phaseIndex === scenario.phases.length - 1}
+        name={scenario.character.name} reactionFor={reactionFor}/>
       : expired ? <section className="play-card play-wait enter"><h2>Se acabó el tiempo de esta situación</h2><p>No pasa nada: en la siguiente podrás volver a decidir.</p><WaitDots/></section>
       : <section className="play-options" aria-label="Opciones">
         <h2 className="play-options-title">¿Qué harías?</h2>
@@ -199,7 +230,7 @@ function CharacterLine({ phase, name }: { phase: Phase; name: string }) {
     const element = audio.current;
     if (!element) return;
     if (playing) { element.pause(); element.currentTime = 0; return; }
-    element.play().catch(() => setMissing(true));
+    playExclusive(element).catch(() => setMissing(true));
   };
   return <figure className="play-line">
     <figcaption><span className="play-avatar" aria-hidden="true">{name.slice(0, 1)}</span>{name}</figcaption>
@@ -223,7 +254,43 @@ function MeterStrip({ meters, initial, labels }: { meters: Meters; initial: Mete
   </div>;
 }
 
-function Result({ phase, option, index, labels, last }: { phase: Phase; option: Choice; index: number; labels: Record<MeterName, string>; last: boolean }) {
+/** Botón para volver a escuchar la reacción de VictorIA a la decisión. Si el audio no existe, no se muestra. */
+function ReactionReplay({ phaseId, optionId, name, reactionFor }: { phaseId: string; optionId: string; name: string; reactionFor: ReactionFor }) {
+  const [playing, setPlaying] = useState(false);
+  const [missing, setMissing] = useState(false);
+  useEffect(() => {
+    const element = reactionFor(phaseId, optionId);
+    setMissing(!!element.error);
+    setPlaying(!element.paused && !element.ended);
+    const on = () => setPlaying(true);
+    const off = () => setPlaying(false);
+    const fail = () => { setPlaying(false); setMissing(true); };
+    element.addEventListener('playing', on);
+    element.addEventListener('pause', off);
+    element.addEventListener('ended', off);
+    element.addEventListener('error', fail);
+    return () => {
+      element.removeEventListener('playing', on);
+      element.removeEventListener('pause', off);
+      element.removeEventListener('ended', off);
+      element.removeEventListener('error', fail);
+    };
+  }, [phaseId, optionId, reactionFor]);
+  if (missing) return null;
+  const toggle = () => {
+    const element = reactionFor(phaseId, optionId);
+    if (playing) { element.pause(); element.currentTime = 0; return; }
+    element.currentTime = 0;
+    playExclusive(element).catch(() => setMissing(true));
+  };
+  return <div><button type="button" className={`play-listen ${playing ? 'playing' : ''}`} onClick={toggle} aria-pressed={playing}>
+    {playing ? <><span className="eq" aria-hidden="true"><i/><i/><i/></span>Detener</> : <><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z" fill="currentColor"/></svg>Escuchar a {name}</>}
+  </button></div>;
+}
+
+type ReactionFor = (phaseId: string, optionId: string) => HTMLAudioElement;
+
+function Result({ phase, option, index, labels, last, name, reactionFor }: { phase: Phase; option: Choice; index: number; labels: Record<MeterName, string>; last: boolean; name: string; reactionFor: ReactionFor }) {
   const tone = decisionTone(option.quality);
   const effects = (option as Partial<Choice>).effects;
   const ref = useRef<HTMLElement>(null);
@@ -237,6 +304,7 @@ function Result({ phase, option, index, labels, last }: { phase: Phase; option: 
       <span className="play-eyebrow">Tu decisión</span>
       <h2 id="resultado" className="play-result-choice"><span className="play-letter" aria-hidden="true">{optionLetter(index)}</span>{option.label}</h2>
       {tone && <span className={`play-quality ${tone.tone}`}>{tone.label}</span>}
+      <ReactionReplay phaseId={phase.id} optionId={option.id} name={name} reactionFor={reactionFor}/>
       <h3>Qué ocurre</h3>
       <p>{option.consequence}</p>
       {effects && <ul className="play-effects" aria-label="Efecto en tus indicadores">{METER_ORDER.filter(meter => effects[meter]).map(meter => <li key={meter} className={meterGood(meter, effects[meter]) ? 'up' : 'down'}>{labels[meter]} <strong>{signed(effects[meter])}</strong></li>)}</ul>}

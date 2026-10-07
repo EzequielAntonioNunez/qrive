@@ -7,6 +7,7 @@ import { applyCommand, createSession, DomainError, expireTimer, type Actor, type
 import { catalogScenarios, classMeters, defaultScenario, participantReport, participantView, performanceReport, type Meters, type SessionState } from '../shared/simulation';
 import { ScenarioError, validateScenario } from '../shared/scenario';
 import type { AnalyticsResponse } from './page-analytics';
+import { handleAiLive } from './ai-live-fake';
 
 type Member = { id: string; email: string; name: string; role: 'instructor' | 'participant' };
 type Code = { id: string; userId: string; code: string; createdAt: string; uses: number; lastUsedAt: string | null };
@@ -157,7 +158,7 @@ async function handle(path: string, init: RequestInit | undefined, role: 'instru
   // Los simulados deciden y los temporizadores vencen al consultar, igual que haría la alarma del Durable Object.
   store.sessions = store.sessions.map(state => expireTimer(stepSimulated(state, store.simulated[state.id] ?? [], Date.now()), now).state);
   const reserved = () => json({ error: 'Acción reservada al docente.' }, 403);
-  if (path === '/me') return json({ identity: { id: actor.id, name: actor.name, email: actor.email, role, tenantId: 'demo' }, demo: true, standalone: true, flags: { phase_timers: true }, permissions: { assignInstructor: role === 'instructor' } });
+  if (path === '/me') return json({ identity: { id: actor.id, name: actor.name, email: actor.email, role, tenantId: 'demo' }, demo: true, standalone: true, flags: { phase_timers: true, ai_live_demo: true }, permissions: { assignInstructor: role === 'instructor' } });
   if (path === '/scenarios') return json({ scenarios: catalogScenarios.map(item => ({ id: item.id, version: item.version, title: item.title, summary: item.summary, phases: item.phases.length, catalog: true })) });
   if (path.startsWith('/scenarios/')) {
     const scenario = catalogScenarios.find(item => item.id === decodeURIComponent(path.slice('/scenarios/'.length)));
@@ -409,6 +410,9 @@ export function installStandaloneApi() {
     const role = demoUser === 'participant' ? 'participant' : 'instructor';
     try {
       // Unión por código e invitado: las páginas públicas no envían x-demo-user (en el Worker van con cookie).
+      // Modo IA en vivo (demo): colecciones, documentos y simulación enlatada (ai-live-fake.ts).
+      const aiResponse = demoUser === null ? null : await handleAiLive(url.slice(4), init, role);
+      if (aiResponse) return aiResponse;
       const joinResponse = handleJoin(url.slice(4), init, demoUser === null, role);
       if (joinResponse) return joinResponse;
       return await handle(url.slice(4), init, role);

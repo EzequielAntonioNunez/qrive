@@ -220,6 +220,10 @@ Aunque en el MVP no hay interacción con un sistema de IA en tiempo real, la voz
 
 **Clasificación de riesgo · [Validar UFV].** El MVP no usa IA para evaluar resultados de aprendizaje, decidir el acceso o la admisión, ni vigilar a estudiantes durante pruebas (supuestos de alto riesgo del anexo III, punto 3, del Reglamento de IA). Si en fases posteriores se incorporan personajes conversacionales con IA o evaluación asistida, habrá que revisar esta clasificación, mantener la supervisión humana y actualizar este documento antes de activarlas.
 
+### 4. Modo IA en vivo (demo) · [Validar UFV]
+
+Modo separado del simulador, activable por configuración (`ai_live_demo`) y reservado a instructores, pensado para demostraciones. A diferencia del MVP, aquí VictorIA **sí usa IA generativa**: los documentos que sube el instructor (PDF, DOCX, TXT, MD o texto pegado) se guardan en R2 (UE) y se procesan con Cloudflare Workers AI (conversión a texto, vectores y un modelo de lenguaje) para generar situaciones, opciones, reacciones y respuestas basadas solo en esos documentos. La ubicación del procesamiento de Workers AI no está garantizada en la UE. La voz de este modo (síntesis de VictorIA y reconocimiento de la persona) usa el proyecto Soniox de **Estados Unidos** (transferencia internacional). La interfaz debe avisar de que el contenido lo genera una IA y puede contener errores. No se guardan las frases dichas, solo la opción elegida; los textos de los documentos no van a registros ni auditoría. **No se deben subir documentos con datos personales** ni usar este modo con estudiantes hasta que el DPO valide proveedores, ubicación y base jurídica, y se revise la clasificación de riesgo del apartado 3.
+
 ---
 
 ## Parte D · Puntos que debe validar la UFV

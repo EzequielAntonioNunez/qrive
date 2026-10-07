@@ -30,7 +30,8 @@ Plataforma de simulación para formación y toma de decisiones. Primer despliegu
 - El participante nunca recibe datos de compañeros ni `quality`/`rationale`/`effects`/`takeaway` antes de decidir: toda respuesta de sesión pasa por `roomPayload`.
 - Las peticiones que cambian estado son `application/json` y del mismo origen (CSRF en `worker/app.ts`).
 - No inferir emociones ni estados psicológicos (AI Act). Las valoraciones `quality` son de la decisión, no de la persona.
-- La única IA en ejecución es Clef (Workers AI, `worker/voice-intent.ts`): asigna la respuesta libre por voz a una opción existente, con confirmación si duda; nunca genera texto ni valora a la persona.
+- El producto determinista (escenarios, sesiones, invitados, analítica) solo usa como IA a Clef (Workers AI, `worker/voice-intent.ts`): asigna la respuesta libre por voz a una opción existente, con confirmación si duda; nunca genera texto ni valora a la persona.
+- El «Modo IA en vivo (demo)» es aparte (flag `ai_live_demo`, solo instructores, `worker/ai-routes.ts`, `ai-live.ts`, `ai-live-prompts.ts`, `knowledge.ts`): IA generativa (Workers AI `gpt-oss-120b`, embeddings `bge-m3`, `toMarkdown`) basada solo en los documentos que sube el instructor, con aviso de transparencia en la interfaz. No toca el motor ni las sesiones; los textos de documentos y las frases dichas no van a logs, eventos ni auditoría; las valoraciones son de la decisión. No subir datos personales a las colecciones.
 - Unity nunca contiene claves de proveedores de IA; la voz se genera offline y se incluye como WAV.
 - No clonar la voz de personas reales sin consentimiento expreso.
 - Los escenarios publicados son inmutables; un cambio es una versión nueva.

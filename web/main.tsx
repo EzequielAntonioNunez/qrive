@@ -21,11 +21,14 @@ import { Sk, ToastProvider } from './ui';
 import { parsePublicRoute } from './guest';
 import { JoinPage } from './page-join';
 import { PlayPage } from './page-play';
+import { aiLiveFlag } from './ai-live-types';
+import { KnowledgePage } from './page-knowledge';
+const AiLivePage = React.lazy(() => import('./page-ai-live').then(module => ({ default: module.AiLivePage })));
 
 const standalone = import.meta.env.VITE_STANDALONE === '1';
 if (standalone) installStandaloneApi();
 
-type Me = { identity: Identity; demo: boolean; flags?: { phase_timers?: boolean; realtime_websocket?: boolean }; permissions?: { assignInstructor?: boolean } };
+type Me = { identity: Identity; demo: boolean; flags?: { phase_timers?: boolean; realtime_websocket?: boolean; ai_live_demo?: boolean }; permissions?: { assignInstructor?: boolean } };
 
 function App() {
   useLegacyRedirect();
@@ -110,8 +113,11 @@ function App() {
   if (!value) return <div className="auth-screen"><div className="auth-card" aria-busy="true"><img src={brand.logoOnDark} alt={brand.organization}/><Sk w={120} h={10}/><Sk w="80%" h={34} className="sk-gap"/><Sk w="100%" h={12} className="sk-gap"/><Sk w="70%" h={12}/><p className="sr-only" role="status">Comprobando tu acceso…</p>{loadError && <p className="error" role="alert">{loadError}</p>}</div></div>;
 
   const instructor = value.isInstructor;
+  // Modo IA en vivo (demo): solo docentes y con la bandera ai_live_demo. El reproductor va a pantalla completa, fuera del marco.
+  aiLiveFlag.enabled = instructor && me?.flags?.ai_live_demo === true;
+  if (route.name === 'ai-live' && aiLiveFlag.enabled) return <AppProvider value={value}><React.Suspense fallback={<div className="ai-live"><div className="ai-bg"/></div>}><AiLivePage key={route.id} runId={route.id}/></React.Suspense></AppProvider>;
   const openCount = (sessions ?? []).filter(item => item.status !== 'complete').length;
-  const section = route.name === 'session' || route.name === 'new-session' ? 'sessions' : route.name === 'scenario' ? 'scenarios' : route.name;
+  const section = route.name === 'session' || route.name === 'new-session' ? 'sessions' : route.name === 'scenario' || route.name === 'knowledge' ? 'scenarios' : route.name;
   const nav = instructor
     ? [{ key: 'home', to: '/', label: 'Inicio', icon: 'home' }, { key: 'sessions', to: '/sesiones', label: 'Sesiones', icon: 'sessions', badge: openCount }, { key: 'analytics', to: '/analitica', label: 'Analítica', icon: 'chart' }, { key: 'scenarios', to: '/escenarios', label: 'Escenarios', icon: 'scenarios' }, { key: 'people', to: '/participantes', label: 'Participantes y accesos', icon: 'people' }]
     : [{ key: 'home', to: '/', label: 'Mis sesiones', icon: 'home' }];
@@ -145,7 +151,7 @@ function App() {
 }
 
 function pageTitle(route: Route): string {
-  return ({ home: 'Inicio', sessions: 'Sesiones', 'new-session': 'Nueva sesión', session: 'Sesión', scenarios: 'Escenarios', scenario: 'Escenario', people: 'Participantes y accesos', analytics: 'Analítica', 'not-found': 'Página no encontrada' } as Record<Route['name'], string>)[route.name];
+  return ({ home: 'Inicio', sessions: 'Sesiones', 'new-session': 'Nueva sesión', session: 'Sesión', scenarios: 'Escenarios', scenario: 'Escenario', people: 'Participantes y accesos', analytics: 'Analítica', knowledge: 'Modo IA en vivo', 'ai-live': 'VictorIA en vivo', 'not-found': 'Página no encontrada' } as Record<Route['name'], string>)[route.name];
 }
 
 function Page({ route, instructor }: { route: Route; instructor: boolean }) {
@@ -158,6 +164,7 @@ function Page({ route, instructor }: { route: Route; instructor: boolean }) {
     if (route.name === 'scenario') return <ScenarioPage key={route.id} id={route.id}/>;
     if (route.name === 'people') return <PeoplePage/>;
     if (route.name === 'analytics') return <AnalyticsPage/>;
+    if (route.name === 'knowledge' && aiLiveFlag.enabled) return <KnowledgePage/>;
   } else if (route.name === 'sessions') return <HomePage/>;
   return <div className="page"><PageHeader title="Página no encontrada" description={instructor || route.name === 'not-found' ? 'La dirección no existe o ha cambiado.' : 'Esta sección está reservada al equipo docente.'}/>
     <div className="card"><div className="empty-block"><span className="empty-icon"><Icon name="home" size={22}/></span><h3>Vuelve al inicio para seguir</h3><div className="empty-actions"><button className="btn btn-primary" onClick={() => navigate('/')}>Ir a Inicio</button>{instructor && <button className="btn" onClick={() => navigate('/sesiones')}>Ver sesiones</button>}</div></div></div></div>;
