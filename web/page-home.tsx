@@ -124,7 +124,7 @@ function FirstRun() {
 export function FirstRunPath() {
   return <ol className="path">
     <li><span className="path-icon"><Icon name="plus" size={20}/></span><div><small>Paso 1</small><strong>Crea la sesión</strong><p>Elige un escenario del catálogo y ponle el nombre de tu grupo. Menos de un minuto.</p></div></li>
-    <li><span className="path-icon"><Icon name="link" size={20}/></span><div><small>Paso 2</small><strong>Comparte el enlace</strong><p>Cada participante entra desde su navegador con su correo y su código personal, sin instalar nada.</p></div></li>
+    <li><span className="path-icon"><Icon name="link" size={20}/></span><div><small>Paso 2</small><strong>Invita a la clase</strong><p>Proyecta el QR o el código de seis cifras: cada participante entra desde su móvil u ordenador con un alias, sin cuenta ni instalaciones.</p></div></li>
     <li><span className="path-icon"><Icon name="project" size={20}/></span><div><small>Paso 3</small><strong>Proyecta en clase</strong><p>Sigue la votación en directo, revela la mejor opción y descarga el informe al terminar.</p></div></li>
   </ol>;
 }
