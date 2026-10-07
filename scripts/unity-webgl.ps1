@@ -5,7 +5,10 @@
 # Cierra el editor de Unity antes de ejecutarlo: el modo batch no puede abrir un proyecto ya abierto.
 # Uso: pnpm unity:webgl    (otra ruta del editor: $env:UNITY_EDITOR = 'C:\...\Unity.exe')
 #      pnpm unity:webgl -SkipBuild    (solo publica la última compilación de Build/WebGL)
-param([switch]$SkipBuild)
+#      pnpm unity:webgl -Local        (prueba en local de una rama: copia TODOS los ficheros a web/public/simulador/,
+#                                      también los de más de 25 MiB, y NO sube nada a R2. No despliegues ni
+#                                      versiones ese resultado: el despliegue no admite ficheros de más de 25 MiB.)
+param([switch]$SkipBuild, [switch]$Local)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $project = Join-Path $root 'unity\AXYRO.Simulation'
@@ -46,12 +49,18 @@ New-Item -ItemType Directory -Force -Path $target | Out-Null
 
 foreach ($file in $files) {
   $relative = $file.FullName.Substring($build.Length + 1)
-  if ($file.Length -ge $limit) { continue }
+  if ($file.Length -ge $limit -and -not $Local) { continue }
   $destination = Join-Path $target $relative
   New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
   Copy-Item -LiteralPath $file.FullName -Destination $destination
 }
 $total = ($files | Measure-Object -Property Length -Sum).Sum
+if ($Local) {
+  Write-Host ("Copiados {0} ficheros a web/public/simulador/ ({1:N1} MB en total), incluidos {2} de más de 25 MiB." -f $files.Count, ($total / 1MB), $large.Count)
+  Write-Host "`nModo -Local: no se ha subido nada a R2. Prueba con pnpm dev:api (o dev:api:ai) y pnpm dev:web en"
+  Write-Host 'http://127.0.0.1:5173/simulador/index.html?sesion=<id> o ?ia=<runId>. No despliegues ni hagas commit de web/public/simulador/.'
+  exit 0
+}
 Write-Host ("Copiados {0} ficheros a web/public/simulador/ ({1:N1} MB en total)." -f ($files.Count - $large.Count), ($total / 1MB))
 
 if ($large.Count -gt 0) {

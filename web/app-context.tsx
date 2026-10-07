@@ -44,6 +44,11 @@ export function simulatorUrl(sessionId: string, demo: boolean): string {
   return `${window.location.origin}/simulador/${demo ? 'index.html' : ''}?sesion=${encodeURIComponent(sessionId)}`;
 }
 
+/** Modo IA en vivo en 3D: el simulador WebGL con VictorIA conversando sobre una partida de IA del docente. */
+export function aiSimulatorUrl(runId: string, demo: boolean): string {
+  return `${window.location.origin}/simulador/${demo ? 'index.html' : ''}?ia=${encodeURIComponent(runId)}`;
+}
+
 export function scenarioTitleOf(session: SessionSummary, scenarios: ScenarioSummary[] | null): string {
   return session.scenarioTitle || scenarios?.find(item => item.id === session.scenarioId)?.title || 'Simulación';
 }

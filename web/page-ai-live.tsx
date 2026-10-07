@@ -6,7 +6,7 @@
  * La valoración es de la decisión, nunca de la persona; no se infieren emociones.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useApp, type ApiError } from './app-context';
+import { aiSimulatorUrl, useApp, type ApiError } from './app-context';
 import type { AiSituation, AiSource, AiSummary, AnswerResponse, NextResponse, RunResponse, AiRun } from './ai-live-types';
 import { brand } from './brand';
 import { Icon } from './kit';
@@ -394,6 +394,7 @@ export function AiLivePage({ runId }: { runId: string }) {
           : <button className="ai-btn ai-primary ai-lg" onClick={() => void begin(false)} autoFocus><Icon name="play" size={18}/>Empezar</button>}
         </div>
         {!voice && <small className="ai-fine-dark">Reconocimiento de voz no disponible aquí: responde tocando o escribiendo.</small>}
+        {!app.standalone && <a className="ai-btn ai-ghost ai-sm" href={aiSimulatorUrl(runId, app.demo)}><Icon name="external" size={16}/>Abrir en 3D con VictorIA</a>}
       </section>}
 
       {phase === 'error' && <section className="ai-intro" role="alert"><h1>Algo no ha ido bien</h1><p>{view.error}</p><div className="ai-intro-actions">{S.current.started && <button className="ai-btn ai-primary" onClick={() => void goNext()}>Reintentar</button>}<button className="ai-btn ai-ghost" onClick={exit}>Volver</button></div></section>}

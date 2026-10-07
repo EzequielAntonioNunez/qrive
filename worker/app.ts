@@ -110,7 +110,8 @@ const CSP = {
   console: "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; media-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests",
   // Unity WebGL: script y estilo en línea de la plantilla (cambian en cada build, no admiten hash fijo),
   // WebAssembly ('wasm-unsafe-eval'), blob: para el framework descomprimido y los workers, audio y texturas en blob:/data:.
-  simulator: "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data: wss://stt-rt.eu.soniox.com wss://stt-rt.soniox.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests"
+  // Soniox: STT (respuesta por voz) y TTS (voz de VictorIA en el Modo IA en vivo en 3D, /simulador/?ia=).
+  simulator: `default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: data: ${SONIOX_SOCKETS}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests`
 } as const;
 
 type SurfaceKind = keyof typeof CSP;

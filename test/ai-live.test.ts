@@ -238,6 +238,13 @@ describe('modo IA en vivo: acceso', () => {
     expect(csp).toContain('wss://tts-rt.soniox.com;');
     expect(csp).toContain("media-src 'self' blob:");
   });
+
+  it('el simulador 3D (/simulador/?ia=) admite la voz de VictorIA en tiempo real (TTS) además del micrófono', () => {
+    const csp = cspFor('simulator');
+    expect(csp).toContain('wss://stt-rt.eu.soniox.com wss://stt-rt.soniox.com wss://tts-rt.eu.soniox.com wss://tts-rt.soniox.com;');
+    expect(csp).toContain("media-src 'self' data: blob:");
+    expect(csp).toContain("frame-ancestors 'self'");
+  });
 });
 
 describe('colecciones y documentos', () => {
