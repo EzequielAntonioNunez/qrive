@@ -145,7 +145,7 @@ function PlayView({ payload, userId, alias, mode, sessionId, started, onStart, o
   const labels = meterLabels(scenario);
 
   if (state.status === 'complete') return <Shell mode={mode} alias={alias} title={scenario.title}><Finished payload={payload} userId={userId} alias={alias}/></Shell>;
-  if (!started) return <Shell mode={mode} alias={alias} title={scenario.title}><Welcome state={state} alias={alias} onStart={onStart}/></Shell>;
+  if (!started) return <Shell mode={mode} alias={alias} title={scenario.title}><Welcome state={state} alias={alias} onStart={onStart} sessionId={sessionId}/></Shell>;
 
   const chosen = decision ? phase.options.find(option => option.id === decision.optionId) : undefined;
   return <Shell mode={mode} alias={alias} title={scenario.title}>
@@ -187,6 +187,7 @@ function PlayView({ payload, userId, alias, mode, sessionId, started, onStart, o
           </button>
         </div>
       </section>}
+    <Open3D sessionId={sessionId}/>
   </Shell>;
 }
 
@@ -223,7 +224,13 @@ function CharacterLine({ phase, name }: { phase: Phase; name: string }) {
     element.onplaying = () => setPlaying(true);
     element.onerror = () => { setMissing(true); setPlaying(false); };
     audio.current = element;
-    return () => { element.pause(); element.onended = element.onpause = element.onplaying = element.onerror = null; element.src = ''; audio.current = null; };
+    // Los escenarios creados con IA no tienen locución: se comprueba antes de ofrecer «Escuchar». Un fichero que
+    // no existe devuelve la página de la consola (respaldo SPA), así que se exige un tipo de audio.
+    let alive = true;
+    fetch(element.src, { method: 'HEAD' })
+      .then(response => { if (alive && (!response.ok || !(response.headers.get('content-type') ?? '').startsWith('audio/'))) setMissing(true); })
+      .catch(() => undefined);
+    return () => { alive = false; element.pause(); element.onended = element.onpause = element.onplaying = element.onerror = null; element.src = ''; audio.current = null; };
   }, [phase.id]);
   if (!phase.characterLine) return null;
   const toggle = () => {
@@ -319,9 +326,23 @@ function Result({ phase, option, index, labels, last, name, reactionFor }: { pha
   </>;
 }
 
+/**
+ * «Abrir en 3D»: el simulador Unity WebGL de la misma sesión, en la misma pestaña (la cookie de invitado vale allí).
+ * Solo en pantallas de ordenador o tableta (CSS): la descarga (~40 MB) y el 3D no están pensados para un móvil.
+ */
+function Open3D({ sessionId }: { sessionId: string }) {
+  return <div className="play-3d">
+    <a className="play-secondary" href={`/simulador/?sesion=${encodeURIComponent(sessionId)}`}>
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7zm0 2.3 6.7 3.7L12 11.7 5.3 8zM5 9.7l6 3.3v6.7l-6-3.3zm8 10V13l6-3.3v6.7z" fill="currentColor"/></svg>
+      Abrir en 3D
+    </a>
+    <small>Experiencia inmersiva con VictorIA · requiere ordenador</small>
+  </div>;
+}
+
 function WaitDots() { return <span className="wait-dots" aria-hidden="true"><i/><i/><i/></span>; }
 
-function Welcome({ state, alias, onStart }: { state: SessionState; alias: string; onStart: () => void }) {
+function Welcome({ state, alias, onStart, sessionId }: { state: SessionState; alias: string; onStart: () => void; sessionId: string }) {
   const scenario = state.scenario;
   const name = scenario.character.name;
   return <section className="play-card play-welcome enter">
@@ -335,6 +356,7 @@ function Welcome({ state, alias, onStart }: { state: SessionState; alias: string
       <li>Al decidir verás qué ocurre y por qué. Se valora la decisión, no a la persona.</li>
     </ul>
     <button type="button" className="play-primary" onClick={() => { haptic(12); onStart(); }}>{state.phaseIndex > 0 ? `Ir a la situación ${state.phaseIndex + 1}` : 'Empezar'}</button>
+    <Open3D sessionId={sessionId}/>
   </section>;
 }
 

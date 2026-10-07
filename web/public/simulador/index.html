@@ -8,14 +8,39 @@
   <style>
     html, body { margin: 0; height: 100%; background: #001A33; color: #fff; font-family: Arial, Helvetica, sans-serif; overflow: hidden; }
     #unity-canvas { display: block; width: 100vw; height: 100vh; background: #001A33; outline: none; }
-    #carga { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: #001A33; padding: 24px; text-align: center; transition: opacity .4s ease; }
-    #carga.oculta { opacity: 0; pointer-events: none; }
-    #carga img { height: 54px; width: auto; }
-    #carga h1 { font: 400 26px/1.2 Rockwell, "Rockwell Nova", "Roboto Slab", Georgia, serif; margin: 0; }
-    .barra { width: min(360px, 80vw); height: 4px; background: #ffffff26; overflow: hidden; }
-    .barra span { display: block; height: 100%; width: 0; background: #649EFF; transition: width .2s ease; }
-    #estado { font-size: 13px; color: #C9D6E6; margin: 0; min-height: 1.5em; max-width: 520px; line-height: 1.5; }
-    #estado.error { color: #FF5D74; }
+    #carga { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; text-align: center; transition: opacity .5s ease, visibility .5s;
+      background: radial-gradient(ellipse 70% 55% at 50% 42%, #0B3B6E 0%, #04264A 45%, #001A33 100%); }
+    #carga.oculta { opacity: 0; visibility: hidden; pointer-events: none; }
+    #carga .contenido { width: min(460px, 100%); display: flex; flex-direction: column; align-items: center; gap: 18px; }
+    #carga .logo { height: 50px; width: auto; }
+    .anillo { width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center; position: relative; margin-top: 8px; }
+    .anillo::before { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 2px solid #649EFF55; animation: latido 2.4s ease-in-out infinite; }
+    .anillo span { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(145deg, #649EFF, #2D6BD9); color: #001A33; font: 700 30px/1 Rockwell, "Rockwell Nova", "Roboto Slab", Georgia, serif; box-shadow: 0 0 40px #649EFF66; }
+    @keyframes latido { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.14); opacity: .35; } }
+    #carga h1 { font: 400 28px/1.2 Rockwell, "Rockwell Nova", "Roboto Slab", Georgia, serif; margin: 0; letter-spacing: .2px; }
+    #carga .sub { margin: -8px 0 0; color: #C9D6E6; font-size: 14px; }
+    .barra { width: 100%; height: 6px; border-radius: 999px; background: #ffffff1f; overflow: hidden; margin-top: 6px; }
+    .barra span { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #649EFF, #9CC2FF); transition: width .25s ease; }
+    .cifras { width: 100%; display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: #C9D6E6; font-variant-numeric: tabular-nums; margin-top: -8px; }
+    .cifras strong { color: #fff; font-weight: 700; }
+    .consejo { min-height: 4.6em; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 14px 18px; width: 100%; box-sizing: border-box; border-radius: 12px; background: #ffffff0d; border: 1px solid #ffffff1a; }
+    .consejo small { text-transform: uppercase; letter-spacing: .12em; font-size: 10px; color: #9CC2FF; font-weight: 700; }
+    #consejo { margin: 0; font-size: 14px; line-height: 1.5; transition: opacity .35s ease; }
+    #consejo.cambio { opacity: 0; }
+    .nota { margin: 0; font-size: 12px; color: #9FB3CB; line-height: 1.5; }
+    #movil { margin: 0; font-size: 13px; color: #FFD58A; line-height: 1.5; }
+    #movil a { color: #fff; font-weight: 700; }
+    #error { display: none; flex-direction: column; align-items: center; gap: 14px; }
+    #carga.fallo #error { display: flex; }
+    #carga.fallo .anillo, #carga.fallo .barra, #carga.fallo .cifras, #carga.fallo .consejo, #carga.fallo .nota { display: none; }
+    #error p { margin: 0; color: #FFB3BE; font-size: 14px; line-height: 1.55; }
+    .acciones { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .boton { display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px; border-radius: 10px; font: 700 15px Arial, sans-serif; cursor: pointer; text-decoration: none; border: 1.5px solid #649EFF; color: #fff; background: transparent; }
+    .boton.principal { background: #649EFF; color: #001A33; }
+    .boton:focus-visible, #volver:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+    #volver { position: absolute; top: 16px; left: 16px; display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 8px; color: #C9D6E6; font: 600 13px Arial, sans-serif; background: none; border: 0; cursor: pointer; }
+    #volver:hover { color: #fff; background: #ffffff14; }
+    @media (prefers-reduced-motion: reduce) { .anillo::before { animation: none; } #consejo, .barra span, #carga { transition: none; } }
     #axyro-voice { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 10px; max-width: min(90vw, 620px); }
     #axyro-mic { border: 1px solid #649eff; border-radius: 999px; padding: 10px 16px; color: #fff; background: #003865ee; font: 600 13px Arial, sans-serif; cursor: pointer; white-space: nowrap; box-shadow: 0 5px 20px #0006; }
     #axyro-mic:hover, #axyro-mic:focus-visible { background: #145b9a; outline: 2px solid #fff; outline-offset: 2px; }
@@ -28,52 +53,150 @@
 <body>
   <canvas id="unity-canvas" tabindex="-1"></canvas>
   <div id="axyro-voice"><button id="axyro-mic" type="button" hidden>🎙 Activar voz</button><span id="axyro-mic-status" role="status" aria-live="polite"></span></div>
-  <div id="carga" role="status" aria-live="polite">
-    <img src="/brand/ufv-logo-white.svg" alt="Universidad Francisco de Vitoria">
-    <h1>Simulador UFV</h1>
-    <div class="barra" aria-hidden="true"><span id="progreso"></span></div>
-    <p id="estado">Cargando el simulador…</p>
+  <div id="carga">
+    <button id="volver" type="button">← Volver</button>
+    <div class="contenido">
+      <img class="logo" src="/brand/ufv-logo-white.svg" alt="Universidad Francisco de Vitoria">
+      <div class="anillo" aria-hidden="true"><span>V</span></div>
+      <h1>Preparando a VictorIA…</h1>
+      <p class="sub">Simulador UFV · experiencia inmersiva</p>
+      <div class="barra" role="progressbar" aria-label="Carga del simulador" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="progreso"></span></div>
+      <div class="cifras"><strong id="porcentaje">0 %</strong><span id="megas" role="status" aria-live="polite">Conectando…</span></div>
+      <div class="consejo"><small>Mientras carga</small><p id="consejo">VictorIA te planteará situaciones reales sobre el uso de la IA en la universidad.</p></div>
+      <p class="nota">Primera carga: puede tardar en redes lentas; las siguientes son instantáneas.</p>
+      <p id="movil" hidden>En el móvil va mejor la vista ligera: <a id="enlace-movil" href="/unirse">usar la versión móvil</a>.</p>
+      <div id="error" role="alert">
+        <p id="error-texto">No se ha podido cargar el simulador.</p>
+        <div class="acciones"><button id="reintentar" class="boton principal" type="button">Reintentar</button><a id="error-volver" class="boton" href="/">Volver</a></div>
+      </div>
+    </div>
   </div>
+  <script>
+    // Antes del cargador de Unity: anota el tamaño (Content-Length) de cada fichero de Build/ para mostrar los MB reales.
+    (function () {
+      var tamanos = window.axyroBuildBytes = {};
+      var original = window.fetch;
+      if (!original) return;
+      window.axyroRestoreFetch = function () { window.fetch = original; };
+      window.fetch = function (entrada, opciones) {
+        return original.apply(this, arguments).then(function (respuesta) {
+          try {
+            var ruta = new URL(typeof entrada === 'string' ? entrada : entrada.url, location.href).pathname;
+            var longitud = parseInt(respuesta.headers.get('content-length'), 10);
+            if (ruta.indexOf('/Build/') !== -1 && respuesta.status === 200) tamanos[ruta] = longitud > 0 ? longitud : -1;
+          } catch (e) { /* solo informativo */ }
+          return respuesta;
+        });
+      };
+    })();
+  </script>
   <script src="Build/401d2c236a1849ea9a0df76c18ed74df.loader.js"></script>
   <script src="voice.js"></script>
   <script>
     (function () {
       var canvas = document.getElementById('unity-canvas');
       var carga = document.getElementById('carga');
+      var barra = carga.querySelector('.barra');
       var progreso = document.getElementById('progreso');
-      var estado = document.getElementById('estado');
-      function error(texto) {
-        estado.textContent = texto;
-        estado.className = 'error';
+      var porcentaje = document.getElementById('porcentaje');
+      var megas = document.getElementById('megas');
+      var consejo = document.getElementById('consejo');
+      var sesion = new URL(location.href).searchParams.get('sesion') || '';
+      var cargado = false;
+
+      function volver() {
+        if (history.length > 1) history.back();
+        else location.href = sesion ? '/jugar/' + encodeURIComponent(sesion) : '/';
+      }
+      document.getElementById('volver').addEventListener('click', volver);
+      document.getElementById('error-volver').addEventListener('click', function (evento) { evento.preventDefault(); volver(); });
+      document.getElementById('reintentar').addEventListener('click', function () { location.reload(); });
+      if (sesion && window.matchMedia && matchMedia('(max-width: 767px) and (pointer: coarse)').matches) {
+        document.getElementById('enlace-movil').href = '/jugar/' + encodeURIComponent(sesion);
+        document.getElementById('movil').hidden = false;
+      }
+
+      var consejos = [
+        'VictorIA te planteará situaciones reales sobre el uso de la IA en la universidad.',
+        'Se valora la decisión, no a la persona: no hay respuestas trampa.',
+        'Puedes elegir con el ratón, con las teclas 1 a 4 o, si está activada, con la voz.',
+        'Antes de pegar datos en una IA, pregúntate si son personales o confidenciales.',
+        'Una respuesta de IA puede sonar segura y ser falsa: contrasta siempre las fuentes.',
+        'Si usas IA en un trabajo, dilo: la transparencia forma parte del buen uso.',
+        'La IA ayuda; la responsabilidad de la decisión sigue siendo tuya.'
+      ];
+      var turno = 0;
+      var rotacion = setInterval(function () {
+        consejo.className = 'cambio';
+        setTimeout(function () {
+          turno = (turno + 1) % consejos.length;
+          consejo.textContent = consejos[turno];
+          consejo.className = '';
+        }, 350);
+      }, 5200);
+
+      function error(texto, reintentable) {
+        if (cargado) return;
+        clearInterval(rotacion);
+        carga.querySelector('h1').textContent = 'Algo ha fallado al cargar';
+        document.getElementById('error-texto').textContent = texto;
+        document.getElementById('reintentar').hidden = !reintentable;
+        carga.className = 'fallo';
       }
       if (!window.WebGL2RenderingContext) {
-        error('Tu navegador no admite WebGL 2. Abre el enlace con una versión reciente de Chrome, Edge, Firefox o Safari.');
+        error('Tu navegador no admite WebGL 2. Abre el enlace en un ordenador con una versión reciente de Chrome, Edge, Firefox o Safari.', false);
         return;
       }
+      var FALLO = 'No se ha podido cargar el simulador. Comprueba la conexión y vuelve a intentarlo; si persiste, avisa a tu docente.';
+
+      // MB descargados: Unity informa de la fracción (0-0,9) sobre el total de bytes de Build/; el total sale de Content-Length.
+      function totalBytes() {
+        var total = 0, n = 0;
+        for (var ruta in window.axyroBuildBytes) {
+          if (window.axyroBuildBytes[ruta] < 0) return 0;
+          total += window.axyroBuildBytes[ruta]; n++;
+        }
+        return n >= 3 ? total : 0;
+      }
+      function mb(bytes) { return (bytes / 1048576).toFixed(bytes < 10485760 ? 1 : 0).replace('.', ','); }
+
       canvas.addEventListener('click', function () { canvas.focus(); });
       createUnityInstance(canvas, {
-        dataUrl: 'Build/f7777dde2cb8fc9f6a7065987425ddce.data.unityweb',
-        frameworkUrl: 'Build/d1940dd872c88babaac69da42181aef8.framework.js.unityweb',
-        codeUrl: 'Build/ca7c6ba30b06a310a02b5e5ffa0e55d3.wasm.unityweb',
+        dataUrl: 'Build/93bd79e75df6db4f31e9679c0b1b4672.data.unityweb',
+        frameworkUrl: 'Build/5873932605e0b137516cefbd59977471.framework.js.unityweb',
+        codeUrl: 'Build/fc6d53402d12817c2b97e045f410575b.wasm.unityweb',
         streamingAssetsUrl: 'StreamingAssets',
         companyName: "Universidad Francisco de Vitoria",
         productName: "Simulador UFV",
         productVersion: "1.0",
+        // Los nombres llevan hash: el fichero de datos se guarda en la caché de Unity sin revalidar. El resto lo
+        // cachea el navegador (Cache-Control immutable desde el Worker).
+        cacheControl: function (url) { return /\/Build\/[0-9a-f]{32}\./.test(new URL(url, location.href).pathname) && /\.data/.test(url) ? 'immutable' : 'no-store'; },
         // Los avisos (p. ej. descompresión en el navegador) solo van a la consola; los errores se muestran.
         showBanner: function (mensaje, tipo) {
-          if (tipo === 'error') error('No se ha podido cargar el simulador. Recarga la página; si persiste, avisa a tu docente.');
+          if (tipo === 'error') error(FALLO, true);
           console.warn(mensaje);
         }
       }, function (valor) {
-        progreso.style.width = Math.round(valor * 100) + '%';
-        estado.textContent = valor < 0.9 ? 'Cargando el simulador… ' + Math.round(valor * 100) + ' %' : 'Preparando la escena…';
+        var fraccion = Math.min(1, valor / 0.9);
+        var pct = Math.round(valor >= 0.9 ? 100 : fraccion * 100);
+        progreso.style.width = pct + '%';
+        barra.setAttribute('aria-valuenow', String(pct));
+        porcentaje.textContent = pct + ' %';
+        var total = totalBytes();
+        if (valor >= 0.9) megas.textContent = 'Preparando la escena…';
+        else if (total > 0) megas.textContent = mb(fraccion * total) + ' de ' + mb(total) + ' MB';
+        else megas.textContent = valor > 0 ? 'Cargando…' : 'Conectando…';
       }).then(function (unity) {
-        carga.classList.add('oculta');
+        cargado = true;
+        clearInterval(rotacion);
+        if (window.axyroRestoreFetch) window.axyroRestoreFetch();
+        carga.className = 'oculta';
         canvas.focus();
         window.axyroVoice.attach(unity);
       }).catch(function (mensaje) {
         console.error(mensaje);
-        error('No se ha podido cargar el simulador. Recarga la página; si persiste, avisa a tu docente.');
+        error(FALLO, true);
       });
     })();
   </script>

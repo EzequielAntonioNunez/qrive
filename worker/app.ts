@@ -11,7 +11,7 @@ import type { Scenario } from '../shared/simulation';
 import { allowedDomain, identityFor, isOwnerEmail, normalizeEmail, organizationTenant, type Identity, type AuthContext } from './auth';
 import type { Env } from './types';
 import { flags } from './flags';
-import { serveSimulator } from './simulator';
+import { guestSimulatorGate, serveSimulator } from './simulator';
 import { codeSummaries, consumeLoginAttempt, issueCode, pruneAuth, revokeCodes, signInWithCode, signOut } from './access-codes';
 import { queueSafeEvent, ROOM_ACTOR_HEADER, type RoomActor } from './room';
 import { DEFAULT_SIMULATED, MAX_SIMULATED } from './demo-class';
@@ -219,11 +219,13 @@ export function createApp(demo = false) {
   });
   // Simulador WebGL: static assets y, para ficheros de más de 25 MiB, R2 (ver worker/simulator.ts).
   app.on(['GET', 'HEAD'], ['/simulador', '/simulador/*'], async c => {
-    if (!await identityFor(c, demo)) {
+    const identity = await identityFor(c, demo);
+    if (!identity) {
       const next = `${c.req.path}${new URL(c.req.url).search}`;
       return c.redirect(`/?next=${encodeURIComponent(next)}`, 302);
     }
-    return serveSimulator(c.req.raw, c.env);
+    // Invitado: solo el simulador de su sesión (aviso claro si abre otra; la API lo bloquea igualmente).
+    return guestSimulatorGate(identity, c.req.raw) ?? serveSimulator(c.req.raw, c.env);
   });
   // ---------------------------------------------------------------------------------------------
   // Acceso invitado (worker/guests.ts): rutas públicas, sin identidad. Mismas reglas CSRF que el resto; límite de

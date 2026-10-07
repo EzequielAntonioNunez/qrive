@@ -237,6 +237,14 @@ export function AiLivePage({ runId }: { runId: string }) {
     navigate(collection ? `/escenarios/ia?coleccion=${encodeURIComponent(collection)}` : '/escenarios/ia');
   }, []);
 
+  /** «Convertir en escenario para clase»: abre el editor del borrador (la consola, fuera de la pantalla completa). */
+  const convert = useCallback(() => {
+    S.current.turn++;
+    speaker.current?.stop();
+    listener.current?.stop();
+    navigate(`/escenarios/borrador/${encodeURIComponent(runId)}`);
+  }, [runId]);
+
   const restart = useCallback(async (focus: string) => {
     const collectionId = S.current.run?.collectionId;
     if (!collectionId) return;
@@ -392,7 +400,7 @@ export function AiLivePage({ runId }: { runId: string }) {
 
       {phase === 'generating' && !situation && <p className="ai-status ai-preparing"><span className="ai-shimmer">VictorIA está preparando la primera situación…</span>{speakingNow && caption.text && <span className="ai-filler">{caption.text}</span>}</p>}
 
-      {phase === 'summary' && summary && <Summary summary={summary} onBack={exit} onRestart={restart}/>}
+      {phase === 'summary' && summary && <Summary summary={summary} onBack={exit} onRestart={restart} onConvert={convert}/>}
 
       {situation && phase !== 'summary' && phase !== 'intro' && phase !== 'error' && <section className={`ai-situation ${phase === 'generating' ? 'leaving' : ''}`} aria-labelledby="ai-sit-title" key={situation.id}>
         <h1 id="ai-sit-title" className="ai-title">{situation.title}</h1>
@@ -438,7 +446,7 @@ export function AiLivePage({ runId }: { runId: string }) {
   </div>;
 }
 
-function Summary({ summary, onBack, onRestart }: { summary: AiSummary; onBack: () => void; onRestart: (focus: string) => void }) {
+function Summary({ summary, onBack, onRestart, onConvert }: { summary: AiSummary; onBack: () => void; onRestart: (focus: string) => void; onConvert: () => void }) {
   const [focus, setFocus] = useState('');
   const [busy, setBusy] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -449,10 +457,14 @@ function Summary({ summary, onBack, onRestart }: { summary: AiSummary; onBack: (
     <div className="ai-score"><strong>{summary.optimalCount}</strong><span>de {summary.total} decisiones óptimas</span></div>
     <p className="ai-sum-text">{summary.spoken}</p>
     {summary.takeaways?.length > 0 && <><h2>Ideas clave</h2><ul className="ai-takeaways">{summary.takeaways.map((item, i) => <li key={i}><Icon name="check" size={16}/>{item}</li>)}</ul></>}
+    <div className="ai-convert">
+      <button className="ai-btn ai-primary ai-lg" onClick={onConvert}><Icon name="scenarios" size={18}/>Convertir en escenario para clase</button>
+      <small>Revisa y edita estas situaciones antes de publicarlas. Después podrás usarlas en sesiones con QR o PIN, proyector e informe.</small>
+    </div>
     <form className="ai-restart" onSubmit={event => { event.preventDefault(); setBusy(true); onRestart(focus); }}>
       <label htmlFor="ai-focus">Otro enfoque (opcional)</label>
       <div><input id="ai-focus" value={focus} maxLength={200} placeholder="Ej.: más centrado en la evaluación" onChange={event => setFocus(event.target.value)}/>
-        <button className="ai-btn ai-primary" disabled={busy}><Icon name="sparkles" size={16}/>{busy ? 'Preparando…' : 'Repetir con otro enfoque'}</button></div>
+        <button className="ai-btn ai-ghost" disabled={busy}><Icon name="sparkles" size={16}/>{busy ? 'Preparando…' : 'Repetir con otro enfoque'}</button></div>
     </form>
     <button className="ai-btn ai-ghost" onClick={onBack}><Icon name="back" size={16}/>Volver</button>
   </section>;

@@ -20,6 +20,12 @@
       "port": 5277
     },
     {
+      "name": "standalone-escenarios",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["exec", "vite", "--mode", "standalone", "--port", "5333", "--strictPort"],
+      "port": 5333
+    },
+    {
       "name": "api-local",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev:api"],

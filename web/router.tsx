@@ -11,6 +11,7 @@
  *   /analitica             Analítica agregada de la organización (?rango=&escenario=&simuladas=1)
  *   /escenarios/ia         Modo IA en vivo · demo: colecciones de conocimiento (?coleccion=<id>)
  *   /ia/:runId             Reproductor inmersivo del modo IA en vivo (pantalla completa)
+ *   /escenarios/borrador/:runId  Revisión y publicación de un escenario generado a partir de una partida con IA
  *
  * Compatibilidad: /?sesion=<id>&vista=<v> (enlaces anteriores) se redirige a /sesiones/<id>?vista=<v>.
  */
@@ -27,6 +28,7 @@ export type Route =
   | { name: 'analytics' }
   | { name: 'knowledge' }
   | { name: 'ai-live'; id: string }
+  | { name: 'scenario-draft'; runId: string }
   | { name: 'not-found' };
 
 const listeners = new Set<() => void>();
@@ -61,6 +63,8 @@ export function parseRoute(pathname: string): Route {
   if (path === '/participantes') return { name: 'people' };
   if (path === '/analitica') return { name: 'analytics' };
   if (path === '/escenarios/ia') return { name: 'knowledge' };
+  const draft = path.match(/^\/escenarios\/borrador\/([\w-]{1,80})$/);
+  if (draft) return { name: 'scenario-draft', runId: draft[1] };
   const aiRun = path.match(/^\/ia\/([\w-]{1,80})$/);
   if (aiRun) return { name: 'ai-live', id: aiRun[1] };
   const session = path.match(/^\/sesiones\/([\w-]{1,80})$/);

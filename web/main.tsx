@@ -24,6 +24,7 @@ import { PlayPage } from './page-play';
 import { aiLiveFlag } from './ai-live-types';
 import { KnowledgePage } from './page-knowledge';
 const AiLivePage = React.lazy(() => import('./page-ai-live').then(module => ({ default: module.AiLivePage })));
+const ScenarioEditorPage = React.lazy(() => import('./page-scenario-editor').then(module => ({ default: module.ScenarioEditorPage })));
 
 const standalone = import.meta.env.VITE_STANDALONE === '1';
 if (standalone) installStandaloneApi();
@@ -88,6 +89,10 @@ function App() {
     return request;
   }, [api]);
   useEffect(() => { loading.current.clear(); setScenarioDetails({}); }, [api]);
+  const reloadScenarios = useCallback(async (forget?: string) => {
+    if (forget) { loading.current.delete(forget); setScenarioDetails(current => { const next = { ...current }; delete next[forget]; return next; }); }
+    try { const result = await api<{ scenarios: ScenarioSummary[] }>('/scenarios'); setScenarios(result.scenarios); } catch { /* se conserva el listado anterior */ }
+  }, [api]);
 
   const updateSession = useCallback((id: string, patch: Partial<SessionSummary>) => setSessions(current => current?.map(item => item.id === id ? { ...item, ...patch } : item) ?? current), []);
   const dropSessions = useCallback((ids: string[]) => setSessions(current => current?.filter(item => !ids.includes(item.id)) ?? current), []);
@@ -106,8 +111,8 @@ function App() {
   const value = useMemo<AppContextValue | null>(() => me ? {
     api, identity: me.identity, isInstructor: me.identity.role === 'instructor', demo: me.demo, standalone,
     timersOn: me.flags?.phase_timers !== false, realtime: me.flags?.realtime_websocket === true, canAssignInstructor: me.permissions?.assignInstructor === true,
-    sessions, reloadSessions, updateSession, dropSessions, scenarios, scenarioDetails, loadScenario
-  } : null, [api, me, sessions, reloadSessions, updateSession, dropSessions, scenarios, scenarioDetails, loadScenario]);
+    sessions, reloadSessions, updateSession, dropSessions, scenarios, scenarioDetails, loadScenario, reloadScenarios
+  } : null, [api, me, sessions, reloadSessions, updateSession, dropSessions, scenarios, scenarioDetails, loadScenario, reloadScenarios]);
 
   if (authRequired) return <Login api={api} onDone={() => { setAuthRequired(false); void loadMe(); }}/>;
   if (!value) return <div className="auth-screen"><div className="auth-card" aria-busy="true"><img src={brand.logoOnDark} alt={brand.organization}/><Sk w={120} h={10}/><Sk w="80%" h={34} className="sk-gap"/><Sk w="100%" h={12} className="sk-gap"/><Sk w="70%" h={12}/><p className="sr-only" role="status">Comprobando tu acceso…</p>{loadError && <p className="error" role="alert">{loadError}</p>}</div></div>;
@@ -117,7 +122,7 @@ function App() {
   aiLiveFlag.enabled = instructor && me?.flags?.ai_live_demo === true;
   if (route.name === 'ai-live' && aiLiveFlag.enabled) return <AppProvider value={value}><React.Suspense fallback={<div className="ai-live"><div className="ai-bg"/></div>}><AiLivePage key={route.id} runId={route.id}/></React.Suspense></AppProvider>;
   const openCount = (sessions ?? []).filter(item => item.status !== 'complete').length;
-  const section = route.name === 'session' || route.name === 'new-session' ? 'sessions' : route.name === 'scenario' || route.name === 'knowledge' ? 'scenarios' : route.name;
+  const section = route.name === 'session' || route.name === 'new-session' ? 'sessions' : route.name === 'scenario' || route.name === 'knowledge' || route.name === 'scenario-draft' ? 'scenarios' : route.name;
   const nav = instructor
     ? [{ key: 'home', to: '/', label: 'Inicio', icon: 'home' }, { key: 'sessions', to: '/sesiones', label: 'Sesiones', icon: 'sessions', badge: openCount }, { key: 'analytics', to: '/analitica', label: 'Analítica', icon: 'chart' }, { key: 'scenarios', to: '/escenarios', label: 'Escenarios', icon: 'scenarios' }, { key: 'people', to: '/participantes', label: 'Participantes y accesos', icon: 'people' }]
     : [{ key: 'home', to: '/', label: 'Mis sesiones', icon: 'home' }];
@@ -151,7 +156,7 @@ function App() {
 }
 
 function pageTitle(route: Route): string {
-  return ({ home: 'Inicio', sessions: 'Sesiones', 'new-session': 'Nueva sesión', session: 'Sesión', scenarios: 'Escenarios', scenario: 'Escenario', people: 'Participantes y accesos', analytics: 'Analítica', knowledge: 'Modo IA en vivo', 'ai-live': 'VictorIA en vivo', 'not-found': 'Página no encontrada' } as Record<Route['name'], string>)[route.name];
+  return ({ home: 'Inicio', sessions: 'Sesiones', 'new-session': 'Nueva sesión', session: 'Sesión', scenarios: 'Escenarios', scenario: 'Escenario', people: 'Participantes y accesos', analytics: 'Analítica', knowledge: 'Modo IA en vivo', 'ai-live': 'VictorIA en vivo', 'scenario-draft': 'Revisar escenario', 'not-found': 'Página no encontrada' } as Record<Route['name'], string>)[route.name];
 }
 
 function Page({ route, instructor }: { route: Route; instructor: boolean }) {
@@ -165,6 +170,7 @@ function Page({ route, instructor }: { route: Route; instructor: boolean }) {
     if (route.name === 'people') return <PeoplePage/>;
     if (route.name === 'analytics') return <AnalyticsPage/>;
     if (route.name === 'knowledge' && aiLiveFlag.enabled) return <KnowledgePage/>;
+    if (route.name === 'scenario-draft' && aiLiveFlag.enabled) return <React.Suspense fallback={<div className="page" aria-busy="true"/>}><ScenarioEditorPage key={route.runId} runId={route.runId}/></React.Suspense>;
   } else if (route.name === 'sessions') return <HomePage/>;
   return <div className="page"><PageHeader title="Página no encontrada" description={instructor || route.name === 'not-found' ? 'La dirección no existe o ha cambiado.' : 'Esta sección está reservada al equipo docente.'}/>
     <div className="card"><div className="empty-block"><span className="empty-icon"><Icon name="home" size={22}/></span><h3>Vuelve al inicio para seguir</h3><div className="empty-actions"><button className="btn btn-primary" onClick={() => navigate('/')}>Ir a Inicio</button>{instructor && <button className="btn" onClick={() => navigate('/sesiones')}>Ver sesiones</button>}</div></div></div></div>;

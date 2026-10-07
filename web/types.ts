@@ -36,7 +36,7 @@ export type LiveTally = { phaseId: string; counts: number[]; decided: number; to
 /** Participante tal como llega a la consola: los de «Simular clase» traen `simulated: true`. */
 export type Person = Participant & { simulated?: boolean };
 export type SessionPayload = { state: SessionState; report: Report; clients?: { unity?: string }; liveTally?: LiveTally };
-export type ScenarioSummary = { id: string; version: number; title: string; summary: string; phases: number; catalog: boolean };
+export type ScenarioSummary = { id: string; version: number; title: string; summary: string; phases: number; catalog: boolean; origin?: 'ai' | null; publishedBy?: string | null; publishedAt?: string | null };
 export type Member = { id: string; email: string; name: string; role: Role };
 export type CodeSummary = { id: string; userId: string; createdAt: string; uses: number; lastUsedAt: string | null };
 export type CodeUse = { codeId: string; userId: string; name: string | null; at: string; outcome: 'accepted' | 'revoked' };

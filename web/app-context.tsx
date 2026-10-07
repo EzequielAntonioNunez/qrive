@@ -28,6 +28,8 @@ export type AppContextValue = {
   scenarios: ScenarioSummary[] | null;
   scenarioDetails: Record<string, Scenario>;
   loadScenario: (id: string) => Promise<Scenario | null>;
+  /** Vuelve a pedir el listado de escenarios (p. ej., tras publicar uno) y olvida el detalle en caché de `id`. */
+  reloadScenarios?: (forget?: string) => Promise<void>;
 };
 
 export const AppContext = createContext<AppContextValue | null>(null);

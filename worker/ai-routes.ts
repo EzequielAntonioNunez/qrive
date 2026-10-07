@@ -1,6 +1,9 @@
 import type { Context, Hono } from 'hono';
 import { AiServiceError } from './ai-common';
-import { answer, createRun, deleteRun, getRun, nextStep, parseAnswerRequest, parseRunRequest, type LiveContext } from './ai-live';
+import { AI_DRAFT_MIN_PHASES, aiScenarioProblem, draftFromSituations, isAiScenarioIdFor } from '../shared/ai-draft';
+import { validateScenario } from '../shared/scenario';
+import { answer, createRun, deleteRun, draftSource, getRun, listRuns, nextStep, parseAnswerRequest, parseRunRequest, type LiveContext } from './ai-live';
+import { latestOwnVersion, publishScenario } from './scenarios';
 import type { AuthContext, Identity } from './auth';
 import { flags } from './flags';
 import {
@@ -93,7 +96,44 @@ export function registerAiLiveRoutes(app: Hono<AuthContext>, deps: AiRouteDeps):
     await deps.audit(c.env, identity, null, 'ai_run_created', { runId: run.id, collectionId: run.collectionId, situations: run.situationsTotal, focused: run.focus !== null });
     return c.json({ run }, 201);
   });
+  app.get('/api/ai-runs', async c => c.json({ runs: await listRuns(live(c), c.req.query('collectionId') ?? null) }));
   app.get('/api/ai-runs/:id', async c => c.json(await getRun(live(c), c.req.param('id'))));
+
+  // «Guardar como escenario»: borrador determinista (sin IA) con las situaciones ya generadas. No se guarda nada.
+  app.post('/api/ai-runs/:id/draft', async c => {
+    await deps.readJson(c, true);
+    const identity = c.get('identity');
+    const source = await draftSource(live(c), c.req.param('id'));
+    if (source.situations.length < AI_DRAFT_MIN_PHASES)
+      return c.json({ error: `Hacen falta al menos ${AI_DRAFT_MIN_PHASES} situaciones generadas para crear un escenario. Avanza en la partida y vuelve a intentarlo.`, code: 'DRAFT_TOO_SHORT' }, 409);
+    const result = draftFromSituations({
+      runId: source.run.id, collectionId: source.run.collectionId, collectionName: source.collectionName, focus: source.run.focus,
+      total: source.run.situationsTotal, situations: source.situations
+    });
+    const latest = await latestOwnVersion(c.env, identity.tenantId, result.draft.id);
+    if (latest) result.draft.version = latest + 1;
+    return c.json({ ...result, latestVersion: latest, run: { id: source.run.id, status: source.run.status, generated: source.situations.length, total: source.run.situationsTotal } });
+  });
+
+  // Publicación del borrador revisado: misma validación e inmutabilidad que POST /api/scenarios, con procedencia.
+  app.post('/api/ai-runs/:id/publish', async c => {
+    const identity = c.get('identity');
+    const body = await deps.readJson(c) as { scenario?: unknown } | null;
+    const source = await draftSource(live(c), c.req.param('id'));
+    const raw = body?.scenario;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return c.json({ error: 'Falta el escenario (scenario).' }, 400);
+    const candidate = validateScenario({ ...(raw as Record<string, unknown>), origin: undefined });
+    if (!isAiScenarioIdFor(candidate.id, source.run.id)) return c.json({ error: 'id: debe conservar el identificador del borrador.' }, 400);
+    const problem = aiScenarioProblem(candidate);
+    if (problem) return c.json({ error: problem }, 400);
+    const latest = await latestOwnVersion(c.env, identity.tenantId, candidate.id);
+    if (latest && candidate.version <= latest)
+      return c.json({ error: `Ya publicaste la versión ${latest} de este escenario. Las versiones publicadas no cambian: publica la versión ${latest + 1}.`, code: 'VERSION_CONFLICT', latestVersion: latest }, 409);
+    const scenario = await publishScenario(c.env, identity.tenantId, identity.id, candidate,
+      { origin: { kind: 'ai', runId: source.run.id, collectionId: source.run.collectionId } });
+    await deps.audit(c.env, identity, null, 'scenario_published_from_ai', { scenarioId: scenario.id, version: scenario.version, runId: source.run.id, collectionId: source.run.collectionId, phases: scenario.phases.length });
+    return c.json({ scenario }, 201);
+  });
   app.delete('/api/ai-runs/:id', async c => {
     const identity = c.get('identity');
     const id = c.req.param('id');

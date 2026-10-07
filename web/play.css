@@ -203,3 +203,13 @@
 .play-live.polling .dot{background:#3DDC97;animation:none}.play-live.polling{color:#BFF3DC}
 .play-confirm:not(.show){position:static;background:none}
 .play-timeline .play-quality{justify-self:start}
+
+/* «Abrir en 3D» (simulador Unity WebGL): solo en ordenador o tableta; en móvil, la vista ligera. */
+.play-3d{display:none}
+@media (min-width:768px){
+  .play-3d{display:grid;justify-items:center;gap:6px;margin:18px auto 4px;text-align:center}
+  .play-3d .play-secondary{text-decoration:none;min-width:220px;border-color:var(--p-sky);background:linear-gradient(180deg,#fff,var(--p-wash))}
+  .play-3d .play-secondary:hover{background:var(--p-wash)}
+  .play-3d .play-secondary:focus-visible{outline:3px solid var(--p-sky);outline-offset:2px}
+  .play-3d small{font-size:12px;color:var(--p-muted)}
+}

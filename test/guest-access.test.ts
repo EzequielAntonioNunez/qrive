@@ -382,6 +382,38 @@ describe('ámbito del invitado', () => {
     expect(own.state.participants).toHaveLength(1);
   });
 
+  it('abre el simulador 3D de su sesión y juega; otra sesión muestra un aviso y la API la sigue bloqueando', async () => {
+    const { call, pinOf, join, assets } = setup();
+    const { cookie, body } = await join(await pinOf(), 'Ana');
+    const own = await call('GET', `/simulador/index.html?sesion=${SESSION}`, { cookie });
+    expect(own.status).toBe(200);
+    expect(own.headers.get('content-security-policy')).toContain("'wasm-unsafe-eval'");
+    expect(own.headers.get('cache-control')).toBe('no-cache');
+    expect(assets).toEqual(['/simulador/index.html']);
+    // Lo que llama el cliente WebGL (AxyroSessionClient + voice.js) está dentro de su ámbito.
+    const me = await (await call('GET', '/api/me', { cookie, headers: { 'x-axyro-client': 'unity' } })).json() as { identity: { id: string; role: string } };
+    expect(me.identity).toMatchObject({ id: body.participantId, role: 'participant' });
+    expect((await call('GET', `/api/sessions/${SESSION}`, { cookie, headers: { 'x-axyro-client': 'unity' } })).status).toBe(200);
+    const optionId = defaultScenario.phases[0].options[1].id;
+    expect((await call('POST', `/api/sessions/${SESSION}/commands`, { cookie, body: { id: 'cmd-unity-0001', type: 'decide', optionId } })).status).toBe(200);
+    expect((await call('GET', '/api/voice/config', { cookie })).status).toBe(200);
+
+    const redirect = await call('GET', '/simulador/', { cookie });
+    expect(redirect.status).toBe(302);
+    expect(redirect.headers.get('location')).toBe(`https://axyro.test/simulador/?sesion=${SESSION}`);
+    for (const other of [OTHER_SESSION, FOREIGN_SESSION]) {
+      const page = await call('GET', `/simulador/?sesion=${other}`, { cookie });
+      expect(page.status).toBe(403);
+      expect(await page.text()).toContain('Este enlace es de otra sesión');
+      expect((await call('GET', `/api/sessions/${other}`, { cookie })).status).toBe(403);
+    }
+    expect(assets).toEqual(['/simulador/index.html']);
+    // Sin identidad: al acceso, conservando el destino.
+    const anonymous = await call('GET', `/simulador/?sesion=${SESSION}`);
+    expect(anonymous.status).toBe(302);
+    expect(anonymous.headers.get('location')).toBe(`/?next=${encodeURIComponent(`/simulador/?sesion=${SESSION}`)}`);
+  });
+
   it('abre el WebSocket de su sesión con su identidad de participante', async () => {
     const { call, pinOf, join, rooms } = setup();
     const { cookie, body } = await join(await pinOf(), 'Ana');

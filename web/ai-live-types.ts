@@ -8,6 +8,8 @@ export type AiOption = { label: string; quality?: 'best' | 'acceptable' | 'poor'
 export type AiSituation = { id: string; index: number; title: string; narration: string; options: AiOption[]; sources: AiSource[] };
 export type AiSummary = { spoken: string; takeaways: string[]; optimalCount: number; total: number };
 export type AiRun = { id: string; collectionId: string; situationsTotal: number; index: number; status: string; focus?: string | null };
+/** Fila de GET /api/ai-runs: situaciones ya generadas y respondidas. */
+export type AiRunListItem = AiRun & { createdAt: string; generated: number; answered: number };
 
 export type NextResponse = { situation: AiSituation; done?: false } | { done: true; summary: AiSummary };
 export type AnswerResponse =

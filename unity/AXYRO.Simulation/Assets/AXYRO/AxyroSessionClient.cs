@@ -19,8 +19,8 @@ namespace Axyro
         private const string LocalApi = "http://127.0.0.1:8787/api";
         private const string DemoUserId = "demo-participant";
         private const string NoLinkText = "Abre el simulador desde el enlace que te comparta tu docente.";
-        private const string NoAccessText = "No tienes acceso a esta sesión. Pide a tu docente que te dé de alta.";
-        private const string NotFoundText = "No encuentro esta sesión. Comprueba el enlace que te ha compartido tu docente o pídele que te dé de alta.";
+        private const string NoAccessText = "No tienes acceso a esta sesión o tu acceso ha caducado. Vuelve a entrar con el código de la pantalla del aula o pide acceso a tu docente.";
+        private const string NotFoundText = "No encuentro esta sesión. Comprueba el enlace o el código de la pantalla del aula; si la sesión ha terminado, pide uno nuevo a tu docente.";
         private const string ObserverText = "Estás viendo la sesión como docente.\n\nSolo los participantes pueden elegir opciones.";
 
 #if UNITY_WEBGL && !UNITY_EDITOR

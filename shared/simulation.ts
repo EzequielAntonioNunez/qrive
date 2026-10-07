@@ -42,7 +42,14 @@ export interface Scenario {
   /** Nombre visible de cada indicador en este escenario. Sin valor: Relación, Margen y Riesgo. */
   meterLabels?: Record<MeterName, string>;
   phases: Phase[];
+  /**
+   * Procedencia. Solo la fija el servidor al publicar un borrador generado con IA en el «Modo IA en vivo» tras la
+   * revisión del docente (`POST /api/ai-runs/:id/publish`); IDs seudónimos de la partida y la colección, sin texto.
+   */
+  origin?: ScenarioOrigin;
 }
+
+export interface ScenarioOrigin { kind: 'ai'; runId: string; collectionId: string }
 
 export const defaultMeterLabels: Record<MeterName, string> = { relationship: 'Relación', margin: 'Margen', risk: 'Riesgo' };
 

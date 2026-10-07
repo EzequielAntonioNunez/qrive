@@ -5,7 +5,7 @@
  */
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useApp, type ApiError } from './app-context';
-import { ACCEPTED_EXTENSIONS, MAX_UPLOAD_BYTES, mimeFor, type AiRun, type KnowledgeCollection, type KnowledgeDocument } from './ai-live-types';
+import { ACCEPTED_EXTENSIONS, MAX_UPLOAD_BYTES, mimeFor, type AiRun, type AiRunListItem, type KnowledgeCollection, type KnowledgeDocument } from './ai-live-types';
 import { EmptyState, Icon, Modal, PageHeader, useDialogs } from './kit';
 import { Link, navigate, setQuery, useLocation } from './router';
 import { errorText, plural } from './types';
@@ -213,9 +213,40 @@ function CollectionDetail({ collection, onRemove, onChange }: { collection: Know
         <button className="icon-button" aria-label={`Quitar ${item.name}`} title="Quitar" onClick={() => void removeDocument(item)}><Icon name="trash" size={16}/></button>
       </li>)}</ul>}
 
+    <RecentRuns collectionId={collection.id}/>
+
     {pasting && <PasteDialog onClose={() => setPasting(false)} onSubmit={(name, text) => { setPasting(false); const key = `paste-${Date.now()}`; setUploads(current => [...current, { key, name, status: 'uploading' }]); void send(name, { text }, key); }}/>}
     {starting && <StartDialog collection={collection} onClose={() => setStarting(false)}/>}
   </section>;
+}
+
+/** Partidas recientes de la colección: continuar o convertir las situaciones generadas en un escenario para clase. */
+function RecentRuns({ collectionId }: { collectionId: string }) {
+  const app = useApp();
+  const [runs, setRuns] = useState<AiRunListItem[] | null>(null);
+  useEffect(() => {
+    let stop = false;
+    void app.api<{ runs: AiRunListItem[] }>(`/ai-runs?collectionId=${encodeURIComponent(collectionId)}`).then(result => { if (!stop) setRuns(result.runs ?? []); }).catch(() => { if (!stop) setRuns([]); });
+    return () => { stop = true; };
+  }, [app.api, collectionId]);
+  if (!runs?.length) return null;
+  return <>
+    <h3 className="kb-subtitle">Partidas recientes</h3>
+    <p className="kb-runs-hint">Convierte una partida en un escenario para clase: revisarás y editarás cada situación antes de publicarla.</p>
+    <ul className="doc-list kb-runs">{runs.map(run => {
+      const done = run.status === 'complete';
+      const enough = run.generated >= 2;
+      return <li key={run.id} className="doc-row">
+        <span className="doc-icon" aria-hidden="true"><Icon name="sparkles" size={18}/></span>
+        <div className="doc-text"><strong>{run.focus || 'Sin enfoque concreto'}</strong>
+          <small>{new Date(run.createdAt).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · {done ? `Terminada · ${plural(run.generated, 'situación', 'situaciones')}` : `En curso · ${run.generated} de ${run.situationsTotal} situaciones generadas`}</small></div>
+        <div className="kb-run-actions">
+          {!done && <Link className="btn btn-sm" to={`/ia/${encodeURIComponent(run.id)}`}>Continuar</Link>}
+          <button className="btn btn-primary btn-sm" disabled={!enough} title={enough ? undefined : 'Hacen falta al menos 2 situaciones generadas'} onClick={() => navigate(`/escenarios/borrador/${encodeURIComponent(run.id)}`)}><Icon name="scenarios" size={14}/>Convertir en escenario para clase</button>
+        </div>
+      </li>;
+    })}</ul>
+  </>;
 }
 
 function PasteDialog({ onClose, onSubmit }: { onClose: () => void; onSubmit: (name: string, text: string) => void }) {

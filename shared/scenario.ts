@@ -4,6 +4,8 @@ import type { Choice, Meters, Phase, Scenario } from './simulation';
 export class ScenarioError extends Error {}
 
 const ID = /^[a-z0-9][a-z0-9-]{1,63}$/;
+/** IDs seudónimos de procedencia (partida y colección del modo IA en vivo). */
+const REF = /^[A-Za-z0-9][A-Za-z0-9-]{0,79}$/;
 const meterNames = ['relationship', 'margin', 'risk'] as const;
 
 function text(value: unknown, path: string, max: number): string {
@@ -96,6 +98,15 @@ export function validateScenario(value: unknown): Scenario {
       margin: text(labels.margin, 'meterLabels.margin', 24),
       risk: text(labels.risk, 'meterLabels.risk', 24)
     };
+  }
+  if (data.origin !== undefined) {
+    const origin = data.origin as Record<string, unknown> | null;
+    const ref = (value: unknown, path: string) => {
+      if (typeof value !== 'string' || !REF.test(value)) throw new ScenarioError(`${path}: identificador no válido.`);
+      return value;
+    };
+    if (!origin || typeof origin !== 'object' || origin.kind !== 'ai') throw new ScenarioError('origin: objeto con kind "ai", runId y collectionId.');
+    scenario.origin = { kind: 'ai', runId: ref(origin.runId, 'origin.runId'), collectionId: ref(origin.collectionId, 'origin.collectionId') };
   }
   return scenario;
 }

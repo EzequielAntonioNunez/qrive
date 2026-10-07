@@ -134,6 +134,38 @@ export async function getRun(ctx: LiveContext, id: string) {
   };
 }
 
+export interface RunListItem extends RunPublic { generated: number; answered: number }
+
+/** Partidas recientes de la persona (las suyas, en su organización), opcionalmente de una colección. Máximo 20. */
+export async function listRuns(ctx: LiveContext, collectionId: string | null): Promise<RunListItem[]> {
+  if (collectionId !== null && !validId(collectionId)) return [];
+  const rows = await ctx.env.DB.prepare(`SELECT r.id, r.collection_id AS collectionId, r.created_by AS createdBy, r.created_at AS createdAt, r.status,
+      r.situations_total AS total, r.current_index AS "index", r.state_json AS stateJson, NULL AS summaryJson,
+      (SELECT COUNT(*) FROM ai_turns t WHERE t.tenant_id = r.tenant_id AND t.run_id = r.id AND t.status = 'ready') AS generated,
+      (SELECT COUNT(*) FROM ai_turns t WHERE t.tenant_id = r.tenant_id AND t.run_id = r.id AND t.answered = 1) AS answered
+    FROM ai_runs r WHERE r.tenant_id = ? AND r.created_by = ? AND (? IS NULL OR r.collection_id = ?)
+    ORDER BY r.created_at DESC LIMIT 20`).bind(ctx.tenantId, ctx.userId, collectionId, collectionId)
+    .all<RunRow & { generated: number; answered: number }>();
+  return rows.results.map(row => ({ ...toPublic(row), generated: Number(row.generated), answered: Number(row.answered) }));
+}
+
+/**
+ * Datos para el borrador de escenario («Guardar como escenario»): SOLO las situaciones ya generadas (respondidas o
+ * no), en orden. No genera las que falten: así convertir no gasta IA ni espera; el borrador avisa si faltan.
+ */
+export async function draftSource(ctx: LiveContext, id: string): Promise<{ run: RunPublic; collectionName: string; situations: SituationPublic[] }> {
+  const row = await runRow(ctx, id);
+  if (!row) throw new AiServiceError(404, 'NOT_FOUND', 'Partida no encontrada.');
+  const collection = await collectionFor(ctx.env, ctx.tenantId, row.collectionId);
+  const turns = await ctx.env.DB.prepare(`SELECT situation_json AS situationJson FROM ai_turns WHERE tenant_id = ? AND run_id = ? AND status = 'ready' ORDER BY idx`)
+    .bind(ctx.tenantId, id).all<{ situationJson: string }>();
+  return {
+    run: toPublic(row),
+    collectionName: collection?.name ?? 'Colección',
+    situations: turns.results.map(turn => (JSON.parse(turn.situationJson) as StoredSituation).situation)
+  };
+}
+
 export async function deleteRun(ctx: LiveContext, id: string): Promise<boolean> {
   if (!await runRow(ctx, id)) return false;
   await ctx.env.DB.batch([

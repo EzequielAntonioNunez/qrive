@@ -4,14 +4,56 @@
  * Emula también «Simular clase» (participantes simulados que deciden solos) y `liveTally` del docente.
  */
 import { applyCommand, createSession, DomainError, expireTimer, type Actor, type Command } from '../shared/engine';
-import { catalogScenarios, classMeters, defaultScenario, participantReport, participantView, performanceReport, type Meters, type SessionState } from '../shared/simulation';
+import { catalogScenarios, classMeters, defaultScenario, participantReport, participantView, performanceReport, type Meters, type Scenario, type SessionState } from '../shared/simulation';
 import { ScenarioError, validateScenario } from '../shared/scenario';
+import { AI_DRAFT_MIN_PHASES, aiScenarioProblem, draftFromSituations, isAiScenarioIdFor } from '../shared/ai-draft';
 import type { AnalyticsResponse } from './page-analytics';
-import { handleAiLive } from './ai-live-fake';
+import { fakeDraftInput, handleAiLive } from './ai-live-fake';
 
 type Member = { id: string; email: string; name: string; role: 'instructor' | 'participant' };
 type Code = { id: string; userId: string; code: string; createdAt: string; uses: number; lastUsedAt: string | null };
-type Store = { sessions: SessionState[]; members: Member[]; simulated: Record<string, string[]>; names: Record<string, string>; codes: Code[]; pins?: Record<string, string>; guests?: Record<string, { alias: string; sessionId: string }> };
+type Published = { scenario: Scenario; createdBy: string; createdAt: string };
+type Store = { sessions: SessionState[]; members: Member[]; simulated: Record<string, string[]>; names: Record<string, string>; codes: Code[]; pins?: Record<string, string>; guests?: Record<string, { alias: string; sessionId: string }>; scenarios?: Published[] };
+
+/** Última versión de cada escenario propio publicado en la demo (como la tabla `scenarios` del Worker). */
+function ownScenarios(store: Store): Published[] {
+  const latest = new Map<string, Published>();
+  for (const item of store.scenarios ?? []) { const current = latest.get(item.scenario.id); if (!current || item.scenario.version > current.scenario.version) latest.set(item.scenario.id, item); }
+  return [...latest.values()];
+}
+function findScenario(store: Store, id: string): Scenario | undefined {
+  return ownScenarios(store).find(item => item.scenario.id === id)?.scenario ?? catalogScenarios.find(item => item.id === id);
+}
+const latestOwn = (store: Store, id: string) => ownScenarios(store).find(item => item.scenario.id === id)?.scenario.version ?? null;
+
+/** «Convertir en escenario para clase» en la demo: misma conversión y mismas reglas que /api/ai-runs/:id/draft y /publish. */
+function handleAiScenario(store: Store, path: string, body: Record<string, unknown>, role: 'instructor' | 'participant'): Response | null {
+  const match = path.match(/^\/ai-runs\/([^/]+)\/(draft|publish)$/);
+  if (!match) return null;
+  if (role !== 'instructor') return json({ error: 'Acción reservada al docente.' }, 403);
+  const runId = decodeURIComponent(match[1]);
+  const input = fakeDraftInput(runId);
+  if (!input) return json({ error: 'Partida no encontrada.' }, 404);
+  if (match[2] === 'draft') {
+    if (input.situations.length < AI_DRAFT_MIN_PHASES) return json({ error: `Hacen falta al menos ${AI_DRAFT_MIN_PHASES} situaciones generadas para crear un escenario. Avanza en la partida y vuelve a intentarlo.`, code: 'DRAFT_TOO_SHORT' }, 409);
+    const result = draftFromSituations(input);
+    const latest = latestOwn(store, result.draft.id);
+    if (latest) result.draft.version = latest + 1;
+    return json({ ...result, latestVersion: latest, run: { id: runId, status: input.situations.length >= input.total ? 'complete' : 'active', generated: input.situations.length, total: input.total } });
+  }
+  const raw = body.scenario;
+  if (!raw || typeof raw !== 'object') return json({ error: 'Falta el escenario (scenario).' }, 400);
+  const candidate = validateScenario({ ...(raw as Record<string, unknown>), origin: undefined });
+  if (!isAiScenarioIdFor(candidate.id, runId)) return json({ error: 'id: debe conservar el identificador del borrador.' }, 400);
+  const problem = aiScenarioProblem(candidate);
+  if (problem) return json({ error: problem }, 400);
+  const latest = latestOwn(store, candidate.id);
+  if (latest && candidate.version <= latest) return json({ error: `Ya publicaste la versión ${latest} de este escenario. Las versiones publicadas no cambian: publica la versión ${latest + 1}.`, code: 'VERSION_CONFLICT', latestVersion: latest }, 409);
+  const scenario = validateScenario({ ...candidate, origin: { kind: 'ai', runId, collectionId: input.collectionId } });
+  store.scenarios = [...(store.scenarios ?? []), { scenario, createdBy: actors.instructor.name, createdAt: new Date().toISOString() }];
+  save(store);
+  return json({ scenario }, 201);
+}
 
 const KEY = 'ufv-simulador-v4';
 const actors: Record<'instructor' | 'participant', Actor & { email: string; tenantId: string }> = {
@@ -159,9 +201,14 @@ async function handle(path: string, init: RequestInit | undefined, role: 'instru
   store.sessions = store.sessions.map(state => expireTimer(stepSimulated(state, store.simulated[state.id] ?? [], Date.now()), now).state);
   const reserved = () => json({ error: 'Acción reservada al docente.' }, 403);
   if (path === '/me') return json({ identity: { id: actor.id, name: actor.name, email: actor.email, role, tenantId: 'demo' }, demo: true, standalone: true, flags: { phase_timers: true, ai_live_demo: true }, permissions: { assignInstructor: role === 'instructor' } });
-  if (path === '/scenarios') return json({ scenarios: catalogScenarios.map(item => ({ id: item.id, version: item.version, title: item.title, summary: item.summary, phases: item.phases.length, catalog: true })) });
+  const aiScenario = handleAiScenario(store, path, body, role);
+  if (aiScenario) return aiScenario;
+  if (path === '/scenarios') return json({ scenarios: [
+    ...ownScenarios(store).map(({ scenario, createdBy, createdAt }) => ({ id: scenario.id, version: scenario.version, title: scenario.title, summary: scenario.summary, phases: scenario.phases.length, catalog: false, origin: scenario.origin?.kind === 'ai' ? 'ai' : null, publishedBy: createdBy, publishedAt: createdAt })),
+    ...catalogScenarios.map(item => ({ id: item.id, version: item.version, title: item.title, summary: item.summary, phases: item.phases.length, catalog: true, origin: null, publishedBy: null, publishedAt: null }))
+  ].sort((a, b) => a.title.localeCompare(b.title, 'es')) });
   if (path.startsWith('/scenarios/')) {
-    const scenario = catalogScenarios.find(item => item.id === decodeURIComponent(path.slice('/scenarios/'.length)));
+    const scenario = findScenario(store, decodeURIComponent(path.slice('/scenarios/'.length)));
     return scenario ? json({ scenario: validateScenario(scenario) }) : json({ error: 'Escenario no encontrado.' }, 404);
   }
   if (path.split('?')[0] === '/analytics') {
@@ -181,7 +228,7 @@ async function handle(path: string, init: RequestInit | undefined, role: 'instru
     if (role !== 'instructor') return reserved();
     const name = body.name === undefined ? null : String(body.name).trim();
     if (name !== null && (name.length < 1 || name.length > 80)) return json({ error: 'El nombre de la sesión debe tener entre 1 y 80 caracteres.' }, 400);
-    const scenario = catalogScenarios.find(item => item.id === body.scenarioId) ?? defaultScenario;
+    const scenario = (typeof body.scenarioId === 'string' ? findScenario(store, body.scenarioId) : undefined) ?? defaultScenario;
     const state = createSession(crypto.randomUUID(), 'demo', actor, now, scenario);
     store.sessions.push(state);
     if (name) store.names[state.id] = name;

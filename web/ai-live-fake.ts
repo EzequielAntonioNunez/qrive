@@ -4,8 +4,10 @@
  */
 import { shortOption, normalizeSpeech } from './voice-mobile';
 import type { AiSituation, AiSummary, KnowledgeCollection, KnowledgeDocument } from './ai-live-types';
+import type { DraftInput } from '../shared/ai-draft';
+import type { ChoiceQuality } from '../shared/simulation';
 
-type Store = { collections: KnowledgeCollection[]; documents: Record<string, KnowledgeDocument[]>; runs: Record<string, { collectionId: string; total: number; index: number; answers: number[]; pending: number | null; focus: string | null; done: boolean }> };
+type Store = { collections: KnowledgeCollection[]; documents: Record<string, KnowledgeDocument[]>; runs: Record<string, { collectionId: string; total: number; index: number; answers: number[]; pending: number | null; focus: string | null; done: boolean; createdAt?: string }> };
 const KEY = 'ufv-ia-en-vivo-demo-v1';
 
 function load(): Store {
@@ -59,9 +61,30 @@ const REACTIONS: Record<string, string> = {
   poor: 'Cuidado con esta decisión.'
 };
 
+/**
+ * Datos de la partida para «Convertir en escenario para clase» (los usa standalone.ts, que guarda los escenarios
+ * publicados): solo las situaciones ya mostradas, como el Worker, que usa solo las generadas.
+ */
+export function fakeDraftInput(runId: string): DraftInput | null {
+  const store = load();
+  const run = store.runs[runId];
+  if (!run) return null;
+  const generated = run.done ? run.total : Math.max(0, Math.min(run.total, run.index + 1));
+  return {
+    runId, collectionId: run.collectionId, collectionName: store.collections.find(item => item.id === run.collectionId)?.name ?? 'Colección',
+    focus: run.focus, total: run.total,
+    situations: SITUATIONS.slice(0, generated).map(item => ({
+      title: item.title, narration: item.narration, sources: item.sources.map(source => ({ document: source.document })),
+      options: item.options.map(option => ({ label: option.label, quality: (option.quality ?? 'acceptable') as ChoiceQuality, consequence: option.consequence ?? '', rationale: option.rationale ?? '' }))
+    }))
+  };
+}
+
 export async function handleAiLive(path: string, init: RequestInit | undefined, role: 'instructor' | 'participant'): Promise<Response | null> {
   const isOurs = path.startsWith('/knowledge') || path.startsWith('/ai-runs') || path === '/voice/tts-key';
   if (!isOurs) return null;
+  // Borrador y publicación los atiende standalone.ts (allí viven los escenarios publicados).
+  if (/^\/ai-runs\/[^/]+\/(draft|publish)$/.test(path)) return null;
   if (role !== 'instructor') return json({ error: 'Acción reservada al docente.' }, 403);
   if (path === '/voice/tts-key') return json({ error: 'La voz en tiempo real no está disponible en la demo sin conexión.' }, 503);
   const method = (init?.method ?? 'GET').toUpperCase();
@@ -121,11 +144,22 @@ export async function handleAiLive(path: string, init: RequestInit | undefined, 
     return json({ deleted: true });
   }
 
+  if (path.split('?')[0] === '/ai-runs' && method === 'GET') {
+    const collectionId = new URLSearchParams(path.split('?')[1] ?? '').get('collectionId');
+    const runs = Object.entries(store.runs)
+      .filter(([, run]) => !collectionId || run.collectionId === collectionId)
+      .map(([runId, run]) => ({
+        id: runId, collectionId: run.collectionId, situationsTotal: run.total, index: run.index, status: run.done ? 'complete' : 'active', focus: run.focus,
+        createdAt: run.createdAt ?? new Date(0).toISOString(), generated: run.done ? run.total : Math.max(0, run.index + 1), answered: run.answers.filter(answer => answer !== undefined && answer !== null).length
+      }))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 20);
+    return json({ runs });
+  }
   if (path === '/ai-runs' && method === 'POST') {
     const collection = store.collections.find(item => item.id === body.collectionId);
     if (!collection) return json({ error: 'Colección no encontrada.' }, 404);
     const runId = id('run');
-    store.runs[runId] = { collectionId: collection.id, total: SITUATIONS.length, index: -1, answers: [], pending: null, focus: typeof body.focus === 'string' ? body.focus : null, done: false };
+    store.runs[runId] = { collectionId: collection.id, total: SITUATIONS.length, index: -1, answers: [], pending: null, focus: typeof body.focus === 'string' && body.focus.trim() ? body.focus.trim() : null, done: false, createdAt: new Date().toISOString() };
     save(store);
     return json({ run: { id: runId, collectionId: collection.id, situationsTotal: SITUATIONS.length, index: -1, status: 'active' } }, 201);
   }
