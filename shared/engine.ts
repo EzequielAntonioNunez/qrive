@@ -8,9 +8,20 @@ export type Command =
   | { id: string; type: 'decide'; optionId: string }
   | { id: string; type: 'advance' | 'pause' | 'resume' | 'complete' }
   | { id: string; type: 'incident'; note: string; riskDelta: number }
-  | { id: string; type: 'set-meter'; meter: MeterName; value: number };
+  | { id: string; type: 'set-meter'; meter: MeterName; value: number }
+  /** RGPD: el instructor de la sesión retira a un participante con su unión, sus decisiones y sus indicadores. */
+  | { id: string; type: 'remove-participant'; participantId: string };
 
 export class DomainError extends Error {}
+
+/**
+ * Siguiente número de secuencia: uno más que el mayor emitido. No se usa la longitud de `events` porque retirar a un
+ * participante borra sus eventos del estado; el evento `participant_removed` se emite antes de borrar y se conserva,
+ * así que la secuencia nunca retrocede ni reutiliza un `seq` ya enviado a D1.
+ */
+function nextSeq(state: Pick<SessionState, 'events'>): number {
+  return state.events.reduce((max, event) => Math.max(max, event.seq), 0) + 1;
+}
 
 function deadlineFor(phase: Phase | undefined, at: string): string | null {
   return phase?.timeLimitSec ? new Date(Date.parse(at) + phase.timeLimitSec * 1000).toISOString() : null;
@@ -40,7 +51,7 @@ export function expireTimer(current: SessionState, at: string): { state: Session
   const decided = new Set(next.decisions.filter(decision => decision.phaseId === phase.id).map(decision => decision.userId));
   updateParticipants(next, meters => ({ ...meters, risk: clampMeter(meters.risk + riskDelta) }), userId => !decided.has(userId));
   next.phaseDeadline = null;
-  const event: SimEvent = { seq: next.events.length + 1, type: 'timer_expired', at, actorId: SYSTEM_ACTOR_ID, detail: { phaseId: phase.id, riskDelta } };
+  const event: SimEvent = { seq: nextSeq(next), type: 'timer_expired', at, actorId: SYSTEM_ACTOR_ID, detail: { phaseId: phase.id, riskDelta } };
   next.events.push(event);
   return { state: next, events: [event] };
 }
@@ -59,11 +70,12 @@ export function createSession(id: string, tenantId: string, instructor: Actor, a
 export function applyCommand(current: SessionState, command: Command, actor: Actor, at: string): { state: SessionState; events: SimEvent[] } {
   const state = normalizeState(current);
   if (state.processedCommands.includes(command.id)) return { state, events: [] };
-  if (state.status === 'complete') throw new DomainError('La sesión ya terminó.');
+  // Retirar a un participante (derecho de supresión) también es posible con la sesión ya finalizada.
+  if (state.status === 'complete' && command.type !== 'remove-participant') throw new DomainError('La sesión ya terminó.');
   const next: SessionState = structuredClone(state);
   const emitted: SimEvent[] = [];
   const emit = (type: SimEvent['type'], detail: SimEvent['detail']) => {
-    const event = { seq: next.events.length + 1, type, at, actorId: actor.id, detail };
+    const event = { seq: nextSeq(next), type, at, actorId: actor.id, detail };
     next.events.push(event);
     emitted.push(event);
   };
@@ -146,6 +158,19 @@ export function applyCommand(current: SessionState, command: Command, actor: Act
       // Ajuste de clase del docente: fija el valor para todos los participantes.
       updateParticipants(next, meters => ({ ...meters, [command.meter]: command.value }));
       emit('meter_changed', { meter: command.meter, value: command.value });
+    } else if (command.type === 'remove-participant') {
+      const target = command.participantId;
+      if (typeof target !== 'string' || !next.participants.some(person => person.userId === target)) throw new DomainError('Ese participante no está en la sesión.');
+      // El evento se emite antes de borrar: su seq queda por encima de cualquier evento borrado (ver nextSeq).
+      emit('participant_removed', { participantId: target });
+      next.participants = next.participants.filter(person => person.userId !== target);
+      next.decisions = next.decisions.filter(decision => decision.userId !== target);
+      delete next.participantMeters[target];
+      next.meters = classMeters(next);
+      // Supresión real en el estado: se borran su unión y sus decisiones (también las aún no enviadas a la cola).
+      const own = (event: SimEvent) => (event.type === 'participant_joined' || event.type === 'decision') && event.actorId === target;
+      next.events = next.events.filter(event => !own(event));
+      next.pendingEvents = next.pendingEvents.filter(event => !own(event));
     }
   }
   next.processedCommands.push(command.id);

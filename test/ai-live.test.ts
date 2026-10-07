@@ -531,3 +531,37 @@ describe('piezas puras', () => {
     expect(validateSituation(good, ['F9'])).toContain('fragmentos');
   });
 });
+
+describe('auditoría de IA (§25)', () => {
+  it('registra proveedor y modelos al crear la partida y una línea AI_CALL por llamada, sin texto de documentos ni frases', async () => {
+    const context = setup();
+    const { call, flush, db } = context;
+    const collectionId = await collectionWithGuide(context);
+    const focus = 'tema privado sobre evaluación';
+    const created = await call('POST', '/api/ai-runs', { as: PROF, body: { collectionId, situations: 3, focus } });
+    expect(created.status).toBe(201);
+    const { run } = await json(created);
+    await flush();
+    const row = db.prepare("SELECT detail_json AS detail FROM audit_log WHERE action = 'ai_run_created'").get() as { detail: string };
+    expect(JSON.parse(row.detail)).toMatchObject({ runId: run.id, provider: 'cloudflare-workers-ai', model: LIVE_MODEL, embeddingModel: '@cf/baai/bge-m3', intentModel: CLEF_MODEL, focused: true });
+    expect(row.detail).not.toContain('privado');
+
+    const secretPhrase = 'mi frase secreta con datos de Ana Pérez';
+    context.script.clef.push({ answers: { intencion: { choice: 'opcion_1', probabilities: { opcion_1: 0.95 }, confidence: 0.95 } } });
+    await json(await call('POST', `/api/ai-runs/${run.id}/next`, { as: PROF, body: {} }));
+    await json(await call('POST', `/api/ai-runs/${run.id}/answer`, { as: PROF, body: { phrase: secretPhrase } }));
+    await flush();
+    const aiCalls = logs.filter(line => line.includes('"AI_CALL"')).map(line => JSON.parse(line));
+    expect(aiCalls.some(entry => entry.model === LIVE_MODEL && entry.kind === 'generation')).toBe(true);
+    expect(aiCalls.some(entry => entry.model === '@cf/baai/bge-m3' && entry.kind === 'embedding')).toBe(true);
+    expect(aiCalls.some(entry => entry.model === CLEF_MODEL && entry.kind === 'live-intent')).toBe(true);
+    for (const entry of aiCalls) {
+      expect(entry.provider).toBe('cloudflare-workers-ai');
+      expect(typeof entry.durationMs).toBe('number');
+    }
+    const all = logs.join('\n');
+    expect(all).not.toContain('Ana Pérez');
+    expect(all).not.toContain('24 horas');
+    expect(all).not.toContain('privado');
+  });
+});

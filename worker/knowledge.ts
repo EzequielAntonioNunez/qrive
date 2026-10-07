@@ -311,7 +311,7 @@ export async function embed(env: Env, texts: string[], requestId?: string): Prom
   const vectors: Float32Array[] = [];
   for (let start = 0; start < texts.length; start += KNOWLEDGE_LIMITS.embedBatch) {
     const batch = texts.slice(start, start + KNOWLEDGE_LIMITS.embedBatch);
-    const result = await runAi(env, EMBEDDING_MODEL, { text: batch }, requestId) as { data?: unknown };
+    const result = await runAi(env, EMBEDDING_MODEL, { text: batch }, requestId, 'embedding') as { data?: unknown };
     const data = Array.isArray(result?.data) ? result.data as unknown[] : [];
     if (data.length !== batch.length || !data.every(row => Array.isArray(row) && row.length > 0))
       throw new AiServiceError(502, 'AI_EMBEDDING_INVALID', 'El servicio de IA no ha devuelto los vectores del documento.');

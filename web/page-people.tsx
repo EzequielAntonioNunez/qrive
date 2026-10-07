@@ -3,6 +3,8 @@ import React, { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { useApp, type ApiError } from './app-context';
 import { ActionMenu, EmptyState, Icon, Modal, PageHeader, SearchField, useDialogs, type MenuItem } from './kit';
 import { initials } from './session-blocks';
+import { AuditPanel } from './page-audit';
+import { Link, setQuery as setRouteQuery, useLocation } from './router';
 import { errorText, plural, relativeDate, roleLabel, type CodeSummary, type CodeUse, type Member, type Role } from './types';
 import { CopyButton, Sk, useToast } from './ui';
 
@@ -19,6 +21,9 @@ export function PeoplePage() {
   const [roleFilter, setRoleFilter] = useState<'all' | Role>('all');
   const [adding, setAdding] = useState(false);
   const [issued, setIssued] = useState<{ code: string; name: string; email: string } | null>(null);
+  // Pestaña «Auditoría» (?vista=auditoria): solo el propietario. Para el resto la página no cambia.
+  const { query: location } = useLocation();
+  const auditView = app.canViewAudit === true && location.get('vista') === 'auditoria';
 
   const loadMembers = useCallback(async () => {
     try { const result = await app.api<{ members: Member[] }>('/memberships'); setMembers(result.members); setError(''); }
@@ -63,6 +68,10 @@ export function PeoplePage() {
   return <div className="page">
     <PageHeader title="Participantes y accesos" description="Da de alta a las personas de tu grupo y entrega a cada una su código personal de seis cifras."
       actions={onlyMe ? undefined : <button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="plus" size={18}/>Dar de alta</button>}/>
+    {app.canViewAudit && <nav className="tabs people-tabs" aria-label="Secciones de participantes y accesos">
+      {([['personas', 'Personas y accesos'], ['auditoria', 'Auditoría']] as const).map(([key, label]) => <Link key={key} to={key === 'personas' ? '/participantes' : '/participantes?vista=auditoria'} className="tab" aria-current={(key === 'auditoria') === auditView ? 'page' : undefined} onClick={event => { event.preventDefault(); setRouteQuery({ vista: key === 'personas' ? null : key }, { replace: true }); }}>{label}</Link>)}
+    </nav>}
+    {auditView ? <AuditPanel/> : <>
     {app.demo && !app.standalone && <p className="notice-inline">Entorno local: se entra con la identidad de demostración, así que los códigos no se piden al iniciar sesión.</p>}
     {error && <div className="error" role="alert"><span>{error}</span><button className="text-button" onClick={() => void loadMembers()}>Reintentar</button></div>}
 
@@ -110,6 +119,7 @@ export function PeoplePage() {
         <p className="fine-print">Cada código es personal, se muestra una sola vez y puedes revocarlo cuando quieras.</p>
       </aside>
     </div>}
+    </>}
 
     {adding && <AddMemberDialog canAssignInstructor={app.canAssignInstructor} onClose={() => setAdding(false)} onAdded={(member, wantsCode) => {
       setMembers(current => [...(current ?? []).filter(item => item.id !== member.id), member].sort((a, b) => a.name.localeCompare(b.name, 'es')));

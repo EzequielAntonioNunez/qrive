@@ -555,7 +555,7 @@ export function participantReport(state: SessionState, userId: string): Performa
  * - En las fases donde aún no ha decidido, las opciones van sin `quality`, `rationale` ni `effects` y la fase sin `takeaway`
  *   (también en la fase activa, porque la idea clave anticipa la respuesta). Con la sesión completada se muestra todo.
  * - Solo él mismo en `participants`, sus `decisions`, sus `participantMeters` y `meters` = sus indicadores.
- * - Sin eventos de unión ni decisiones de otros participantes; los incidentes conservan su nota.
+ * - Sin eventos de unión, decisiones ni retiradas de otros participantes; los incidentes conservan su nota.
  * - Sin `processedCommands` ni `pendingEvents`.
  */
 export function participantView(state: SessionState, userId: string): SessionState {
@@ -578,7 +578,9 @@ export function participantView(state: SessionState, userId: string): SessionSta
   view.decisions = view.decisions.filter(decision => decision.userId === userId);
   view.participantMeters = own ? { [userId]: own } : {};
   view.meters = own ? { ...own } : { ...view.scenario.initialMeters };
-  view.events = view.events.filter(event => !((event.type === 'participant_joined' || event.type === 'decision') && event.actorId !== userId));
+  view.events = view.events.filter(event => !((event.type === 'participant_joined' || event.type === 'decision') && event.actorId !== userId)
+    // La retirada de un compañero tampoco se ve (su detail lleva el ID seudónimo de esa persona).
+    && !(event.type === 'participant_removed' && event.detail.participantId !== userId));
   view.processedCommands = [];
   view.pendingEvents = [];
   return view;

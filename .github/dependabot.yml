@@ -1,0 +1,26 @@
+# Actualizaciones de dependencias: semanales, con las menores y de parche agrupadas en un solo PR.
+# Las mayores llegan por separado para revisarlas una a una. Ningún PR se fusiona sin pasar el CI.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Madrid
+    open-pull-requests-limit: 5
+    groups:
+      menores-y-parches:
+        patterns: ['*']
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Madrid
+    groups:
+      acciones:
+        patterns: ['*']

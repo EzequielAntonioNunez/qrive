@@ -437,3 +437,8 @@ a.list-main:hover strong{color:var(--ufv-navy);text-decoration:underline}
 @keyframes quick-demo-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.quick-demo-spin{animation-duration:2.4s}}
 @media(max-width:640px){.quick-demo-steps{padding:0 18px}}
+/* Participantes y accesos: pestaña «Auditoría» (solo el propietario) */
+.people-tabs{border-bottom:1px solid var(--line);margin:0 0 16px}
+.audit-detail{display:block;max-width:420px;overflow-wrap:anywhere;font-size:12px}
+.audit-session{font-weight:400}
+.card-foot{display:flex;justify-content:center;padding:12px 0 4px}

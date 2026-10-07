@@ -21,6 +21,8 @@ export type AppContextValue = {
   timersOn: boolean;
   realtime: boolean;
   canAssignInstructor: boolean;
+  /** Visor del registro de auditoría (solo el propietario de la organización; permissions.viewAudit de /api/me). */
+  canViewAudit?: boolean;
   sessions: SessionSummary[] | null;
   reloadSessions: () => Promise<void>;
   updateSession: (id: string, patch: Partial<SessionSummary>) => void;

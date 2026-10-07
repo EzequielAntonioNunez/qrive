@@ -1,5 +1,7 @@
 import type { Context, Hono } from 'hono';
-import { AiServiceError } from './ai-common';
+import { AI_PROVIDER, AiServiceError } from './ai-common';
+import { LIVE_MODEL } from './ai-live-prompts';
+import { CLEF_MODEL } from './voice-intent';
 import { AI_DRAFT_MIN_PHASES, aiScenarioProblem, draftFromSituations, isAiScenarioIdFor } from '../shared/ai-draft';
 import { validateScenario } from '../shared/scenario';
 import { answer, createRun, deleteRun, draftSource, getRun, listRuns, nextStep, parseAnswerRequest, parseRunRequest, type LiveContext } from './ai-live';
@@ -7,7 +9,7 @@ import { latestOwnVersion, publishScenario } from './scenarios';
 import type { AuthContext, Identity } from './auth';
 import { flags } from './flags';
 import {
-  addDocument, collectionFor, createCollection, deleteCollection, deleteDocument, listCollections, listDocuments, parseCollectionName, parseUpload
+  EMBEDDING_MODEL, addDocument, collectionFor, createCollection, deleteCollection, deleteDocument, listCollections, listDocuments, parseCollectionName, parseUpload
 } from './knowledge';
 
 /**
@@ -92,8 +94,12 @@ export function registerAiLiveRoutes(app: Hono<AuthContext>, deps: AiRouteDeps):
     const gateResponse = await limited(c);
     if (gateResponse) return gateResponse;
     const run = await createRun(live(c), request);
-    // El tema es texto libre: solo se registra si había uno.
-    await deps.audit(c.env, identity, null, 'ai_run_created', { runId: run.id, collectionId: run.collectionId, situations: run.situationsTotal, focused: run.focus !== null });
+    // El tema es texto libre: solo se registra si había uno. Auditoría de IA (§25): proveedor y modelos de la partida
+    // (los modelos de Workers AI se identifican por su id, que incluye la versión publicada), nunca texto.
+    await deps.audit(c.env, identity, null, 'ai_run_created', {
+      runId: run.id, collectionId: run.collectionId, situations: run.situationsTotal, focused: run.focus !== null,
+      provider: AI_PROVIDER, model: c.env.AI_LIVE_MODEL || LIVE_MODEL, embeddingModel: EMBEDDING_MODEL, intentModel: CLEF_MODEL
+    });
     return c.json({ run }, 201);
   });
   app.get('/api/ai-runs', async c => c.json({ runs: await listRuns(live(c), c.req.query('collectionId') ?? null) }));

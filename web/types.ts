@@ -87,7 +87,7 @@ export function isSimulated(state: SessionState, userId: string): boolean {
   return (state.participants as Person[]).some(person => person.userId === userId && person.simulated === true);
 }
 export function eventLabel(type: string): string {
-  return ({ session_started: 'Sesión creada', participant_joined: 'Participante incorporado', decision: 'Decisión registrada', phase_advanced: 'Nueva situación', paused: 'Sesión en pausa', resumed: 'Sesión reanudada', incident: 'Incidente lanzado', meter_changed: 'Indicador ajustado', timer_expired: 'Tiempo agotado', completed: 'Sesión finalizada' } as Record<string, string>)[type] ?? 'Evento';
+  return ({ session_started: 'Sesión creada', participant_joined: 'Participante incorporado', decision: 'Decisión registrada', phase_advanced: 'Nueva situación', paused: 'Sesión en pausa', resumed: 'Sesión reanudada', incident: 'Incidente lanzado', meter_changed: 'Indicador ajustado', timer_expired: 'Tiempo agotado', completed: 'Sesión finalizada', participant_removed: 'Participante retirado' } as Record<string, string>)[type] ?? 'Evento';
 }
 export function actorLabel(actorId: string, state: SessionState): string {
   if (actorId === 'system') return 'Sistema';

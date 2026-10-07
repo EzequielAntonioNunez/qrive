@@ -4,9 +4,9 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { meterLabels, type MeterName } from '../shared/simulation';
-import { isMine, simulatorUrl, titleOf, useApp, useSessionActions, type ApiError } from './app-context';
+import { download, isMine, simulatorUrl, slug, titleOf, useApp, useSessionActions, type ApiError } from './app-context';
 import { brand } from './brand';
-import { ActionMenu, EmptyState, Icon, PageHeader, StatusPill, type MenuItem } from './kit';
+import { ActionMenu, EmptyState, Icon, PageHeader, StatusPill, useDialogs, type MenuItem } from './kit';
 import { useLiveSession } from './live';
 import { ProjectorView } from './projector';
 import { JoinShare } from './share-qr';
@@ -17,7 +17,7 @@ import {
 } from './session-blocks';
 import { sessionMenu } from './session-menu';
 import { classReport, simulatedIds, tallyFor, withoutParticipants, type Tally } from './stats';
-import { METERS, errorText, optionLetter, pct, plural, relativeDate, signed, type Report, type SessionPayload, type SessionSummary } from './types';
+import { METERS, errorText, optionLetter, pct, plural, relativeDate, signed, type Person, type Report, type SessionPayload, type SessionSummary } from './types';
 import { CountUp, LiveBadge, Timer, useToast } from './ui';
 
 const INCIDENT_DELTAS = [-10, -5, 5, 10, 15] as const;
@@ -28,6 +28,7 @@ export function SessionPage({ id }: { id: string }) {
   const app = useApp();
   const toast = useToast();
   const actions = useSessionActions();
+  const { confirm } = useDialogs();
   const { query } = useLocation();
   const vista = query.get('vista');
   const projecting = vista === 'directo';
@@ -106,9 +107,9 @@ export function SessionPage({ id }: { id: string }) {
       const result = await app.api<SessionPayload>(`/sessions/${encodeURIComponent(id)}/commands`, { method: 'POST', body: JSON.stringify({ id: crypto.randomUUID(), type, ...extra }) });
       live.replace(result);
       if (type === 'incident') setIncident('');
-      const messages: Record<string, string> = { advance: 'Nueva situación abierta', pause: 'Sesión en pausa', resume: 'Sesión reanudada', complete: 'Sesión finalizada. El informe ya está disponible.', incident: 'Incidente lanzado a la clase', 'set-meter': 'Indicador ajustado', join: 'Te has unido a la sesión', decide: 'Decisión registrada' };
+      const messages: Record<string, string> = { advance: 'Nueva situación abierta', pause: 'Sesión en pausa', resume: 'Sesión reanudada', complete: 'Sesión finalizada. El informe ya está disponible.', incident: 'Incidente lanzado a la clase', 'set-meter': 'Indicador ajustado', join: 'Te has unido a la sesión', decide: 'Decisión registrada', 'remove-participant': 'Participante retirado de la sesión' };
       if (messages[type]) toast(messages[type]);
-      if (['advance', 'pause', 'resume', 'complete'].includes(type)) void app.reloadSessions();
+      if (['advance', 'pause', 'resume', 'complete', 'remove-participant'].includes(type)) void app.reloadSessions();
     } catch (cause) { toast(errorText(cause), 'error'); } finally { setBusy(false); }
   }
   async function finish() {
@@ -135,6 +136,36 @@ export function SessionPage({ id }: { id: string }) {
   function closeProjector() {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
     setQuery({ vista: null });
+  }
+  /* RGPD por persona: exportar sus datos (quien puede gestionar la sesión) y retirarla (quien la conduce). */
+  function participantActions(person: Person): MenuItem[] {
+    const items: MenuItem[] = [];
+    if (mine) items.push({ label: 'Exportar sus datos (JSON)', icon: 'download', onSelect: () => void exportParticipant(person) });
+    if (canControl) items.push(...(items.length ? ['separator' as const] : []), { label: 'Retirar de la sesión', icon: 'trash', danger: true, onSelect: () => void removeParticipant(person), disabled: busy });
+    return items;
+  }
+  async function exportParticipant(person: Person) {
+    try {
+      const data = await app.api<unknown>(`/sessions/${encodeURIComponent(id)}/participants/${encodeURIComponent(person.userId)}/export`);
+      download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `simulador-ufv-participante-${slug(person.name)}.json`);
+      toast(`Datos de ${person.name} descargados`);
+    } catch (cause) {
+      const status = (cause as ApiError).status;
+      toast(status === 405 || status === 501 ? 'Exportar los datos de una persona aún no está disponible en este servidor.' : `No se han podido exportar sus datos: ${errorText(cause)}`, 'error');
+    }
+  }
+  async function removeParticipant(person: Person) {
+    const guest = person.userId.startsWith('guest-');
+    const ok = await confirm({
+      title: `¿Retirar a ${person.name} de la sesión?`,
+      tone: 'danger',
+      body: <><p>Se borrarán su unión, sus decisiones y sus indicadores en esta sesión, también del registro guardado. Los resultados de la clase se recalcularán sin esa persona.</p>
+        {guest && <p>Su acceso de invitado dejará de funcionar en su dispositivo.</p>}
+        <p className="modal-warn">No se puede deshacer. Si la persona ha pedido una copia de sus datos, expórtala antes.</p></>,
+      confirmLabel: 'Retirar de la sesión'
+    });
+    if (!ok) return;
+    await command('remove-participant', { participantId: person.userId });
   }
 
   /* ---------- Participante ---------- */
@@ -212,7 +243,7 @@ export function SessionPage({ id }: { id: string }) {
       <EventsPanel state={state}/>
     </div>}
 
-    {tab === 'participantes' && <div className="tab-panel"><ParticipantsTab state={state} results={participantResults} simCount={simCount} excludeSimulated={!!excluded} onToggle={() => setExcludeSimulated(value => !value)} onCopy={status !== 'complete' ? () => void actions.copyLink(id) : undefined} onManage={() => navigate('/participantes')}/></div>}
+    {tab === 'participantes' && <div className="tab-panel"><ParticipantsTab state={state} results={participantResults} simCount={simCount} excludeSimulated={!!excluded} onToggle={() => setExcludeSimulated(value => !value)} onCopy={status !== 'complete' ? () => void actions.copyLink(id) : undefined} onManage={() => navigate('/participantes')} rowActions={mine || canControl ? person => participantActions(person) : undefined}/></div>}
 
     {tab === 'informe' && <div className="tab-panel"><ReportPanel state={statsState!} report={report} results={participantResults} simulatedCount={simCount} excludeSimulated={!!excluded} onToggleSimulated={() => setExcludeSimulated(value => !value)} sessionName={summary.name ?? undefined}/></div>}
 

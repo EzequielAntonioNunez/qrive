@@ -192,7 +192,7 @@ Verificado en el código y la configuración del despliegue. Una tarea programad
 | Derecho | Cómo se atiende en el MVP | Estado |
 |---|---|---|
 | Acceso y portabilidad | El docente que creó la sesión descarga la sesión completa en JSON (estado, participantes, decisiones, eventos e informe) o el detalle en CSV. La exportación queda en la auditoría. | Disponible. Hay que extraer del fichero solo los datos de la persona solicitante. Los invitados solo se pueden localizar por alias y sesión. |
-| Supresión | Por sesión: el docente que la creó la elimina; se borran estado, eventos, PIN e invitados y solo queda una anotación en la auditoría. Por persona con cuenta: **Dar de baja** en «Participantes y accesos» borra su correo y su nombre. | Disponible. **[Pendiente técnico]** No se puede borrar a un único participante dentro de una sesión ni exportar los datos de una sola persona. |
+| Supresión | Por sesión: el docente que la creó la elimina; se borran estado, eventos, PIN e invitados y solo queda una anotación en la auditoría. Por persona con cuenta: **Dar de baja** en «Participantes y accesos» borra su correo y su nombre. | Disponible. Por participante dentro de una sesión: en la pestaña «Participantes» de la sesión, **Retirar de la sesión** borra a esa persona, sus decisiones y sus indicadores (también sus eventos en la base de datos y, si es invitado, su acceso) y **Exportar sus datos (JSON)** entrega solo sus datos. |
 | Rectificación | El docente vuelve a dar de alta el correo con el nombre correcto. Un invitado no puede cambiar su alias. | Disponible para miembros. |
 | Oposición y limitación | Se atiende de forma organizativa (no incluir a la persona en sesiones; ofrecer la alternativa sin voz). | **[Validar UFV]** Procedimiento. |
 | No ser objeto de decisiones automatizadas | El sistema no toma decisiones sobre las personas. | Mantener en la guía docente que el informe no es la única base de calificación. |
@@ -303,7 +303,6 @@ Modo separado de las sesiones de clase, **activo en el entorno actual** (configu
 **Cambios técnicos pendientes**
 
 1. Cola de eventos con jurisdicción UE, o sustituirla (si la UFV no acepta la configuración actual).
-2. Borrado y exportación de los datos de un participante concreto dentro de una sesión.
-3. Plazo automático de conservación para los miembros y para las colecciones del Modo IA, cuando la UFV los fije.
-4. Proyecto Soniox en la región UE, si la UFV no acepta la transferencia.
+2. Plazo automático de conservación para los miembros y para las colecciones del Modo IA, cuando la UFV los fije.
+3. Proyecto Soniox en la región UE, si la UFV no acepta la transferencia.
 5. Trasladar el servicio al dominio definitivo cuando la UFV lo decida. La antigua protección de acceso de Cloudflare ya está retirada; el acceso es propio (correo y código, o PIN y alias).
