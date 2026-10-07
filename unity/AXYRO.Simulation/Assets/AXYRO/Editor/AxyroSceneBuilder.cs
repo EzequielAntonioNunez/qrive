@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using Axyro;
 using Rive.Components;
@@ -39,11 +39,12 @@ public static class AxyroSceneBuilder
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
         var camera = BuildCamera();
-        BuildEnvironment();
+        var screen = BuildEnvironment(out var screenGlow);
         var tutor = BuildTutor(camera.transform, out var voice);
         BuildLighting(tutor.transform);
-        BuildPostProcessing(Vector3.Distance(camera.transform.position, HeadPosition(tutor)));
+        var volume = BuildPostProcessing(Vector3.Distance(camera.transform.position, HeadPosition(tutor)));
         BuildInterface(tutor, voice);
+        WireDirection(camera, tutor, screen, screenGlow, volume);
 
         new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
         EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), ScenePath);
@@ -99,6 +100,7 @@ public static class AxyroSceneBuilder
         Build();
         PrepareWebScene();
         ConfigureAudioForWebGL();
+        ConfigureWebRendering();
 
         PlayerSettings.companyName = "Universidad Francisco de Vitoria";
         PlayerSettings.productName = "Simulador UFV";
@@ -141,7 +143,8 @@ public static class AxyroSceneBuilder
         }
         finally
         {
-            // La copia web es temporal: el editor vuelve a la escena de siempre.
+            // La copia web es temporal: el editor vuelve a la escena y al pipeline de escritorio.
+            UsePipeline(AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>($"{RenderingRoot}/AXYRO-URP.asset"));
             EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
             AssetDatabase.DeleteAsset(WebScenePath);
         }
@@ -203,6 +206,36 @@ public static class AxyroSceneBuilder
         EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
     }
 
+    /// <summary>
+    /// Ruta de calidad del navegador: pipeline web (MSAA 2x, sombras ligeras), sin SMAA, perfil de postproceso con
+    /// bloom de baja calidad, sin desenfoque de fondo ni grano; sombras duras.
+    /// </summary>
+    private static void ConfigureWebRendering()
+    {
+        UsePipeline(EnsureWebUrp());
+        foreach (var camera in UnityEngine.Object.FindObjectsByType<Camera>(FindObjectsSortMode.None))
+            camera.GetUniversalAdditionalCameraData().antialiasing = AntialiasingMode.None;
+        foreach (var light in UnityEngine.Object.FindObjectsByType<Light>(FindObjectsSortMode.None))
+            if (light.shadows == LightShadows.Soft) light.shadows = LightShadows.Hard;
+
+        var webProfilePath = $"{RenderingRoot}/AXYRO-Volume-Web.asset";
+        AssetDatabase.DeleteAsset(webProfilePath);
+        AssetDatabase.CopyAsset($"{RenderingRoot}/AXYRO-Volume.asset", webProfilePath);
+        var profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(webProfilePath);
+        if (profile.TryGet<Bloom>(out var bloom))
+        {
+            bloom.highQualityFiltering.Override(false);
+            bloom.downscale.Override(BloomDownscaleMode.Quarter);
+        }
+        // El desenfoque de fondo es el efecto más caro en GPUs integradas y móviles: fuera en el navegador.
+        if (profile.TryGet<DepthOfField>(out var dof)) dof.active = false;
+        if (profile.TryGet<FilmGrain>(out var grain)) grain.active = false;
+        EditorUtility.SetDirty(profile);
+        foreach (var volume in UnityEngine.Object.FindObjectsByType<Volume>(FindObjectsSortMode.None)) volume.sharedProfile = profile;
+        AssetDatabase.SaveAssets();
+        EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+    }
+
     /// <summary>El modelo de voz Vosk (StreamingAssets) es solo para Windows: en la build web sobra y pesa decenas de MB.</summary>
     private static void RemoveDesktopOnlyFiles()
     {
@@ -247,13 +280,43 @@ public static class AxyroSceneBuilder
         data.FindProperty("m_MainLightShadowsSupported").boolValue = true;
         data.FindProperty("m_MainLightShadowmapResolution").intValue = 4096;
         data.FindProperty("m_AdditionalLightsRenderingMode").intValue = 1;
+        data.FindProperty("m_AdditionalLightsPerObjectLimit").intValue = 8;
         data.FindProperty("m_AdditionalLightShadowsSupported").boolValue = true;
         data.FindProperty("m_AdditionalLightsShadowmapResolution").intValue = 4096;
-        data.FindProperty("m_ShadowDistance").floatValue = 8f;
+        data.FindProperty("m_ShadowDistance").floatValue = 10f;
         data.FindProperty("m_SoftShadowsSupported").boolValue = true;
         data.ApplyModifiedPropertiesWithoutUndo();
         EditorUtility.SetDirty(pipeline);
+        UsePipeline(pipeline);
+    }
 
+    /// <summary>
+    /// Calidad para el navegador: misma imagen con menos coste (MSAA 2x, sombras de 1024 solo en la luz principal,
+    /// sin sombras suaves). La escena y el perfil web se ajustan en <see cref="ConfigureWebRendering"/>.
+    /// </summary>
+    private static UniversalRenderPipelineAsset EnsureWebUrp()
+    {
+        var desktop = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>($"{RenderingRoot}/AXYRO-URP.asset");
+        var path = $"{RenderingRoot}/AXYRO-URP-Web.asset";
+        AssetDatabase.DeleteAsset(path);
+        AssetDatabase.CopyAsset($"{RenderingRoot}/AXYRO-URP.asset", path);
+        var pipeline = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(path);
+        if (pipeline == null || desktop == null) throw new InvalidOperationException("No se pudo crear el pipeline web");
+        var data = new SerializedObject(pipeline);
+        data.FindProperty("m_MSAA").intValue = 2;
+        data.FindProperty("m_MainLightShadowmapResolution").intValue = 1024;
+        data.FindProperty("m_AdditionalLightsPerObjectLimit").intValue = 6;
+        data.FindProperty("m_AdditionalLightsShadowmapResolution").intValue = 1024;
+        data.FindProperty("m_SoftShadowsSupported").boolValue = false;
+        data.FindProperty("m_ShadowDistance").floatValue = 6f;
+        data.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(pipeline);
+        AssetDatabase.SaveAssets();
+        return pipeline;
+    }
+
+    private static void UsePipeline(UniversalRenderPipelineAsset pipeline)
+    {
         GraphicsSettings.defaultRenderPipeline = pipeline;
         var current = QualitySettings.GetQualityLevel();
         for (var i = 0; i < QualitySettings.names.Length; i++)
@@ -276,9 +339,10 @@ public static class AxyroSceneBuilder
         camera.fieldOfView = 24f;
         camera.nearClipPlane = 0.1f;
         camera.farClipPlane = 40f;
-        // Plano medio con el tutor en el tercio izquierdo: la consola ocupa la mitad derecha.
+        // Plano medio con el tutor en el tercio izquierdo; AxyroCinematics mueve la cámara en ejecución.
         camera.transform.position = new Vector3(0.40f, 1.47f, -2.35f);
         camera.transform.rotation = Quaternion.LookRotation(new Vector3(0.40f, 1.36f, 0f) - camera.transform.position);
+        camera.farClipPlane = 20f;
         var urp = camera.GetUniversalAdditionalCameraData();
         urp.renderPostProcessing = true;
         urp.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
@@ -286,45 +350,202 @@ public static class AxyroSceneBuilder
         return camera;
     }
 
-    private static void BuildEnvironment()
-    {
-        var root = new GameObject("Oficina").transform;
-        var wall = Lit("Pared", Hex("#0E2740"), 0.25f);
-        var slat = Lit("Lamas", Hex("#21405F"), 0.35f);
-        var floor = Lit("Suelo", Hex("#121A24"), 0.4f);
-        var window = new Material(Shader.Find("Universal Render Pipeline/Unlit")) { name = "Ventana" };
-        window.SetColor("_BaseColor", Hex("#102B4A"));
-        SaveMaterial(window);
-        var desk = Lit("Mesa", Hex("#2B2621"), 0.55f);
+    // Profundidad de la pared del fondo (cara visible): todo el decorado se apoya en ella.
+    private const float WallZ = 3.2f;
 
-        Box("Pared del fondo", root, new Vector3(0f, 2.5f, 3.6f), new Vector3(16f, 6f, 0.1f), wall);
-        Box("Suelo", root, new Vector3(0f, -0.05f, 0f), new Vector3(16f, 0.1f, 12f), floor);
-        // Lamas acústicas verticales: dan textura al fondo desenfocado.
-        for (var x = -6.0f; x <= 6.0f; x += 0.36f)
-            Box("Lama", root, new Vector3(x, 2.4f, 3.48f), new Vector3(0.14f, 4.8f, 0.12f), slat);
-        // Paneles azul oscuro detrás del tutor: evitan un rectángulo blanco en pantallas panorámicas.
-        Box("Ventanal", root, new Vector3(-2.3f, 1.9f, 3.38f), new Vector3(1.7f, 2.6f, 0.02f), window);
-        Box("Ventanal 2", root, new Vector3(-4.3f, 1.9f, 3.38f), new Vector3(1.7f, 2.6f, 0.02f), window);
-        // Mesa de reuniones en primer plano, al borde inferior del encuadre.
-        Box("Mesa", root, new Vector3(0.2f, 0.74f, -0.75f), new Vector3(3.2f, 0.05f, 1.1f), desk);
+    /// <summary>
+    /// Sala de seminario moderna construida con primitivas: pared de lamas de roble detrás de VictorIA, ventanal con
+    /// estores a la izquierda (luz de día suave, sin quemar), paño azul UFV con la pantalla de la situación y el rótulo
+    /// de la universidad, estantería y planta. Paleta sobria: azul marino, blanco cálido y madera.
+    /// </summary>
+    private static AxyroSceneScreen BuildEnvironment(out Light screenGlow)
+    {
+        var root = new GameObject("Sala").transform;
+        var plaster = Lit("Pared", Hex("#A39A90"), 0.12f);
+        var wood = Lit("Lamas", Hex("#9C6B45"), 0.32f);
+        var woodDark = Lit("Lamas fondo", Hex("#2A1E17"), 0.1f);
+        var navy = Lit("Paño azul", Hex("#132A48"), 0.18f);
+        var floor = Lit("Suelo", Hex("#3B2F27"), 0.35f);
+        var ceiling = Lit("Techo", Hex("#8C8883"), 0.05f);
+        var credenza = Lit("Mesa", Hex("#7A5236"), 0.4f);
+        var bezel = Lit("Marco pantalla", Hex("#0C0E12"), 0.75f);
+        var blind = Lit("Estor", Hex("#D9D2C7"), 0.08f);
+        var mullion = Lit("Carpintería", Hex("#26272B"), 0.4f);
+        var ceramic = Lit("Maceta", Hex("#D8D2C8"), 0.45f);
+        var leaf = Lit("Hojas", Hex("#2E4A2D"), 0.4f);
+        var window = BuildWindowMaterial();
+
+        // Caja de la sala.
+        Box("Pared del fondo", root, new Vector3(0.5f, 1.4f, WallZ + 0.05f), new Vector3(12f, 2.8f, 0.1f), plaster);
+        Box("Suelo", root, new Vector3(0.5f, -0.05f, 0.5f), new Vector3(12f, 0.1f, 9f), floor);
+        Box("Techo", root, new Vector3(0.5f, 2.85f, 0.5f), new Vector3(12f, 0.1f, 9f), ceiling);
+
+        // Ventanal a la izquierda con estores a medio bajar: luz de día suave y textura, nunca un rectángulo blanco.
+        const float windowLeft = -3.4f, windowRight = -1.5f, windowBottom = 0.75f, windowTop = 2.05f;
+        var windowWidth = windowRight - windowLeft;
+        Box("Vidrio", root, new Vector3((windowLeft + windowRight) / 2f, (windowBottom + windowTop) / 2f, WallZ - 0.005f), new Vector3(windowWidth, windowTop - windowBottom, 0.01f), window);
+        for (var y = windowTop - 0.03f; y > windowBottom + 0.35f; y -= 0.075f)
+            Box("Lama del estor", root, new Vector3((windowLeft + windowRight) / 2f, y, WallZ - 0.06f), new Vector3(windowWidth, 0.045f, 0.012f), blind, Quaternion.Euler(-25f, 0f, 0f));
+        Box("Dintel", root, new Vector3((windowLeft + windowRight) / 2f, windowTop + 0.03f, WallZ - 0.04f), new Vector3(windowWidth + 0.08f, 0.06f, 0.08f), mullion);
+        Box("Alféizar", root, new Vector3((windowLeft + windowRight) / 2f, windowBottom - 0.03f, WallZ - 0.06f), new Vector3(windowWidth + 0.08f, 0.06f, 0.14f), mullion);
+        foreach (var x in new[] { windowLeft, -2.3f, windowRight })
+            Box("Montante", root, new Vector3(x, (windowBottom + windowTop) / 2f, WallZ - 0.04f), new Vector3(0.05f, windowTop - windowBottom, 0.08f), mullion);
+
+        // Pared de lamas de roble detrás del personaje: calidez y textura vertical en el desenfoque.
+        const float slatsLeft = -1.42f, slatsRight = -0.04f;
+        Box("Fondo de lamas", root, new Vector3((slatsLeft + slatsRight) / 2f, 1.4f, WallZ - 0.01f), new Vector3(slatsRight - slatsLeft, 2.8f, 0.02f), woodDark);
+        for (var x = slatsLeft + 0.03f; x < slatsRight; x += 0.075f)
+            Box("Lama", root, new Vector3(x, 1.4f, WallZ - 0.045f), new Vector3(0.045f, 2.8f, 0.05f), wood);
+
+        // Paño azul UFV con la pantalla de la situación y el rótulo de la universidad debajo.
+        const float navyLeft = -0.06f, navyRight = 2.05f;
+        Box("Paño azul", root, new Vector3((navyLeft + navyRight) / 2f, 1.4f, WallZ - 0.02f), new Vector3(navyRight - navyLeft, 2.8f, 0.04f), navy);
+        var screenCenter = new Vector3(0.82f, 1.56f, WallZ - 0.09f);
+        const float screenWidth = 1.5f, screenHeight = screenWidth * 9f / 16f;
+        Box("Pantalla", root, screenCenter + Vector3.forward * 0.02f, new Vector3(screenWidth + 0.04f, screenHeight + 0.04f, 0.04f), bezel);
+        var screen = BuildScreenCanvas(root, screenCenter + Vector3.back * 0.001f, screenWidth);
+        // Sin rótulo en la pared: el logo de la interfaz ya firma la escena y uno a medio tapar por los paneles
+        // de opciones y resultado quedaba descuidado.
+        // Aparador bajo de madera bajo la pantalla.
+        Box("Aparador", root, new Vector3(screenCenter.x, 0.21f, WallZ - 0.25f), new Vector3(1.7f, 0.42f, 0.4f), credenza);
+
+        screenGlow = new GameObject("Brillo de la pantalla", typeof(Light)).GetComponent<Light>();
+        screenGlow.transform.SetParent(root, false);
+        screenGlow.type = LightType.Point;
+        screenGlow.transform.position = screenCenter + new Vector3(0f, -0.05f, -0.45f);
+        screenGlow.range = 2.4f;
+        screenGlow.intensity = 0.9f;
+        screenGlow.color = Mint;
+        screenGlow.shadows = LightShadows.None;
+
+        BuildShelf(root, new Vector3(2.55f, 0f, WallZ - 0.2f), credenza, mullion);
+        BuildPlant(root, new Vector3(-1.8f, 0f, WallZ - 0.5f), ceramic, leaf);
+        BuildPlant(root, new Vector3(3.6f, 0f, WallZ - 0.45f), ceramic, leaf);
+        return screen;
     }
 
+    /// <summary>Degradado de cielo (azul pálido arriba, blanco cálido abajo) en un material sin iluminación, por debajo del blanco puro.</summary>
+    private static Material BuildWindowMaterial()
+    {
+        var texturePath = $"{RenderingRoot}/Cielo.png";
+        var texture = new Texture2D(4, 128, TextureFormat.RGBA32, false);
+        var top = new Color(0.62f, 0.74f, 0.92f);
+        var horizon = new Color(0.93f, 0.92f, 0.88f);
+        var bottom = new Color(0.72f, 0.70f, 0.66f);
+        for (var y = 0; y < texture.height; y++)
+        {
+            var t = y / (texture.height - 1f);
+            var color = t > 0.35f ? Color.Lerp(horizon, top, Mathf.SmoothStep(0f, 1f, (t - 0.35f) / 0.65f)) : Color.Lerp(bottom, horizon, Mathf.SmoothStep(0f, 1f, t / 0.35f));
+            for (var x = 0; x < texture.width; x++) texture.SetPixel(x, y, color);
+        }
+        System.IO.File.WriteAllBytes(texturePath, texture.EncodeToPNG());
+        UnityEngine.Object.DestroyImmediate(texture);
+        AssetDatabase.ImportAsset(texturePath);
+        var importer = (TextureImporter)AssetImporter.GetAtPath(texturePath);
+        importer.wrapMode = TextureWrapMode.Clamp;
+        importer.mipmapEnabled = false;
+        importer.SaveAndReimport();
+
+        var material = new Material(Shader.Find("Universal Render Pipeline/Unlit")) { name = "Ventana" };
+        material.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath));
+        material.SetColor("_BaseColor", new Color(1.15f, 1.15f, 1.15f));
+        SaveMaterial(material);
+        return material;
+    }
+
+    /// <summary>Lienzo UGUI en el espacio del mundo sobre la pantalla: el contenido lo genera AxyroSceneScreen por fase.</summary>
+    private static AxyroSceneScreen BuildScreenCanvas(Transform parent, Vector3 center, float width)
+    {
+        var canvasObject = new GameObject("Pantalla de la situación", typeof(RectTransform), typeof(Canvas), typeof(CanvasGroup));
+        canvasObject.transform.SetParent(parent, false);
+        var canvas = canvasObject.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.WorldSpace;
+        var rect = canvasObject.GetComponent<RectTransform>();
+        rect.sizeDelta = new Vector2(AxyroSceneScreen.CanvasWidth, AxyroSceneScreen.CanvasHeight);
+        rect.position = center;
+        rect.rotation = Quaternion.identity;
+        rect.localScale = Vector3.one * (width / AxyroSceneScreen.CanvasWidth);
+        canvasObject.GetComponent<CanvasGroup>().interactable = false;
+        canvasObject.GetComponent<CanvasGroup>().blocksRaycasts = false;
+        return canvasObject.AddComponent<AxyroSceneScreen>();
+    }
+
+    private static void BuildShelf(Transform parent, Vector3 origin, Material frame, Material dark)
+    {
+        var shelf = new GameObject("Estantería").transform;
+        shelf.SetParent(parent, false);
+        const float width = 0.9f, height = 2.1f, depth = 0.32f;
+        Box("Lateral", shelf, origin + new Vector3(-width / 2f, height / 2f, 0f), new Vector3(0.03f, height, depth), frame);
+        Box("Lateral", shelf, origin + new Vector3(width / 2f, height / 2f, 0f), new Vector3(0.03f, height, depth), frame);
+        Box("Trasera", shelf, origin + new Vector3(0f, height / 2f, depth / 2f - 0.01f), new Vector3(width, height, 0.02f), dark);
+        var random = new System.Random(4);
+        Color[] spines = { Hex("#1E3A5F"), Hex("#E8E2D6"), Hex("#B4553F"), Hex("#2F4F6F"), Hex("#C9A66B"), Hex("#53585F") };
+        var materials = spines.Select((c, i) => Lit($"Libro {i + 1}", c, 0.2f)).ToArray();
+        for (var level = 0; level < 5; level++)
+        {
+            var y = 0.1f + level * 0.46f;
+            Box("Balda", shelf, origin + new Vector3(0f, y, 0f), new Vector3(width, 0.03f, depth), frame);
+            if (level == 4) break;
+            var x = -width / 2f + 0.05f;
+            var limit = width / 2f - (level % 2 == 0 ? 0.25f : 0.08f);
+            while (x < limit)
+            {
+                var bookWidth = 0.025f + (float)random.NextDouble() * 0.03f;
+                var bookHeight = 0.24f + (float)random.NextDouble() * 0.1f;
+                var lean = random.NextDouble() < 0.08 ? 8f : 0f;
+                Box("Libro", shelf, origin + new Vector3(x + bookWidth / 2f, y + 0.015f + bookHeight / 2f, 0.02f), new Vector3(bookWidth, bookHeight, 0.2f), materials[random.Next(materials.Length)], Quaternion.Euler(0f, 0f, lean));
+                x += bookWidth + 0.004f;
+            }
+        }
+    }
+
+    /// <summary>Planta de interior (tipo ficus lira): maceta, tallo y hojas grandes; el desenfoque la convierte en silueta.</summary>
+    private static void BuildPlant(Transform parent, Vector3 origin, Material pot, Material leaf)
+    {
+        var plant = new GameObject("Planta").transform;
+        plant.SetParent(parent, false);
+        Primitive(PrimitiveType.Cylinder, "Maceta", plant, origin + new Vector3(0f, 0.24f, 0f), new Vector3(0.38f, 0.24f, 0.38f), pot, Quaternion.identity);
+        Primitive(PrimitiveType.Cylinder, "Tallo", plant, origin + new Vector3(0f, 0.95f, 0f), new Vector3(0.025f, 0.5f, 0.025f), pot, Quaternion.identity);
+        var random = new System.Random(Mathf.RoundToInt(origin.x * 100f) + 3);
+        for (var i = 0; i < 34; i++)
+        {
+            var height = 0.75f + (float)random.NextDouble() * 1.0f;
+            var spread = 0.08f + 0.32f * (float)random.NextDouble() * Mathf.Sin(Mathf.PI * (height - 0.6f) / 1.3f);
+            var angle = (float)random.NextDouble() * 360f;
+            var offset = Quaternion.Euler(0f, angle, 0f) * Vector3.forward * spread;
+            var rotation = Quaternion.Euler(-30f + (float)random.NextDouble() * 70f, angle, (float)random.NextDouble() * 40f - 20f);
+            Primitive(PrimitiveType.Sphere, "Hoja", plant, origin + offset + Vector3.up * height, new Vector3(0.17f, 0.025f, 0.26f), leaf, rotation);
+        }
+    }
+
+    /// <summary>
+    /// Iluminación de estudio en tres puntos sobre VictorIA (principal cálida y suave, relleno frío tenue, contraluz azul UFV)
+    /// más luz de ventana y bañados de pared que separan los planos del fondo. Ninguna luz quema el fondo.
+    /// </summary>
     private static void BuildLighting(Transform tutor)
     {
         var head = HeadPosition(tutor.gameObject);
-        Spot("Luz principal", new Vector3(-1.5f, 2.5f, -1.9f), head, new Color(1f, 0.95f, 0.9f), 3.2f, 40f, LightShadows.Soft);
-        Spot("Luz de relleno", new Vector3(1.9f, 1.6f, -2.1f), head, new Color(0.82f, 0.88f, 1f), 1.6f, 55f, LightShadows.None);
-        Spot("Contraluz", new Vector3(1.1f, 2.5f, 1.4f), head + Vector3.down * 0.15f, Hex("#9CC2FF"), 5f, 45f, LightShadows.Soft);
-        Spot("Luz de fondo", new Vector3(0.3f, 0.6f, 2.4f), new Vector3(0.3f, 2.6f, 3.6f), Hex("#3F7BD6"), 5f, 80f, LightShadows.None);
+        var root = new GameObject("Iluminación").transform;
+        Spot("Luz principal", root, head + new Vector3(-1.2f, 0.7f, -1.55f), head + new Vector3(0f, -0.08f, 0f), new Color(1f, 0.97f, 0.95f), 5.2f, 58f, 0.35f, LightShadows.Soft, 7f);
+        Spot("Luz de relleno", root, head + new Vector3(1.5f, -0.1f, -1.6f), head + new Vector3(0f, -0.1f, 0f), new Color(0.88f, 0.93f, 1f), 1.5f, 75f, 0.3f, LightShadows.None, 6f);
+        Spot("Contraluz azul", root, head + new Vector3(1.0f, 0.55f, 1.3f), head + new Vector3(0f, -0.15f, 0f), Hex("#7FAAFF"), 7f, 50f, 0.4f, LightShadows.None, 4f);
+        Spot("Luz de ventana", root, head + new Vector3(-1.5f, 0.35f, 1.4f), head + new Vector3(0f, -0.1f, 0f), new Color(0.88f, 0.93f, 1f), 3.2f, 55f, 0.4f, LightShadows.None, 4f);
+        Spot("Bañado lamas", root, new Vector3(-0.75f, 1.55f, 1.5f), new Vector3(-0.75f, 1.15f, WallZ), new Color(1f, 0.87f, 0.72f), 1.7f, 78f, 0.2f, LightShadows.None, 4f);
+        Spot("Bañado paño azul", root, new Vector3(0.95f, 1.45f, 1.6f), new Vector3(0.95f, 1.2f, WallZ), new Color(0.85f, 0.9f, 1f), 1.6f, 85f, 0.2f, LightShadows.None, 4f);
+        Spot("Bañado estantería", root, new Vector3(2.6f, 1.6f, 1.6f), new Vector3(2.6f, 1.1f, WallZ), new Color(1f, 0.88f, 0.72f), 1.8f, 70f, 0.2f, LightShadows.None, 4f);
 
         RenderSettings.ambientMode = AmbientMode.Trilight;
-        RenderSettings.ambientSkyColor = Hex("#43566E");
-        RenderSettings.ambientEquatorColor = Hex("#243447");
-        RenderSettings.ambientGroundColor = Hex("#0C131D");
+        RenderSettings.ambientSkyColor = new Color(0.30f, 0.32f, 0.36f);
+        RenderSettings.ambientEquatorColor = new Color(0.20f, 0.19f, 0.18f);
+        RenderSettings.ambientGroundColor = new Color(0.07f, 0.065f, 0.06f);
         RenderSettings.fog = false;
     }
 
-    private static void BuildPostProcessing(float focusDistance)
+    /// <summary>
+    /// Postproceso sobrio: tonemapping neutro (respeta el tono de piel), contraste suave, sombras ligeramente frías y luces
+    /// cálidas, bloom contenido, viñeta y desenfoque gaussiano del fondo (AxyroCinematics mueve el foco con la cámara).
+    /// </summary>
+    private static Volume BuildPostProcessing(float focusDistance)
     {
         var profilePath = $"{RenderingRoot}/AXYRO-Volume.asset";
         AssetDatabase.DeleteAsset(profilePath);
@@ -332,29 +553,62 @@ public static class AxyroSceneBuilder
         AssetDatabase.CreateAsset(profile, profilePath);
 
         var tonemapping = profile.Add<Tonemapping>(true);
-        tonemapping.mode.Override(TonemappingMode.ACES);
+        tonemapping.mode.Override(TonemappingMode.Neutral);
         var color = profile.Add<ColorAdjustments>(true);
-        color.postExposure.Override(0.1f);
-        color.contrast.Override(6f);
-        color.saturation.Override(-12f);
+        color.postExposure.Override(0.25f);
+        color.contrast.Override(12f);
+        color.saturation.Override(-9f);
+        var tones = profile.Add<ShadowsMidtonesHighlights>(true);
+        tones.shadows.Override(new Vector4(0.94f, 0.98f, 1.08f, 0f));
+        tones.highlights.Override(new Vector4(1.03f, 1.0f, 0.96f, 0f));
         var bloom = profile.Add<Bloom>(true);
-        bloom.threshold.Override(1.1f);
-        bloom.intensity.Override(0.55f);
-        bloom.scatter.Override(0.75f);
+        bloom.threshold.Override(0.95f);
+        bloom.intensity.Override(0.4f);
+        bloom.scatter.Override(0.7f);
+        bloom.highQualityFiltering.Override(true);
         var dof = profile.Add<DepthOfField>(true);
-        dof.mode.Override(DepthOfFieldMode.Bokeh);
-        dof.focusDistance.Override(focusDistance);
-        dof.focalLength.Override(85f);
-        dof.aperture.Override(2.2f);
+        dof.mode.Override(DepthOfFieldMode.Gaussian);
+        dof.gaussianStart.Override(focusDistance + 1.8f);
+        dof.gaussianEnd.Override(focusDistance + 8f);
+        dof.gaussianMaxRadius.Override(1.1f);
+        dof.highQualitySampling.Override(true);
         var vignette = profile.Add<Vignette>(true);
-        vignette.intensity.Override(0.26f);
-        vignette.smoothness.Override(0.45f);
+        vignette.intensity.Override(0.3f);
+        vignette.smoothness.Override(0.42f);
+        var grain = profile.Add<FilmGrain>(true);
+        grain.type.Override(FilmGrainLookup.Thin1);
+        grain.intensity.Override(0.12f);
+        grain.response.Override(0.8f);
         foreach (var component in profile.components) AssetDatabase.AddObjectToAsset(component, profile);
         EditorUtility.SetDirty(profile);
 
         var volume = new GameObject("Postproceso", typeof(Volume)).GetComponent<Volume>();
         volume.isGlobal = true;
         volume.sharedProfile = profile;
+        return volume;
+    }
+
+    /// <summary>Dirección de cámara y pantalla de la situación: observan el avatar, la sesión y el feedback.</summary>
+    private static void WireDirection(Camera camera, AxyroTutor3D tutor, AxyroSceneScreen screen, Light screenGlow, Volume volume)
+    {
+        var avatar = UnityEngine.Object.FindAnyObjectByType<AxyroAvatarDemo>(FindObjectsInactive.Include);
+        var session = UnityEngine.Object.FindAnyObjectByType<AxyroSessionClient>(FindObjectsInactive.Include);
+        var feedback = UnityEngine.Object.FindAnyObjectByType<AxyroDecisionFeedback>(FindObjectsInactive.Include);
+
+        var screenData = new SerializedObject(screen);
+        screenData.FindProperty("avatar").objectReferenceValue = avatar;
+        screenData.FindProperty("glow").objectReferenceValue = screenGlow;
+        screenData.ApplyModifiedPropertiesWithoutUndo();
+
+        var cinematics = camera.gameObject.AddComponent<AxyroCinematics>();
+        var data = new SerializedObject(cinematics);
+        data.FindProperty("tutor").objectReferenceValue = tutor;
+        data.FindProperty("avatar").objectReferenceValue = avatar;
+        data.FindProperty("session").objectReferenceValue = session;
+        data.FindProperty("feedback").objectReferenceValue = feedback;
+        data.FindProperty("screen").objectReferenceValue = screen;
+        data.FindProperty("volume").objectReferenceValue = volume;
+        data.ApplyModifiedPropertiesWithoutUndo();
     }
 
     // ---------- Tutor 3D ----------
@@ -492,7 +746,8 @@ public static class AxyroSceneBuilder
 
     private static Material Skin(string name, string color, string normal, string specular, float smoothness)
     {
-        var material = Lit(name, Color.white, smoothness);
+        // Tinte apenas frío: la textura Rocketbox es muy cálida y con luz de estudio la piel tiraba a naranja.
+        var material = Lit(name, new Color(0.94f, 0.955f, 1f), smoothness);
         material.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(color));
         material.SetFloat("_WorkflowMode", 0f);
         material.EnableKeyword("_SPECULAR_SETUP");
@@ -664,8 +919,11 @@ public static class AxyroSceneBuilder
         demoData.FindProperty("playLabel").objectReferenceValue = label;
         demoData.FindProperty("playButton").objectReferenceValue = buttonObject.GetComponent<Button>();
         // Todas las locuciones de Audio/: Unity elige la de cada fase por su nombre (id de fase).
+        // Las reacciones (Audio/Reacciones) se cargan aparte con Resources: no son locuciones de fase.
         var audio = AssetDatabase.FindAssets("t:AudioClip", new[] { "Assets/AXYRO/Audio" })
-            .Select(guid => AssetDatabase.LoadAssetAtPath<AudioClip>(AssetDatabase.GUIDToAssetPath(guid))).Where(clip => clip != null).ToArray();
+            .Select(AssetDatabase.GUIDToAssetPath)
+            .Where(path => !path.Replace('\\', '/').Contains("/Audio/Reacciones/"))
+            .Select(path => AssetDatabase.LoadAssetAtPath<AudioClip>(path)).Where(clip => clip != null).ToArray();
         var clips = demoData.FindProperty("lines");
         clips.arraySize = audio.Length;
         for (var i = 0; i < audio.Length; i++) clips.GetArrayElementAtIndex(i).objectReferenceValue = audio[i];
@@ -774,30 +1032,43 @@ public static class AxyroSceneBuilder
         AssetDatabase.CreateAsset(material, path);
     }
 
-    private static void Box(string name, Transform parent, Vector3 position, Vector3 size, Material material)
+    private static void Box(string name, Transform parent, Vector3 position, Vector3 size, Material material) =>
+        Primitive(PrimitiveType.Cube, name, parent, position, size, material, Quaternion.identity);
+
+    private static void Box(string name, Transform parent, Vector3 position, Vector3 size, Material material, Quaternion rotation) =>
+        Primitive(PrimitiveType.Cube, name, parent, position, size, material, rotation);
+
+    private static void Primitive(PrimitiveType type, string name, Transform parent, Vector3 position, Vector3 size, Material material, Quaternion rotation)
     {
-        var box = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        var box = GameObject.CreatePrimitive(type);
         box.name = name;
         box.transform.SetParent(parent, false);
-        box.transform.position = position;
+        box.transform.SetPositionAndRotation(position, rotation);
         box.transform.localScale = size;
         UnityEngine.Object.DestroyImmediate(box.GetComponent<Collider>());
-        box.GetComponent<MeshRenderer>().sharedMaterial = material;
+        var renderer = box.GetComponent<MeshRenderer>();
+        renderer.sharedMaterial = material;
+        // El decorado es estático: sin sombras propias salvo lo que recibe de la luz principal.
+        renderer.shadowCastingMode = ShadowCastingMode.Off;
+        box.isStatic = true;
     }
 
-    private static void Spot(string name, Vector3 position, Vector3 target, Color color, float intensity, float angle, LightShadows shadows)
+    private static void Spot(string name, Transform parent, Vector3 position, Vector3 target, Color color, float intensity, float angle, float inner, LightShadows shadows, float range)
     {
         var light = new GameObject(name, typeof(Light)).GetComponent<Light>();
+        light.transform.SetParent(parent, false);
         light.type = LightType.Spot;
         light.transform.position = position;
         light.transform.rotation = Quaternion.LookRotation(target - position);
         light.color = color;
         light.intensity = intensity;
-        light.range = 10f;
+        light.range = range;
         light.spotAngle = angle;
-        light.innerSpotAngle = angle * 0.4f;
+        light.innerSpotAngle = angle * inner;
         light.shadows = shadows;
-        light.shadowStrength = 0.85f;
+        light.shadowStrength = 0.8f;
+        light.shadowBias = 0.02f;
+        light.shadowNormalBias = 0.3f;
     }
 
     private static void EnsureFolder(string path)

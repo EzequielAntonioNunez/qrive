@@ -80,6 +80,43 @@ namespace Axyro
         {
             // Solo con las opciones a la vista: primero se escucha la situación, después se decide.
             if (CanDecide && shownOptions != null && !commandBusy) Decide(index);
+            else if (demoMode && !CanDecide) DemoDecide(index);
+        }
+
+        // Demo sin sesión (Windows y editor, sin --axyro-session): opciones de la fase visible tomadas del guion de
+        // reacciones (Resources/Reacciones/reacciones.json). Se elige con el ratón; 1, 2 y 3 siguen cambiando de
+        // situación. Nada se envía a la API. En cuanto aparece una sesión, Show() desactiva la demo.
+        private bool demoMode;
+        private int demoPhaseVersion = -1;
+        private string demoPhase;
+
+        private void RefreshDemo()
+        {
+            if (!demoMode || avatar == null || avatar.PhaseVersion == demoPhaseVersion) return;
+            demoPhaseVersion = avatar.PhaseVersion;
+            demoPhase = avatar.CurrentPhaseId;
+            var entries = AxyroReactions.OptionsFor(demoPhase);
+            currentOptions = entries.Length == 0 ? null : Array.ConvertAll(entries, entry => new ChoiceData
+            {
+                id = entry.optionId, label = entry.label, consequence = entry.consequence, quality = entry.quality, rationale = entry.rationale
+            });
+            if (choiceList != null) choiceList.text = "";
+            if (choicePanel != null) choicePanel.SetActive(false);
+        }
+
+        private void DemoDecide(int index)
+        {
+            if (shownOptions == null || index < 0 || index >= shownOptions.Length) return;
+            var chosen = shownOptions[index];
+            currentOptions = null;
+            RefreshCards();
+            var why = !string.IsNullOrEmpty(chosen.rationale) ? $"\n\n<color=#9FB8DA>{chosen.rationale}</color>" : "";
+            if (choiceList != null) choiceList.text = $"<b>{chosen.label}</b>\n\n{chosen.consequence}{why}\n\n<color=#649EFF>Modo demostración · 1, 2 y 3: cambiar de situación.</color>";
+            if (choicePanel != null) choicePanel.SetActive(true);
+            // La valoración es de la decisión según el escenario, no de la persona (AI Act).
+            feedback?.Show(chosen.quality);
+            if (avatar != null) avatar.PlayReaction(demoPhase, chosen.id, chosen.quality, chosen.consequence);
+            else tutor?.React(chosen.quality);
         }
 
         private void Start()
@@ -127,7 +164,8 @@ namespace Axyro
         private void AutoDecide()
         {
             if (autoDecide < 0) return;
-            if (!CanDecide) { autoDecideAt = -1f; return; }
+            // Solo con las tarjetas a la vista (también en la demo sin sesión).
+            if (!(CanDecide || demoMode) || shownOptions == null) { autoDecideAt = -1f; return; }
             if (autoDecideAt < 0f) autoDecideAt = Time.time + 3f;
             else if (Time.time >= autoDecideAt && !commandBusy)
             {
@@ -188,6 +226,7 @@ namespace Axyro
         private void Update()
         {
             RefreshTimer();
+            RefreshDemo();
             RefreshCards();
             AutoDecide();
             // El teclado se mantiene como alternativa accesible al ratón y la voz.
@@ -298,8 +337,11 @@ namespace Axyro
                         else if (!HandleFatal(request)) ShowOffline();
                     }
                 }
-                else if (!stopped && !WebClient && connectionLabel != null && state == null)
-                    connectionLabel.text = "Modo demostración · sin sesión activa";
+                else if (!stopped && !WebClient && state == null)
+                {
+                    if (connectionLabel != null) connectionLabel.text = "Modo demostración · sin sesión activa";
+                    if (!pinned) demoMode = true;
+                }
 
                 if (!stopped) yield return new WaitForSeconds(1.5f);
             }
@@ -359,6 +401,8 @@ namespace Axyro
 
         private void Show(SessionStateData next)
         {
+            demoMode = false;
+            demoPhaseVersion = -1;
             state = next;
             avatar?.SetLinkedSession(true);
             avatar?.SetCharacterName(next.scenario?.character?.name);
@@ -419,7 +463,9 @@ namespace Axyro
                     awaitingDecisionPhase = null;
                     // La valoración es de la decisión según el escenario, no de la persona (AI Act).
                     feedback?.Show(chosen.quality);
-                    tutor?.React(chosen.quality);
+                    // VictorIA responde por voz (gesto, subtítulo y locución con lip sync); el panel de resultado se mantiene.
+                    if (avatar != null) avatar.PlayReaction(phase.id, chosen.id, chosen.quality, chosen.consequence);
+                    else tutor?.React(chosen.quality);
                 }
             }
             else

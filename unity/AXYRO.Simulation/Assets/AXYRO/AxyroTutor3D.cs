@@ -120,7 +120,9 @@ namespace Axyro
         /// Es una expresión del personaje sobre la decisión tomada; no se infieren emociones ni estados
         /// psicológicos de la persona (AI Act).
         /// </summary>
-        public void React(string quality)
+        /// <param name="holdSeconds">En "poor", mantiene el gesto de preocupación al menos este tiempo
+        /// (p. ej. mientras VictorIA explica la consecuencia).</param>
+        public void React(string quality, float holdSeconds = 0f)
         {
             switch (quality?.Trim().ToLowerInvariant())
             {
@@ -137,7 +139,7 @@ namespace Axyro
                     break;
                 case "poor":
                     reactionKind = 0;
-                    concernTimer = concernSeconds;
+                    concernTimer = Mathf.Max(concernSeconds, holdSeconds);
                     smileBoost = 0f;
                     smileBoostHold = 0f;
                     break;
