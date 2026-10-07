@@ -11,8 +11,9 @@
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     // El Worker atiende todo (API, simulador y páginas HTML de la consola, para añadir cabeceras de seguridad)
-    // salvo los ficheros con hash de Vite y la marca, que salen directos de los static assets.
-    "run_worker_first": ["/*", "!/assets/*", "!/brand/*"]
+    // salvo los ficheros con hash de Vite, la marca y las locuciones, que salen directos de los static assets.
+    // /voz/: locuciones del guion público de VictorIA para la vista móvil (mismos WAV que Unity).
+    "run_worker_first": ["/*", "!/assets/*", "!/brand/*", "!/voz/*"]
   },
   "d1_databases": [{ "binding": "DB", "database_name": "axyro-db", "database_id": "a6f26406-0082-4f70-8550-63535822a104", "migrations_dir": "migrations" }],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "axyro-files", "jurisdiction": "eu" }],

@@ -14,9 +14,11 @@ import { Bar, CountUp, Sk } from './ui';
 export function KpiStrip({ state, report, tally, remainingMs, phaseExpired, timersOn, simCount }: { state: SessionState; report: Report; tally: Tally; remainingMs: number | null; phaseExpired: boolean; timersOn: boolean; simCount: number }) {
   const phase = state.scenario.phases[state.phaseIndex];
   const total = state.scenario.phases.length;
-  const done = state.status === 'complete' ? total : state.phaseIndex;
-  const decidedPct = share(tally.decided, tally.total);
   const complete = state.status === 'complete';
+  // Una sesión puede finalizarse antes de la última situación: las posteriores quedan sin jugar.
+  const done = complete ? state.phaseIndex + 1 : state.phaseIndex;
+  const skipped = complete ? total - done : 0;
+  const decidedPct = share(tally.decided, tally.total);
   const limit = phase?.timeLimitSec;
   const time = !timersOn || !limit ? { value: '—', sub: 'Sin límite de tiempo' }
     : phaseExpired ? { value: '00:00', sub: 'Tiempo agotado' }
@@ -30,7 +32,7 @@ export function KpiStrip({ state, report, tally, remainingMs, phaseExpired, time
     {complete
       ? <div className="kpi"><span className="kpi-label">Puntuación de la clase</span><strong className="kpi-value"><CountUp value={report.score}/><small>/100</small></strong><span className="kpi-sub">Media de los indicadores</span></div>
       : <div className={`kpi ${remainingMs != null && remainingMs < 60000 && !phaseExpired && state.status === 'active' ? 'urgent' : ''}`}><span className="kpi-label">Tiempo restante</span><strong className="kpi-value tabular">{time.value}</strong><span className="kpi-sub">{time.sub}</span></div>}
-    <div className="kpi"><span className="kpi-label">Progreso</span><strong className="kpi-value">{done}<small>/{total}</small></strong><span className="kpi-sub">{complete ? 'Todas las situaciones cerradas' : 'situaciones cerradas'}</span><span className="segments" aria-hidden="true">{state.scenario.phases.map((item, i) => <i key={item.id} className={complete || i < state.phaseIndex ? 'done' : i === state.phaseIndex ? 'current' : ''}/>)}</span></div>
+    <div className="kpi"><span className="kpi-label">Progreso</span><strong className="kpi-value">{done}<small>/{total}</small></strong><span className="kpi-sub">{!complete ? 'situaciones cerradas' : skipped ? `Finalizada antes · ${plural(skipped, 'sin jugar', 'sin jugar')}` : 'Todas las situaciones cerradas'}</span><span className="segments" aria-hidden="true">{state.scenario.phases.map((item, i) => <i key={item.id} className={i < done ? 'done' : i === state.phaseIndex && !complete ? 'current' : ''}/>)}</span></div>
   </section>;
 }
 
@@ -38,11 +40,11 @@ export function PhaseSteps({ state }: { state: SessionState }) {
   const complete = state.status === 'complete';
   return <ol className="phase-steps" aria-label="Situaciones de la sesión">
     {state.scenario.phases.map((item, i) => {
-      const status = complete || i < state.phaseIndex ? 'done' : i === state.phaseIndex ? 'current' : 'next';
+      const status = i < state.phaseIndex || (complete && i === state.phaseIndex) ? 'done' : i === state.phaseIndex ? 'current' : complete ? 'skipped' : 'next';
       const votes = state.decisions.filter(decision => decision.phaseId === item.id).length;
-      return <li key={item.id} className={`phase-step ${status}`} aria-current={status === 'current' ? 'step' : undefined}>
+      return <li key={item.id} className={`phase-step ${status === 'skipped' ? 'next skipped' : status}`} aria-current={status === 'current' ? 'step' : undefined}>
         <span className="phase-index" aria-hidden="true">{status === 'done' ? '✓' : i + 1}</span>
-        <div><strong>{item.title}</strong><small>{status === 'done' ? `Cerrada · ${plural(votes, 'decisión', 'decisiones')}` : status === 'current' ? (state.status === 'paused' ? 'En pausa' : `En curso · ${plural(votes, 'decisión', 'decisiones')}`) : 'Pendiente'}</small></div>
+        <div><strong>{item.title}</strong><small>{status === 'done' ? `Cerrada · ${plural(votes, 'decisión', 'decisiones')}` : status === 'current' ? (state.status === 'paused' ? 'En pausa' : `En curso · ${plural(votes, 'decisión', 'decisiones')}`) : status === 'skipped' ? 'Sin jugar' : 'Pendiente'}</small></div>
       </li>;
     })}
   </ol>;

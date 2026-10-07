@@ -72,6 +72,17 @@ El participante abre el simulador 3D en el navegador, sin instalar nada, desde `
 3. Al abrir el enlace, la persona introduce correo y código en la página de AXYRO. El Worker crea una sesión propia de 24 horas con cookie segura. El código se guarda en D1 como HMAC con un secreto del Worker; no viaja dentro de la build WebGL. Cambiar o revocar el código invalida las sesiones activas.
 4. El cliente consulta `GET /api/me` para conocer su identidad y rol, se une a la sesión y decide con el ratón o con la tecla correspondiente a una opción. Se puede unir en cualquier fase mientras la sesión no haya terminado: quien llega tarde empieza en la fase actual con los indicadores iniciales.
 
+### Acceso invitado con PIN de sesión
+
+Para clases abiertas y demostraciones, cualquiera en el aula puede entrar sin cuenta: escanea el QR o abre `/unirse`, teclea el PIN de seis cifras de la sesión y un alias, y juega en `/jugar/<id>` como participante de esa sesión (`worker/guests.ts`).
+
+- PIN: `GET /api/sessions/:id/pin` (instructor de la organización; lo crea si falta) → `{ pin, joinUrl }`; `POST` con `{}` lo regenera y revoca el anterior. Es único entre los PIN activos y se revoca al finalizar la sesión (409 si se pide después) o se borra con ella.
+- Públicas: `GET /api/join/:pin` → `{ scenarioTitle, sessionName, status }` o 404; `POST /api/join` con `{ pin, alias }` → 201 `{ sessionId, alias, participantId }`, une al invitado en directo y fija la cookie de sesión (`axyro_session`, HttpOnly, SameSite=Lax, 12 horas). Volver a unirse a la misma sesión desde el mismo navegador conserva el participante; unirse a otra sustituye la cookie anterior (también la de un miembro).
+- Alias de 2 a 30 caracteres (letras, números, espacios, «.», «-», «_»; sin correos ni direcciones web). Los repetidos en la sesión pasan a «Ana 2», «Ana 3»...
+- Límites: `AUTH_IP_LIMITER` por IP y, contra la fuerza bruta, 30 PIN fallidos por IP cada 10 minutos (holgado porque una clase suele compartir IP).
+- Ámbito: un invitado (`guest-<uuid>`) solo puede usar `GET /api/me`, su sesión (`GET`, `/live` y comandos `join`/`decide`), la voz para su sesión y `POST /api/auth/logout`; el resto responde 403 «Acceso de invitado limitado a su sesión.». Cuenta como participante real (no simulado) y recibe la misma vista filtrada que cualquier participante.
+- Caducidad: 12 horas o, al finalizar la sesión, dos horas de margen para leer su informe. El cron borra los invitados caducados.
+
 Comportamiento del cliente en WebGL (`AxyroSessionClient.cs`, `#if UNITY_WEBGL && !UNITY_EDITOR`): la API es `<origen>/api`, sin cabecera `x-demo-user`, y la sesión sale del parámetro `sesion`. Sin él muestra «Abre el simulador desde el enlace que te comparta tu docente». Un instructor que abre el enlace ve la sesión sin poder decidir. La escena web sustituye Vosk por `AxyroWebVoice`, que recibe las órdenes de Soniox desde el navegador cuando hay una clave UE configurada. El lip sync de uLipSync funciona en WebGL leyendo las muestras del clip (`autoAudioSyncOnWebGL`); por eso las locuciones llevan en WebGL `Decompress On Load`. El navegador no reproduce audio hasta el primer clic del participante.
 
 ### Compilar y publicar
@@ -208,6 +219,7 @@ El participante solo recibe `participantView` y `participantReport` (`roomPayloa
 - Durable Objects de sesión en la jurisdicción UE (`SESSIONS_JURISDICTION = "eu"`). D1 y R2 también en la UE; la cola no (ver «Cloudflare»).
 - Los eventos y la cola solo llevan IDs seudónimos; la cola, además, solo los campos de `QUEUE_DETAIL_FIELDS` (la nota del incidente se queda en el Durable Object y no llega a D1 por la cola). El consumidor vuelve a filtrar por si llegan mensajes antiguos.
 - Voz en Unity: el reconocimiento es local y por palabras clave; no se graba ni se envía audio.
+- Acceso invitado: solo alias, sin correo; limitado a una sesión y con caducidad (12 horas, o dos horas tras finalizar la sesión). En D1 quedan el alias y el hash del token hasta que el cron los borra o se borra la sesión; el alias vive además en el estado de la sesión como nombre del participante. Eventos, cola y auditoría solo llevan el ID seudónimo `guest-<uuid>`.
 
 ## Demo en navegador
 
@@ -241,6 +253,7 @@ Cada fase del escenario define `timeLimitSec` y `timeoutRiskDelta`. El reloj de 
 - Cualquier miembro: `GET /api/me`, `GET /api/scenarios`, `GET /api/scenarios/:id`, `GET /api/sessions` (el participante, solo las suyas), `GET /api/sessions/:id` (vista por rol), `GET /api/sessions/:id/live` (WebSocket) y `POST /api/sessions/:id/commands`.
 - Instructor: `POST /api/scenarios`, `POST /api/sessions`, `POST /api/sessions/:id/duplicate`, `PATCH /api/sessions/:id` (quien puede gestionarla), `POST/DELETE /api/sessions/:id/demo-class` (el de la sesión), `GET /api/sessions/:id/events`, `GET /api/analytics`, `GET /api/sessions/:id/export`, `DELETE /api/sessions/:id`, `GET/POST /api/memberships`, `DELETE /api/memberships/:userId` y gestión de códigos con `GET /api/access-codes`, `POST/DELETE /api/access-codes/:userId`.
 - Acceso: `POST /api/auth/login` acepta correo y código; `POST /api/auth/logout` cierra la sesión. La entrega del código es responsabilidad del docente; nunca se envía correo desde la plataforma.
+- Acceso invitado (ver «Acceso invitado con PIN de sesión»): públicas `GET /api/join/:pin` y `POST /api/join`; instructor `GET/POST /api/sessions/:id/pin`.
 - `GET /api/health` sin autenticación de la API.
 
 Los comandos incluyen un `id` para idempotencia. Los roles y la organización se resuelven en el servidor; la identidad demo solo existe en `wrangler.local.jsonc` (`worker/local.ts`).

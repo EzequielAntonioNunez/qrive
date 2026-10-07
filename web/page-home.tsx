@@ -3,6 +3,7 @@ import React from 'react';
 import { isMine, scenarioTitleOf, simulatorUrl, titleOf, useApp, useSessionActions } from './app-context';
 import { ActionMenu, EmptyState, Icon, PageHeader, StatusPill } from './kit';
 import { Link, navigate } from './router';
+import { AnalyticsStrip } from './page-analytics';
 import { sessionMenu } from './session-menu';
 import { plural, relativeDate, type SessionSummary } from './types';
 import { Sk } from './ui';
@@ -14,7 +15,12 @@ function greeting(): string {
 function firstName(name: string): string { return name.trim().split(/\s+/)[0] ?? ''; }
 
 export function progressText(session: SessionSummary): string | null {
-  if (session.status === 'complete') return session.phaseCount ? `${plural(session.phaseCount, 'situación', 'situaciones')}` : null;
+  if (session.status === 'complete') {
+    if (!session.phaseCount) return null;
+    // Cierre anticipado: se indica cuántas situaciones se llegaron a trabajar.
+    if (session.phaseIndex != null && session.phaseIndex + 1 < session.phaseCount) return `${session.phaseIndex + 1} de ${plural(session.phaseCount, 'situación', 'situaciones')}`;
+    return plural(session.phaseCount, 'situación', 'situaciones');
+  }
   if (session.phaseIndex == null || !session.phaseCount) return null;
   return `Situación ${session.phaseIndex + 1} de ${session.phaseCount}`;
 }
@@ -53,6 +59,7 @@ function InstructorHome() {
       <Stat label="Participantes" value={sessions ? (hasCounts ? people : null) : null} sub={hasCounts ? `en ${plural(sessions!.length, 'sesión', 'sesiones')} recientes` : 'Sin datos todavía'} loading={!sessions}/>
       <Stat label="Finalizadas este mes" value={sessions ? thisMonth : null} sub={now.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}/>
     </section>}
+    {!!sessions?.length && <AnalyticsStrip expected={people > 0}/>}
 
     {sessions === null ? <section className="section"><div className="section-title"><Sk w={140} h={14}/></div><div className="live-grid">{[0, 1].map(i => <div className="live-card" key={i} aria-hidden="true"><Sk w={90} h={20}/><Sk w="80%" h={18} className="sk-gap"/><Sk w="50%" h={12} className="sk-gap-s"/><Sk w="100%" h={36} className="sk-gap"/></div>)}</div></section>
     : sessions.length === 0 ? <FirstRun/>

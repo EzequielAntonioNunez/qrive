@@ -15,8 +15,10 @@ export function ImpactReport({ state, report, results, simulatedCount, excludeSi
   const initial = state.scenario.initialMeters;
   const final = report.meters ?? state.meters;
   const participants = state.participants.length;
-  const phasesDone = state.status === 'complete' ? state.scenario.phases.length : summaries.filter(item => item.tally.decided > 0).length;
-  const takeaways = state.scenario.phases.filter(phase => phase.takeaway);
+  // Situaciones trabajadas: hasta la actual (una sesión puede finalizarse antes de la última).
+  const phasesDone = state.status === 'complete' ? state.phaseIndex + 1 : summaries.filter(item => item.tally.decided > 0).length;
+  const played = (index: number) => index <= state.phaseIndex;
+  const takeaways = state.scenario.phases.filter((phase, index) => phase.takeaway && played(index));
   const issued = new Date();
   const held = longDate(state.createdAt);
   const frequent = summaries.filter(item => item.topIndex >= 0);
@@ -39,7 +41,7 @@ export function ImpactReport({ state, report, results, simulatedCount, excludeSi
         <div><strong>{report.decisions}</strong><span>Decisiones registradas</span></div>
         <div><strong>{pct(report.correctDecisionsPct)}</strong><span>Decisiones óptimas</span></div>
       </div>
-      <p className="rs-lead">{executiveSentence(report, participants, state)}</p>
+      <p className="rs-lead">{executiveSentence(report, participants, state, phasesDone)}</p>
       <table className="rs-table rs-meters">
         <thead><tr><th scope="col">Indicador de la clase</th><th scope="col">Inicial</th><th scope="col">Final</th><th scope="col">Variación</th></tr></thead>
         <tbody>{METERS.map(name => {
@@ -54,6 +56,10 @@ export function ImpactReport({ state, report, results, simulatedCount, excludeSi
       <h2><span>2</span>Distribución de decisiones por situación</h2>
       {summaries.map(item => {
         const votes = item.tally.counts.reduce((sum, value) => sum + value, 0);
+        if (!played(item.index)) return <div className="rs-phase rs-phase-skipped" key={item.phase.id}>
+          <h3>Situación {item.index + 1} · {item.phase.title}<small>{state.status === 'complete' ? 'Sin jugar' : 'Pendiente'}</small></h3>
+          <p className="rs-muted">{state.status === 'complete' ? 'La sesión se finalizó antes de llegar a esta situación.' : 'Esta situación aún no se ha abierto.'}</p>
+        </div>;
         return <div className="rs-phase" key={item.phase.id}>
           <h3>Situación {item.index + 1} · {item.phase.title}<small>{plural(votes, 'decisión', 'decisiones')}</small></h3>
           {item.phase.options.map((option, i) => {
@@ -109,9 +115,11 @@ export function ImpactReport({ state, report, results, simulatedCount, excludeSi
   </article>;
 }
 
-function executiveSentence(report: Report, participants: number, state: SessionState): string {
+function executiveSentence(report: Report, participants: number, state: SessionState, phasesDone: number): string {
   if (!participants) return 'La sesión aún no tiene participantes. El informe se completará a medida que se registren decisiones.';
-  const parts = [`${plural(participants, 'participante trabajó', 'participantes trabajaron')} ${plural(state.scenario.phases.length, 'situación', 'situaciones')} sobre «${state.scenario.title}» y ${report.decisions === 1 ? 'registró' : 'registraron'} ${plural(report.decisions, 'decisión', 'decisiones')}.`];
+  const total = state.scenario.phases.length;
+  const worked = state.status === 'complete' && phasesDone < total ? `${phasesDone} de ${plural(total, 'situación', 'situaciones')}` : plural(total, 'situación', 'situaciones');
+  const parts = [`${plural(participants, 'participante trabajó', 'participantes trabajaron')} ${worked} sobre «${state.scenario.title}» y ${participants === 1 ? 'registró' : 'registraron'} ${plural(report.decisions, 'decisión', 'decisiones')}.`];
   if (report.correctDecisionsPct != null) parts.push(`El ${report.correctDecisionsPct} % de las decisiones coincidió con la mejor opción definida por el escenario.`);
   if (report.criticalDecisions) parts.push(`${plural(report.criticalDecisions, 'decisión se valoró', 'decisiones se valoraron')} como crítica${report.criticalDecisions === 1 ? '' : 's'}: son el mejor punto de partida para el debate.`);
   return parts.join(' ');

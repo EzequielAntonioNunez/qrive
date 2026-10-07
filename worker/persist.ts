@@ -1,4 +1,5 @@
 import { queueSafeEvent } from './room';
+import { completionStatements } from './guests';
 import type { Env, EventMessage } from './types';
 
 /** Eventos que cambian `sessions.status` en D1. Su orden se decide por `seq`, no por el orden de llegada. */
@@ -30,6 +31,8 @@ export async function persistEvent(env: Pick<Env, 'DB'>, body: EventMessage): Pr
   if (event.type === 'completed') {
     statements.push(env.DB.prepare("UPDATE sessions SET status = 'complete', completed_at = ? WHERE id = ? AND tenant_id = ?")
       .bind(event.at, sessionId, tenantId));
+    // Acceso invitado: el PIN deja de valer y los invitados solo conservan un margen para leer su informe.
+    statements.push(...completionStatements(env, tenantId, sessionId, event.at));
   } else if (event.type === 'paused' || event.type === 'resumed') {
     statements.push(env.DB.prepare(`UPDATE sessions SET status = ? WHERE id = ? AND tenant_id = ? AND status <> 'complete'
       AND NOT EXISTS (SELECT 1 FROM simulation_events WHERE tenant_id = ? AND session_id = ? AND type IN (${STATUS_EVENT_LIST}) AND seq > ?)`)

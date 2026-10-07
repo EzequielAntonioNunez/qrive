@@ -36,6 +36,7 @@ Contenido:
 **Qué datos tratamos**
 
 - Datos identificativos: nombre y correo electrónico, dados de alta por el docente. Se admiten correos de cualquier dominio.
+- Acceso invitado (si el docente lo usa): basta el PIN de la sesión y un alias, sin correo ni cuenta; vale solo para esa sesión y caduca (ver Parte B, plazos).
 - Datos de acceso: código personal de seis cifras (solo se guarda una huella protegida, no el código), sesión técnica y fecha de cada acceso.
 - Datos de la actividad: sesión en la que participas, momento en que te unes, opción elegida en cada situación y tiempo empleado en decidir.
 
@@ -94,6 +95,7 @@ Verificado en el código y en el esquema de base de datos del MVP.
 | Registro de auditoría | D1, tabla de auditoría | Sistema. | Trazabilidad: creación, control, exportación y borrado de sesiones, altas y bajas de miembros, publicación de escenarios y borrados por retención. Solo IDs seudónimos. | Equipo técnico (no se muestra en la consola). |
 | Código de acceso y usos | D1, tablas `access_codes` y `access_code_uses` | Generación por el docente e inicio de sesión. Se guarda el HMAC del código, su estado y fecha de cada uso; el código en claro solo se muestra una vez. | Control de acceso y auditoría. | Instructores: contador y últimas fechas; equipo técnico: registro completo. |
 | Sesión técnica | D1, tabla `access_sessions`, y cookie HTTP segura | Inicio de sesión. En D1 solo se guarda el hash del token; caduca a las 24 horas o al revocar el código. | Mantener la sesión iniciada. | Sistema. |
+| Invitados y PIN de sesión | D1, tablas `guests` y `session_pins`, y cookie HTTP segura | Unión con PIN y alias. Alias, sesión, hash del token y caducidad; el PIN de seis cifras se guarda en claro porque el docente lo proyecta y solo vale para una sesión no finalizada. | Participar en una sesión sin cuenta. | Sistema; el alias lo ve el docente como nombre del participante. |
 | Registros técnicos del servicio | Cloudflare Workers | Sistema. | Diagnóstico y seguridad. Una línea por petición con identificador de petición, método, ruta, código de respuesta, duración y UUID de organización y usuario; avisos de límite de peticiones y errores. No incluyen nombre ni correo. | Equipo técnico. |
 
 **Lo que no se trata:** audio o grabaciones de voz, imagen o vídeo, datos biométricos, emociones o estados psicológicos, ubicación, pulsaciones de teclado o movimientos del ratón fuera de la elección de opción.
@@ -143,6 +145,7 @@ Verificado en el código y la configuración del despliegue. Una tarea programad
 - **Sesiones finalizadas:** se borran a los **365 días** de su finalización (valor configurable en el despliegue). Se borran el estado de la sesión, sus eventos y la propia sesión, y el borrado se anota en la auditoría. Hasta 200 sesiones por ejecución.
 - **Sesiones no finalizadas:** se borran a los **365 días** de su creación, con el mismo procedimiento.
 - **Auditoría:** las entradas se borran a los **730 días** (configurable). Solo contienen identificadores seudónimos.
+- **Acceso invitado:** quien entra con el PIN de la sesión y un alias, sin correo ni cuenta, solo puede participar en esa sesión. Se guardan el alias y una huella de la sesión técnica; caducan a las **12 horas** o **2 horas después de finalizar la sesión** (para consultar su informe), y la tarea diaria los borra; también desaparecen al borrar la sesión. El PIN deja de valer al finalizar o borrar la sesión. El alias aparece como nombre del participante en el estado de la sesión, que sigue el plazo de las sesiones; eventos y auditoría solo llevan un identificador seudónimo. **[Validar UFV]** Recomendar en el aviso que el alias no sea el nombre completo.
 - **Usuarios y miembros** (correo, nombre, rol): **sin plazo automático**. El instructor puede dar de baja a un miembro por la API (sin botón en la consola todavía); la baja borra su correo y su nombre de la base de datos. La copia del nombre en el estado de las sesiones en las que participó se mantiene hasta que esas sesiones se eliminan o caducan. **[Validar UFV]** Definir el plazo (por ejemplo, fin del curso académico).
 - **Ficheros exportados** (CSV o JSON descargados por el docente): quedan fuera del sistema, bajo la responsabilidad del docente. **[Validar UFV]** Indicar dónde deben guardarse y cuándo borrarse.
 - **Copias de seguridad:** D1 mantiene recuperación a un momento anterior durante un periodo limitado gestionado por Cloudflare; un dato borrado puede permanecer en ese histórico hasta que caduca. **[Validar UFV]** Confirmar el periodo con la documentación de Cloudflare.

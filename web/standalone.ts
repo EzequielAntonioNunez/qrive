@@ -4,12 +4,13 @@
  * Emula también «Simular clase» (participantes simulados que deciden solos) y `liveTally` del docente.
  */
 import { applyCommand, createSession, DomainError, expireTimer, type Actor, type Command } from '../shared/engine';
-import { catalogScenarios, classMeters, defaultScenario, participantReport, participantView, performanceReport, type SessionState } from '../shared/simulation';
+import { catalogScenarios, classMeters, defaultScenario, participantReport, participantView, performanceReport, type Meters, type SessionState } from '../shared/simulation';
 import { ScenarioError, validateScenario } from '../shared/scenario';
+import type { AnalyticsResponse } from './page-analytics';
 
 type Member = { id: string; email: string; name: string; role: 'instructor' | 'participant' };
 type Code = { id: string; userId: string; code: string; createdAt: string; uses: number; lastUsedAt: string | null };
-type Store = { sessions: SessionState[]; members: Member[]; simulated: Record<string, string[]>; names: Record<string, string>; codes: Code[] };
+type Store = { sessions: SessionState[]; members: Member[]; simulated: Record<string, string[]>; names: Record<string, string>; codes: Code[]; pins?: Record<string, string>; guests?: Record<string, { alias: string; sessionId: string }> };
 
 const KEY = 'ufv-simulador-v4';
 const actors: Record<'instructor' | 'participant', Actor & { email: string; tenantId: string }> = {
@@ -120,7 +121,7 @@ const ORDER: Record<string, number> = { active: 0, paused: 0, complete: 1 };
 
 let memory: Store | null = null;
 function load(): Store {
-  if (memory) return memory;
+  // Se relee en cada petición: así una pestaña «móvil» (invitado) y la del docente comparten la sesión en directo.
   try { const raw = localStorage.getItem(KEY); if (raw) memory = JSON.parse(raw) as Store; } catch { /* almacenamiento no disponible */ }
   memory ??= seed();
   memory.simulated ??= {};
@@ -161,6 +162,12 @@ async function handle(path: string, init: RequestInit | undefined, role: 'instru
   if (path.startsWith('/scenarios/')) {
     const scenario = catalogScenarios.find(item => item.id === decodeURIComponent(path.slice('/scenarios/'.length)));
     return scenario ? json({ scenario: validateScenario(scenario) }) : json({ error: 'Escenario no encontrado.' }, 404);
+  }
+  if (path.split('?')[0] === '/analytics') {
+    if (role !== 'instructor') return reserved();
+    save(store);
+    try { return json(analyticsOf(store, new URLSearchParams(path.split('?')[1] ?? ''))); }
+    catch (error) { return json({ error: error instanceof Error ? error.message : 'Filtro no válido.' }, 400); }
   }
   if (path === '/sessions' && method === 'GET') {
     save(store);
@@ -281,16 +288,224 @@ async function handle(path: string, init: RequestInit | undefined, role: 'instru
   return json(payload(store, result.state, role));
 }
 
+/**
+ * GET /api/analytics emulado con las mismas fórmulas que worker/analytics.ts, calculado sobre las sesiones guardadas
+ * en el navegador. Las decisiones salen de `state.decisions` y los indicadores finales de `participantMeters`
+ * (equivalen a reproducir los eventos). Tasas sin denominador: null.
+ */
+function analyticsOf(store: Store, params: URLSearchParams): AnalyticsResponse {
+  const DAY = 86400000;
+  const parseDate = (value: string | null, field: 'from' | 'to') => {
+    if (!value) return null;
+    const text = value.trim();
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(text) ? new Date(`${text}T${field === 'from' ? '00:00:00.000' : '23:59:59.999'}Z`) : new Date(text);
+    if (text.length > 40 || Number.isNaN(date.getTime())) throw new Error(`Fecha no válida en «${field}». Usa el formato ISO (AAAA-MM-DD).`);
+    return date.toISOString();
+  };
+  const to = parseDate(params.get('to'), 'to') ?? new Date().toISOString();
+  const from = parseDate(params.get('from'), 'from') ?? new Date(Date.parse(to) - 365 * DAY).toISOString();
+  if (Date.parse(from) > Date.parse(to)) throw new Error('«from» debe ser anterior a «to».');
+  const scenarioId = params.get('scenarioId')?.trim() || null;
+  const flag = params.get('includeSimulated')?.trim().toLowerCase();
+  if (flag && !['true', 'false', '1', '0'].includes(flag)) throw new Error('«includeSimulated» debe ser true o false.');
+  const includeSimulated = flag === 'true' || flag === '1';
+
+  const isSim = (id: string) => id.startsWith('sim-');
+  const included = (id: string) => includeSimulated || !isSim(id);
+  const ratio = (a: number, b: number) => b > 0 ? Math.round((a / b) * 1000) / 1000 : null;
+  const round1 = (value: number) => Math.round(value * 10) / 10;
+  const weekOf = (iso: string) => { const d = new Date(iso); const day = (d.getUTCDay() + 6) % 7; return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - day)).toISOString().slice(0, 10); };
+  type Fact = { state: SessionState; week: string; participants: Set<string>; simulated: Set<string>; decisions: { actorId: string; phaseId: string; optionId: string; durationMs: number | null; quality: string | null }[]; finalMeters: Meters[] };
+
+  const facts: Fact[] = store.sessions
+    .filter(state => state.createdAt >= from && state.createdAt <= to && (!scenarioId || state.scenario.id === scenarioId))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 2000)
+    .map(state => {
+      const participants = new Set(state.participants.map(person => person.userId).filter(included));
+      const simulated = new Set(state.participants.map(person => person.userId).filter(isSim));
+      const decisions = state.decisions.filter(item => included(item.userId)).map(item => ({
+        actorId: item.userId, phaseId: item.phaseId, optionId: item.optionId,
+        durationMs: Number.isFinite(item.durationMs) && item.durationMs >= 0 ? item.durationMs : null,
+        quality: state.scenario.phases.find(phase => phase.id === item.phaseId)?.options.find(option => option.id === item.optionId)?.quality ?? null
+      }));
+      const finalMeters = state.status === 'complete' ? [...participants].flatMap(id => state.participantMeters[id] ? [state.participantMeters[id]] : []) : [];
+      return { state, week: weekOf(state.createdAt), participants, simulated, decisions, finalMeters };
+    });
+
+  const optimal = (list: Fact['decisions']) => ratio(list.filter(item => item.quality === 'best').length, list.filter(item => item.quality !== null).length);
+  const completion = (list: Fact[]) => {
+    let done = 0, total = 0;
+    for (const fact of list) {
+      if (fact.state.status !== 'complete') continue;
+      for (const actor of fact.participants) {
+        total += 1;
+        const decided = new Set(fact.decisions.filter(item => item.actorId === actor).map(item => item.phaseId));
+        if (fact.state.scenario.phases.every(phase => decided.has(phase.id))) done += 1;
+      }
+    }
+    return ratio(done, total);
+  };
+  const distinct = (list: Fact[], pick: (fact: Fact) => Iterable<string>) => { const set = new Set<string>(); for (const fact of list) for (const id of pick(fact)) set.add(id); return set.size; };
+  const all = facts.flatMap(fact => fact.decisions);
+  const durations = all.flatMap(item => item.durationMs === null ? [] : [item.durationMs]).sort((a, b) => a - b);
+  const mid = Math.floor(durations.length / 2);
+  const medianMs = !durations.length ? null : durations.length % 2 ? durations[mid] : (durations[mid - 1] + durations[mid]) / 2;
+
+  const lastWeek = weekOf(to), firstWeek = weekOf(from);
+  const weeks: string[] = [];
+  for (let i = 11; i >= 0; i--) { const week = new Date(Date.parse(`${lastWeek}T00:00:00.000Z`) - i * 7 * DAY).toISOString().slice(0, 10); if (week >= firstWeek) weeks.push(week); }
+
+  const byScenario = new Map<string, Fact[]>();
+  for (const fact of facts) byScenario.set(fact.state.scenario.id, [...(byScenario.get(fact.state.scenario.id) ?? []), fact]);
+  const latest = (list: Fact[]) => [...list].sort((a, b) => b.state.scenario.version - a.state.scenario.version)[0].state.scenario;
+
+  const phases: AnalyticsResponse['phases'] = [];
+  const meters: AnalyticsResponse['meters'] = [];
+  for (const [id, list] of byScenario) {
+    const scenario = latest(list);
+    for (const phase of scenario.phases) {
+      const decisions = list.flatMap(fact => fact.decisions.filter(item => item.phaseId === phase.id));
+      if (!decisions.length) continue;
+      const distribution = phase.options.map(option => {
+        const count = decisions.filter(item => item.optionId === option.id).length;
+        return { optionId: option.id, label: option.label, quality: option.quality ?? null, count, share: ratio(count, decisions.length) ?? 0 };
+      });
+      const wrong = distribution.filter(option => option.count > 0 && option.quality !== null && option.quality !== 'best').sort((a, b) => b.count - a.count)[0];
+      phases.push({ scenarioId: id, scenarioTitle: scenario.title, phaseId: phase.id, phaseTitle: phase.title, decisions: decisions.length, optimalRate: optimal(decisions), distribution,
+        mostChosenNonOptimal: decisions.some(item => item.quality !== null) && wrong ? { optionId: wrong.optionId, label: wrong.label, share: wrong.share } : null });
+    }
+    const pairs = list.flatMap(fact => fact.finalMeters.map(end => ({ start: fact.state.scenario.initialMeters, end })));
+    if (!pairs.length) continue;
+    const labels = scenario.meterLabels ?? { relationship: 'Relación', margin: 'Margen', risk: 'Riesgo' };
+    for (const meter of ['relationship', 'margin', 'risk'] as const) {
+      const avgStart = round1(pairs.reduce((sum, pair) => sum + pair.start[meter], 0) / pairs.length);
+      const avgEnd = round1(pairs.reduce((sum, pair) => sum + pair.end[meter], 0) / pairs.length);
+      meters.push({ scenarioId: id, meter, label: labels[meter], avgStart, avgEnd, delta: round1(avgEnd - avgStart) });
+    }
+  }
+  phases.sort((a, b) => (a.optimalRate ?? 2) - (b.optimalRate ?? 2) || b.decisions - a.decisions);
+
+  return {
+    range: { from, to },
+    totals: {
+      sessions: facts.length, sessionsCompleted: facts.filter(fact => fact.state.status === 'complete').length, sessionsActive: facts.filter(fact => fact.state.status !== 'complete').length,
+      participants: distinct(facts, fact => [...fact.participants].filter(id => !isSim(id))), simulatedParticipants: distinct(facts, fact => fact.simulated),
+      decisions: all.length, completionRate: completion(facts), optimalRate: optimal(all), avgDecisionSeconds: medianMs === null ? null : round1(medianMs / 1000)
+    },
+    trend: weeks.map(week => { const list = facts.filter(fact => fact.week === week); const decisions = list.flatMap(fact => fact.decisions); return { week, sessions: list.length, participants: distinct(list, fact => fact.participants), decisions: decisions.length, optimalRate: optimal(decisions) }; }),
+    scenarios: [...byScenario].map(([id, list]) => { const decisions = list.flatMap(fact => fact.decisions); return { scenarioId: id, title: latest(list).title, sessions: list.length, participants: distinct(list, fact => fact.participants), decisions: decisions.length, optimalRate: optimal(decisions), completionRate: completion(list) }; })
+      .sort((a, b) => b.sessions - a.sessions || a.title.localeCompare(b.title, 'es')),
+    phases, meters,
+    recentSessions: facts.slice(0, 8).map(fact => ({ id: fact.state.id, name: store.names[fact.state.id] ?? null, scenarioTitle: fact.state.scenario.title, status: fact.state.status, createdAt: fact.state.createdAt, participants: fact.participants.size, optimalRate: optimal(fact.decisions) }))
+  };
+}
+
 export function installStandaloneApi() {
   const original = window.fetch.bind(window);
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url;
     if (!url.startsWith('/api')) return original(input, init);
-    const role = new Headers(init?.headers).get('x-demo-user') === 'participant' ? 'participant' : 'instructor';
-    try { return await handle(url.slice(4), init, role); }
+    const demoUser = new Headers(init?.headers).get('x-demo-user');
+    const role = demoUser === 'participant' ? 'participant' : 'instructor';
+    try {
+      // Unión por código e invitado: las páginas públicas no envían x-demo-user (en el Worker van con cookie).
+      const joinResponse = handleJoin(url.slice(4), init, demoUser === null, role);
+      if (joinResponse) return joinResponse;
+      return await handle(url.slice(4), init, role);
+    }
     catch (error) {
       if (error instanceof DomainError || error instanceof ScenarioError) return json({ error: error.message }, 400);
       return json({ error: 'Error interno de la demo.' }, 500);
     }
   };
+}
+
+/* ---- Unión por código (PIN) e invitados: emula GET/POST /api/sessions/:id/pin, /api/join y la cookie de invitado. ---- */
+const GUEST_KEY = 'ufv-guest';
+function guestOf(store: Store): { id: string; alias: string; sessionId: string } | null {
+  try {
+    const id = sessionStorage.getItem(GUEST_KEY);
+    const guest = id ? store.guests?.[id] : undefined;
+    return id && guest ? { id, ...guest } : null;
+  } catch { return null; }
+}
+function newPin(store: Store): string {
+  const used = new Set(Object.values(store.pins ?? {}));
+  let pin = '';
+  do { pin = String(Math.floor(100000 + Math.random() * 900000)); } while (used.has(pin));
+  return pin;
+}
+function pinPayload(sessionId: string, pin: string) { return { pin, joinUrl: `${window.location.origin}/unirse/${pin}` }; }
+/** Actualiza simulados y temporizadores antes de responder, como hace `handle`. */
+function refreshed(store: Store) {
+  const now = new Date().toISOString();
+  store.sessions = store.sessions.map(state => expireTimer(stepSimulated(state, store.simulated[state.id] ?? [], Date.now()), now).state);
+}
+
+/** Devuelve la respuesta si la ruta es de unión o de invitado; null para que siga en `handle`. */
+function handleJoin(path: string, init: RequestInit | undefined, anonymous: boolean, role: 'instructor' | 'participant'): Response | null {
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const pinRoute = path.match(/^\/sessions\/([^/]+)\/pin$/);
+  const isJoin = path === '/join' || /^\/join\/[^/]+$/.test(path);
+  if (!pinRoute && !isJoin && !anonymous) return null;
+  const store = load();
+  store.pins ??= {}; store.guests ??= {};
+  const body = init?.body ? JSON.parse(String(init.body)) : {};
+
+  if (pinRoute) {
+    if (role !== 'instructor' || anonymous) return json({ error: 'Acción reservada al docente.' }, 403);
+    const id = decodeURIComponent(pinRoute[1]);
+    const target = store.sessions.find(state => state.id === id);
+    if (!target) return json({ error: 'Sesión no encontrada.' }, 404);
+    if (target.status === 'complete') return json({ error: 'La sesión ya ha terminado.' }, 409);
+    if (method === 'POST' || !store.pins[id]) { store.pins[id] = newPin(store); save(store); }
+    return json(pinPayload(id, store.pins[id]));
+  }
+  const sessionByPin = (pin: string) => {
+    const id = Object.entries(store.pins ?? {}).find(([, value]) => value === pin)?.[0];
+    return id ? store.sessions.find(state => state.id === id && state.status !== 'complete') : undefined;
+  };
+  if (isJoin && method === 'GET') {
+    const state = sessionByPin(decodeURIComponent(path.slice('/join/'.length)));
+    if (!state) return json({ error: 'Código de sesión no válido o caducado.' }, 404);
+    return json({ scenarioTitle: state.scenario.title, sessionName: store.names[state.id] ?? null, status: state.status });
+  }
+  if (isJoin && method === 'POST') {
+    const alias = String(body.alias ?? '').trim().replace(/\s+/g, ' ');
+    if (alias.length < 2 || alias.length > 30) return json({ error: 'El alias debe tener entre 2 y 30 caracteres.' }, 400);
+    const state = sessionByPin(String(body.pin ?? ''));
+    if (!state) return json({ error: 'Código de sesión no válido o caducado.' }, 404);
+    const id = `guest-${crypto.getRandomValues(new Uint32Array(1))[0].toString(16).padStart(8, '0')}`;
+    refreshed(store);
+    const index = store.sessions.findIndex(item => item.id === state.id);
+    store.sessions[index] = applyCommand(store.sessions[index], { id: `join-${id}`, type: 'join' }, { id, name: alias, role: 'participant' }, new Date().toISOString()).state;
+    store.guests[id] = { alias, sessionId: state.id };
+    save(store);
+    try { sessionStorage.setItem(GUEST_KEY, id); } catch { /* sin almacenamiento */ }
+    return json({ sessionId: state.id, alias, participantId: id }, 201);
+  }
+
+  // Invitado (sin cabecera de demo): solo su identidad, su sesión, sus comandos y la voz.
+  const guest = guestOf(store);
+  if (path === '/auth/logout') { try { sessionStorage.removeItem(GUEST_KEY); } catch { /* nada */ } return json({ ok: true }); }
+  if (path === '/voice/config') {
+    const enabled = (() => { try { return new URLSearchParams(window.location.search).get('voz') === 'demo'; } catch { return false; } })();
+    return json({ enabled, region: 'us', websocketUrl: enabled ? 'wss://demo.invalid/voz' : null });
+  }
+  if (!guest) return json({ error: 'No has iniciado sesión.' }, 401);
+  if (path === '/me') return json({ id: guest.id, name: guest.alias, role: 'participant', guest: true, sessionId: guest.sessionId, flags: { phase_timers: true, realtime_websocket: false } });
+  if (path === '/voice/temporary-key' || path === '/voice/interpret') return json({ error: 'La voz no está disponible en la demo sin conexión.' }, 503);
+  const match = path.match(/^\/sessions\/([^/]+)(\/commands)?$/);
+  if (!match || decodeURIComponent(match[1]) !== guest.sessionId) return json({ error: 'Sesión no encontrada.' }, 404);
+  refreshed(store);
+  const index = store.sessions.findIndex(item => item.id === guest.sessionId);
+  if (index < 0) return json({ error: 'Sesión no encontrada.' }, 404);
+  if (match[2] && method === 'POST') {
+    const command = body as Command;
+    if (command.type !== 'join' && command.type !== 'decide') return json({ error: 'Acción reservada al docente.' }, 403);
+    store.sessions[index] = applyCommand(store.sessions[index], command, { id: guest.id, name: guest.alias, role: 'participant' }, new Date().toISOString()).state;
+  }
+  save(store);
+  const state = store.sessions[index];
+  return json({ state: participantView(state, guest.id), report: participantReport(state, guest.id), clients: {} });
 }

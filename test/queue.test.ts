@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it, vi } from 'vitest';
 import { applyCommand, createSession, type Actor } from '../shared/engine';
@@ -21,7 +21,7 @@ type Bound = { sql: string; args: unknown[] };
 function fakeD1() {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON;');
-  for (const file of ['0001_foundation.sql', '0002_scenarios.sql']) db.exec(readFileSync(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
+  for (const file of readdirSync(new URL('../migrations/', import.meta.url)).filter(name => name.endsWith('.sql')).sort()) db.exec(readFileSync(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
   db.prepare('INSERT INTO tenants (id,name,created_at) VALUES (?,?,?)').run(TENANT, 'UFV', '2026-10-06T00:00:00.000Z');
   db.prepare('INSERT INTO sessions (id,tenant_id,instructor_id,scenario_id,scenario_version,status,created_at) VALUES (?,?,?,?,?,?,?)')
     .run(SESSION, TENANT, instructor.id, 'escenario', 1, 'active', '2026-10-06T00:00:00.000Z');

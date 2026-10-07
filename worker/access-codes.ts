@@ -4,10 +4,10 @@ import type { AuthContext, Identity } from './auth';
 import type { Env } from './types';
 import { normalizeEmail } from './auth';
 
-const COOKIE = 'axyro_session';
+export const COOKIE = 'axyro_session';
 const SESSION_HOURS = 24;
 
-function randomSecret(bytes: number): string {
+export function randomSecret(bytes: number): string {
   const data = crypto.getRandomValues(new Uint8Array(bytes));
   return btoa(String.fromCharCode(...data)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
@@ -117,7 +117,14 @@ export async function identityFromSession(c: Context<AuthContext>): Promise<Iden
 
 export async function signOut(c: Context<AuthContext>): Promise<void> {
   const token = getCookie(c, COOKIE);
-  if (token) await c.env.DB.prepare('DELETE FROM access_sessions WHERE token_hash = ?').bind(await hashSecret(token)).run();
+  if (token) {
+    // La misma cookie puede ser de un miembro o de un invitado (worker/guests.ts).
+    const hash = await hashSecret(token);
+    await c.env.DB.batch([
+      c.env.DB.prepare('DELETE FROM access_sessions WHERE token_hash = ?').bind(hash),
+      c.env.DB.prepare('DELETE FROM guests WHERE token_hash = ?').bind(hash)
+    ]);
+  }
   deleteCookie(c, COOKIE, { path: '/', secure: new URL(c.req.url).protocol === 'https:', sameSite: 'Lax' });
 }
 

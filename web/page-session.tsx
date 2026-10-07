@@ -9,6 +9,7 @@ import { brand } from './brand';
 import { ActionMenu, EmptyState, Icon, PageHeader, StatusPill, type MenuItem } from './kit';
 import { useLiveSession } from './live';
 import { ProjectorView } from './projector';
+import { JoinShare } from './share-qr';
 import { Link, navigate, setQuery, useLocation } from './router';
 import {
   Debrief, EventsPanel, KpiStrip, LiveDistribution, Meter, NextStep, ParticipantsTab, PhaseSteps, ReportPanel, SessionSkeleton,
@@ -46,7 +47,7 @@ export function SessionPage({ id }: { id: string }) {
   const onError = useCallback((cause: unknown) => {
     const status = (cause as ApiError).status;
     if (status === 404 || status === 403) setGone('missing');
-    else setLoadError(`No se ha podido actualizar la sesión (${errorText(cause)}). Se reintentará automáticamente.`);
+    else setLoadError('No se ha podido actualizar la sesión. Reintentando automáticamente…');
   }, []);
   const onGone = useCallback(() => setGone('deleted'), []);
   const socket = app.realtime && !app.standalone && !(app.demo && !app.isInstructor);
@@ -72,6 +73,7 @@ export function SessionPage({ id }: { id: string }) {
   const summary: SessionSummary | null = state ? { ...listed, id, status: state.status, createdAt: state.createdAt, scenarioId: state.scenario.id, scenarioTitle: state.scenario.title, name: listed?.name ?? null, phaseIndex: state.phaseIndex, phaseCount: state.scenario.phases.length, instructorId: state.instructorId } : listed ?? null;
   const title = summary ? titleOf(summary, app.scenarios) : 'Sesión';
 
+  useEffect(() => { if (gone) document.title = `Sesión no disponible · ${brand.product} · ${brand.shortName}`; }, [gone]);
   useEffect(() => {
     if (!state) return;
     document.title = tab === 'informe' ? `Informe de impacto · ${title} · ${brand.shortName}` : `${title} · ${brand.product} · ${brand.shortName}`;
@@ -150,7 +152,7 @@ export function SessionPage({ id }: { id: string }) {
     {canControl && status === 'active' && !lastPhase && <button className="btn btn-primary" onClick={() => void command('advance')} disabled={busy || phaseVotes === 0} title={phaseVotes === 0 ? 'Necesitas al menos una decisión para avanzar.' : undefined}>Siguiente situación<Icon name="next" size={16}/></button>}
     {canControl && status === 'active' && lastPhase && <button className="btn btn-primary" onClick={() => void finish()} disabled={busy}><Icon name="stop" size={16}/>Finalizar sesión</button>}
     {canControl && status === 'paused' && <button className="btn btn-primary" onClick={() => void command('resume')} disabled={busy}><Icon name="play" size={16}/>Reanudar</button>}
-    {status === 'complete' && <button className="btn btn-primary" onClick={() => setQuery({ vista: 'informe' })}><Icon name="report" size={16}/>Ver informe</button>}
+    {status === 'complete' && tab !== 'informe' && <button className="btn btn-primary" onClick={() => setQuery({ vista: 'informe' })}><Icon name="report" size={16}/>Ver informe</button>}
     {status === 'complete' && <button className="btn" onClick={() => void actions.duplicate(summary)}><Icon name="copy" size={16}/>Duplicar</button>}
     {canControl && status === 'active' && <button className="btn" onClick={() => void command('pause')} disabled={busy}><Icon name="pause" size={16}/>Pausar</button>}
     {canControl && status !== 'complete' && !(status === 'active' && lastPhase) && <button className="btn" onClick={() => void finish()} disabled={busy}><Icon name="stop" size={16}/>Finalizar</button>}
@@ -165,15 +167,14 @@ export function SessionPage({ id }: { id: string }) {
     <div className="session-head">
       <PageHeader crumbs={[{ label: 'Sesiones', to: '/sesiones' }, { label: title }]}
         title={<InlineName value={summary.name ?? ''} display={title} canEdit={mine} onSave={async name => { await renameInline(name); }}/>}
-        description={<span className="head-meta"><StatusPill status={status}/>{status !== 'complete' && <LiveBadge mode={live.mode} standalone={app.standalone}/>}<span>{state.scenario.title}</span><span aria-hidden="true">·</span><span>Creada {relativeDate(state.createdAt)}</span>{!canControl && summary.instructorName && <><span aria-hidden="true">·</span><span>De {summary.instructorName}</span></>}</span>}/>
+        description={<span className="head-meta"><StatusPill status={status}/>{status !== 'complete' && (live.mode === 'reconnecting' || !!loadError) && <LiveBadge mode="reconnecting"/>}<span className="head-meta-text">{state.scenario.title}{' · '}Creada {relativeDate(state.createdAt)}{!canControl && summary.instructorName ? ` · De ${summary.instructorName}` : ''}</span></span>}/>
       {headerActions}
       <nav className="tabs" aria-label="Secciones de la sesión">
         {([['directo', 'En directo'], ['participantes', 'Participantes'], ['informe', status === 'complete' ? 'Informe' : 'Informe provisional']] as const).map(([key, label]) =>
           <Link key={key} to={`/sesiones/${id}${key === 'directo' ? '' : `?vista=${key}`}`} className="tab" aria-current={tab === key ? 'page' : undefined} onClick={event => { event.preventDefault(); setQuery({ vista: key === 'directo' ? null : key }, { replace: true }); }}>{label}{key === 'participantes' && <span className="tab-count">{state.participants.length}</span>}</Link>)}
       </nav>
     </div>
-    {loadError && <div className="error" role="alert">{loadError}</div>}
-    {!canControl && <p className="notice-inline">Esta sesión la conduce {summary.instructorName ?? 'otro docente'}. Puedes seguirla y consultar su informe, pero no controlarla.</p>}
+    {!canControl &&<p className="notice-inline">Esta sesión la conduce {summary.instructorName ?? 'otro docente'}. Puedes seguirla y consultar su informe, pero no controlarla.</p>}
 
     {tab === 'directo' && <div className="tab-panel">
       <KpiStrip state={state} report={report} tally={tally} remainingMs={remainingMs} phaseExpired={phaseExpired} timersOn={app.timersOn} simCount={excluded ? 0 : simCount}/>
@@ -187,6 +188,7 @@ export function SessionPage({ id }: { id: string }) {
             <div className="experience-head"><span className="eyebrow">{characterName}</span>{!app.standalone && <span className={`presence ${unityOnline ? 'online' : ''}`}><i/>{unityOnline ? 'Simulador abierto' : 'Simulador sin actividad'}</span>}</div>
             {phase?.characterLine && <blockquote>«{phase.characterLine}»</blockquote>}
             {status !== 'complete' && <div className="simulator-link"><span className="eyebrow">Enlace para participantes</span><div><input readOnly aria-label="Enlace del simulador" value={link} onFocus={event => event.currentTarget.select()}/><button type="button" onClick={() => void actions.copyLink(id)}>Copiar enlace</button>{!app.standalone && <a className="primary" href={link} target="_blank" rel="noopener">Abrir simulador</a>}</div><small>Funciona en el navegador, sin instalar nada. Cada participante entra con su correo y su código personal.</small></div>}
+            {status !== 'complete' && <div className="session-join"><JoinShare api={app.api} sessionId={id} variant="card" canRegenerate={canControl}/></div>}
           </div>
           {phase && <LiveDistribution phase={phase} tally={tally} closed={status === 'complete'}/>}
           {canControl && status !== 'complete' && <details className="advanced"><summary>Herramientas del docente</summary>
@@ -200,7 +202,7 @@ export function SessionPage({ id }: { id: string }) {
         <aside className="right-column">
           <section className="panel metrics"><div className="section-heading"><span className="eyebrow">Indicadores de la clase</span><small className="muted">Media</small></div>
             {METERS.map(name => <Meter key={name} label={labels[name]} value={(report.meters ?? state.meters)[name]} initial={state.scenario.initialMeters[name]} danger={name === 'risk'}/>)}</section>
-          <section className="panel report"><span className="eyebrow">Resultados de la clase</span><div className="score"><CountUp value={report.score}/><small>/100</small></div>
+          <section className="panel report"><span className="eyebrow">Resultados de la clase</span><div className="score">{report.decisions > 0 ? <><CountUp value={report.score}/><small>/100</small></> : <span className="score-empty">Sin decisiones todavía</span>}</div>
             <div className="report-grid"><div><strong>{pct(report.correctDecisionsPct)}</strong><span>Decisiones óptimas</span></div><div><strong>{report.criticalDecisions ?? 0}</strong><span>Decisiones críticas</span></div><div><strong>{report.objectivesMet}/{report.objectivesTotal}</strong><span>Objetivos alcanzados</span></div><div><strong>{report.decisions}</strong><span>Decisiones</span></div></div>
             <p>Puntuación de 0 a 100 con los indicadores del escenario. Valora decisiones, no personas.</p></section>
           <p className="ai-notice" role="note"><span aria-hidden="true">i</span><span><strong>{characterName} es un personaje virtual.</strong> Imagen y voz sintéticas, intervenciones guionizadas. No se infieren emociones ni estados psicológicos.</span></p>
@@ -214,7 +216,7 @@ export function SessionPage({ id }: { id: string }) {
 
     {tab === 'informe' && <div className="tab-panel"><ReportPanel state={statsState!} report={report} results={participantResults} simulatedCount={simCount} excludeSimulated={!!excluded} onToggleSimulated={() => setExcludeSimulated(value => !value)} sessionName={summary.name ?? undefined}/></div>}
 
-    {projecting && <ProjectorView state={state} liveTally={payload?.liveTally} remainingMs={remainingMs} phaseExpired={phaseExpired} mode={live.mode} standalone={app.standalone} canControl={canControl} busy={busy} exclude={excluded} onClose={closeProjector} onCommand={type => type === 'complete' ? void command('complete') : void command(type)}/>}
+    {projecting && <ProjectorView state={state} liveTally={payload?.liveTally} remainingMs={remainingMs} phaseExpired={phaseExpired} mode={live.mode} standalone={app.standalone} canControl={canControl} busy={busy} exclude={excluded} api={app.api} onClose={closeProjector} onCommand={type => type === 'complete' ? void command('complete') : void command(type)}/>}
   </div>;
 
   async function renameInline(name: string) {
@@ -268,7 +270,7 @@ function ParticipantSession({ state, report, title, busy, link, standalone, char
   const labels = meterLabels(state.scenario);
   return <div className="page">
     <PageHeader crumbs={[{ label: 'Mis sesiones', to: '/' }, { label: title }]} title={title}
-      description={<span className="head-meta"><StatusPill status={state.status}/>{state.status !== 'complete' && <LiveBadge mode={mode} standalone={standalone}/>}<span>{plural(state.scenario.phases.length, 'situación', 'situaciones')}</span></span>}
+      description={<span className="head-meta"><StatusPill status={state.status}/>{state.status !== 'complete' && mode === 'reconnecting' && <LiveBadge mode={mode} standalone={standalone}/>}<span>{plural(state.scenario.phases.length, 'situación', 'situaciones')}</span></span>}
       actions={state.status !== 'complete' && !standalone ? <a className="btn btn-primary" href={link}><Icon name="external" size={16}/>Abrir simulador</a> : undefined}/>
     <div className="grid">
       <section className="panel scene" aria-labelledby="phase-title">
@@ -283,7 +285,7 @@ function ParticipantSession({ state, report, title, busy, link, standalone, char
       </section>
       <aside className="right-column">
         <section className="panel metrics"><span className="eyebrow">Tus indicadores</span>{METERS.map(name => <Meter key={name} label={labels[name]} value={(report.meters ?? state.meters)[name]} initial={state.scenario.initialMeters[name]} danger={name === 'risk'}/>)}</section>
-        <section className="panel report"><span className="eyebrow">Tus resultados</span><div className="score"><CountUp value={report.score}/><small>/100</small></div>
+        <section className="panel report"><span className="eyebrow">Tus resultados</span><div className="score">{report.decisions > 0 ? <><CountUp value={report.score}/><small>/100</small></> : <span className="score-empty">Aún no has decidido</span>}</div>
           <div className="report-grid"><div><strong>{pct(report.correctDecisionsPct)}</strong><span>Decisiones óptimas</span></div><div><strong>{report.decisions}</strong><span>Decisiones</span></div></div>
           <p>Valora tus decisiones en el escenario, nunca a ti como persona.</p></section>
         <p className="ai-notice" role="note"><span aria-hidden="true">i</span><span><strong>{characterName} es un personaje virtual.</strong> Su imagen y su voz son sintéticas y sus intervenciones están guionizadas.</span></p>

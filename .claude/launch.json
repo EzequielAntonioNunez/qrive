@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "standalone-analitica",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["exec", "vite", "--mode", "standalone", "--port", "5199", "--strictPort"],
+      "port": 5199
+    },
+    {
+      "name": "standalone-movil",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["exec", "vite", "--mode", "standalone", "--port", "5277", "--strictPort"],
+      "port": 5277
+    },
+    {
+      "name": "api-local",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev:api"],
+      "port": 8787
+    },
+    {
+      "name": "web-local-movil",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["exec", "vite", "--host", "127.0.0.1", "--port", "5278", "--strictPort"],
+      "port": 5278
+    }
+  ]
+}

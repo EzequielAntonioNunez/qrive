@@ -8,6 +8,7 @@
  *   /sesiones/:id          Detalle (?vista=directo | participantes | informe)
  *   /escenarios[/:id]      Catálogo y detalle de escenarios
  *   /participantes         Participantes y accesos
+ *   /analitica             Analítica agregada de la organización (?rango=&escenario=&simuladas=1)
  *
  * Compatibilidad: /?sesion=<id>&vista=<v> (enlaces anteriores) se redirige a /sesiones/<id>?vista=<v>.
  */
@@ -21,6 +22,7 @@ export type Route =
   | { name: 'scenarios' }
   | { name: 'scenario'; id: string }
   | { name: 'people' }
+  | { name: 'analytics' }
   | { name: 'not-found' };
 
 const listeners = new Set<() => void>();
@@ -53,6 +55,7 @@ export function parseRoute(pathname: string): Route {
   if (path === '/sesiones/nueva') return { name: 'new-session' };
   if (path === '/escenarios') return { name: 'scenarios' };
   if (path === '/participantes') return { name: 'people' };
+  if (path === '/analitica') return { name: 'analytics' };
   const session = path.match(/^\/sesiones\/([\w-]{1,80})$/);
   if (session) return { name: 'session', id: session[1] };
   const scenario = path.match(/^\/escenarios\/([^/]{1,120})$/);

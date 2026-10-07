@@ -11,14 +11,19 @@ import { share, tallyFor } from './stats';
 import type { LiveTally } from './types';
 import { optionLetter, plural } from './types';
 import { Bar, CountUp, LiveBadge, ProgressRing, Timer } from './ui';
+import type { Api } from './app-context';
+import { JoinShare } from './share-qr';
 
 type Props = {
   state: SessionState; liveTally?: LiveTally; remainingMs: number | null; phaseExpired: boolean; mode: LiveMode; standalone: boolean;
   canControl: boolean; busy: boolean; exclude?: Set<string>;
   onClose: () => void; onCommand: (type: 'advance' | 'complete' | 'pause' | 'resume') => void;
+  /** Con la API, se muestra el panel «Únete» (QR + código) mientras no hay votos, o con la tecla Q. */
+  api?: Api;
 };
 
-export function ProjectorView({ state, liveTally, remainingMs, phaseExpired, mode, standalone, canControl, busy, exclude, onClose, onCommand }: Props) {
+export function ProjectorView({ state, liveTally, remainingMs, phaseExpired, mode, standalone, canControl, busy, exclude, onClose, onCommand, api }: Props) {
+  const [joinPanel, setJoinPanel] = useState<'auto' | 'shown' | 'hidden'>('auto');
   const phases = state.scenario.phases;
   const current = state.phaseIndex;
   const [shown, setShown] = useState(current);
@@ -57,6 +62,19 @@ export function ProjectorView({ state, liveTally, remainingMs, phaseExpired, mod
   const votes = tally.counts.reduce((sum, value) => sum + value, 0);
   const allDecided = tally.total > 0 && tally.decided >= tally.total;
   const last = current === phases.length - 1;
+  const showJoin = !!api && state.status !== 'complete' && (joinPanel === 'shown' || (joinPanel === 'auto' && isCurrent && votes === 0 && (current === 0 || tally.total === 0)));
+  const showJoinRef = useRef(showJoin);
+  showJoinRef.current = showJoin;
+  // Q muestra u oculta el panel «Únete» (salvo si se está escribiendo en un campo).
+  useEffect(() => {
+    if (!api) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 'q' || event.ctrlKey || event.metaKey || event.altKey || (event.target as HTMLElement | null)?.closest?.('input,textarea,select')) return;
+      setJoinPanel(showJoinRef.current ? 'hidden' : 'shown');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [api]);
 
   async function toggleFullscreen() {
     try {
@@ -70,6 +88,7 @@ export function ProjectorView({ state, liveTally, remainingMs, phaseExpired, mod
       <div className="pj-brand"><img src={brand.logoOnDark} alt={brand.organization} height="40"/><span>{state.scenario.title}</span></div>
       <div className="pj-tools">
         <LiveBadge mode={mode} standalone={standalone}/>
+        {api && state.status !== 'complete' && <button type="button" className="pj-ghost pj-join-toggle" aria-pressed={showJoin} onClick={() => setJoinPanel(showJoin ? 'hidden' : 'shown')}>{showJoin ? 'Ocultar QR' : 'Únete (QR)'}<kbd>Q</kbd></button>}
         <button type="button" className="pj-ghost" onClick={toggleFullscreen}>Pantalla completa</button>
         <button type="button" className="pj-ghost" ref={closeRef} onClick={onClose}>Salir <kbd>Esc</kbd></button>
       </div>
@@ -77,6 +96,7 @@ export function ProjectorView({ state, liveTally, remainingMs, phaseExpired, mod
 
     <div className="pj-body">
       <section className="pj-main" key={phase.id}>
+        {showJoin && api && <div className="pj-join"><JoinShare api={api} sessionId={state.id} variant="projector" canRegenerate={canControl} onHide={() => setJoinPanel('hidden')}/></div>}
         <span className="pj-eyebrow">Situación {index + 1} de {phases.length}{closed ? ' · cerrada' : state.status === 'paused' ? ' · en pausa' : ''}</span>
         <h1 id="pj-title" className="pj-title">{phase.title}</h1>
         <p className="pj-brief">{phase.briefing}</p>
@@ -98,7 +118,7 @@ export function ProjectorView({ state, liveTally, remainingMs, phaseExpired, mod
           })}
         </ol>
         {reveal && phase.takeaway && <aside className="pj-takeaway"><span>Idea clave</span><p>{phase.takeaway}</p></aside>}
-        {!isCurrent && state.status !== 'complete' && <div className="pj-next-note">La clase ya está en la situación {current + 1}.<button type="button" onClick={() => setShown(current)}>Ver situación {current + 1} →</button></div>}
+        {!isCurrent && state.status !== 'complete' && <div className="pj-next-note">La clase ya está en la situación {current + 1}.{!canControl && <button type="button" onClick={() => setShown(current)}>Ver situación {current + 1} →</button>}</div>}
       </section>
 
       <aside className="pj-side">
@@ -118,7 +138,7 @@ export function ProjectorView({ state, liveTally, remainingMs, phaseExpired, mod
 
     <footer className="pj-steps" aria-label="Progreso de la sesión">
       {phases.map((item, i) => {
-        const status = state.status === 'complete' || i < current ? 'done' : i === current ? 'current' : 'next';
+        const status = i < current || (state.status === 'complete' && i === current) ? 'done' : i === current ? 'current' : 'next';
         return <button type="button" key={item.id} className={`pj-step ${status} ${i === index ? 'shown' : ''}`} disabled={i > current} onClick={() => setShown(i)} aria-current={i === index ? 'step' : undefined}>
           <span>{i + 1}</span>{item.title}
         </button>;

@@ -17,6 +17,10 @@ import { queueSafeEvent, ROOM_ACTOR_HEADER, type RoomActor } from './room';
 import { DEFAULT_SIMULATED, MAX_SIMULATED } from './demo-class';
 import { CLEF_MODEL, MAX_PHRASE_LENGTH, clefRequest, interpretClef } from './voice-intent';
 import type { SessionState } from '../shared/simulation';
+import {
+  ALIAS_INVALID, GUEST_SCOPE_ERROR, JOIN_BLOCKED, PIN_INVALID, createGuest, dropCurrentSession, ensurePin, guestAllowed, guestFromCookie,
+  joinBlocked, parseAlias, pruneGuests, purgeStatements, recordJoinFailure, sessionByPin, setGuestCookie
+} from './guests';
 
 /** Error con código HTTP explícito (400 cuerpo no válido, 403, 404, 409...). */
 export class HttpError extends Error {
@@ -201,6 +205,66 @@ export function createApp(demo = false) {
     }
     return serveSimulator(c.req.raw, c.env);
   });
+  // ---------------------------------------------------------------------------------------------
+  // Acceso invitado (worker/guests.ts): rutas públicas, sin identidad. Mismas reglas CSRF que el resto; límite de
+  // borde por IP (AUTH_IP_LIMITER) y, contra la fuerza bruta del PIN, fallos por IP contados en D1.
+  // ---------------------------------------------------------------------------------------------
+  const clientIp = (c: Context<AuthContext>) => c.req.header('cf-connecting-ip') ?? 'local';
+  const joinGate = async (c: Context<AuthContext>): Promise<Response | null> => {
+    if (c.env.AUTH_IP_LIMITER) {
+      const { success } = await c.env.AUTH_IP_LIMITER.limit({ key: clientIp(c) });
+      if (!success) return c.json({ error: JOIN_BLOCKED }, 429);
+    }
+    if (await joinBlocked(c.env, clientIp(c))) return c.json({ error: JOIN_BLOCKED }, 429);
+    return null;
+  };
+  app.get('/api/join/:pin', async c => {
+    const gate = await joinGate(c);
+    if (gate) return gate;
+    const session = await sessionByPin(c.env, c.req.param('pin'));
+    if (!session) {
+      await recordJoinFailure(c.env, clientIp(c));
+      return c.json({ error: PIN_INVALID }, 404);
+    }
+    return c.json({ scenarioTitle: session.scenarioTitle, sessionName: session.name ?? null, status: session.status });
+  });
+  app.post('/api/join', async c => {
+    const rejected = csrfRejection(c.req.raw);
+    if (rejected) return c.json({ error: rejected }, 403);
+    const gate = await joinGate(c);
+    if (gate) return gate;
+    const body = await readJson(c) as { pin?: unknown; alias?: unknown } | null;
+    // El alias se valida antes que el PIN: un alias no válido no debe revelar si el PIN existe.
+    const alias = parseAlias(body?.alias);
+    if (!alias) return c.json({ error: ALIAS_INVALID }, 400);
+    const session = await sessionByPin(c.env, body?.pin);
+    if (!session) {
+      await recordJoinFailure(c.env, clientIp(c));
+      return c.json({ error: PIN_INVALID }, 404);
+    }
+    // El mismo navegador vuelve a entrar en su sesión (recarga, QR escaneado otra vez): conserva su participante.
+    const current = await guestFromCookie(c);
+    if (current?.guest?.sessionId === session.sessionId) {
+      c.set('identity', current);
+      return c.json({ sessionId: session.sessionId, alias: current.name, participantId: current.id }, 201);
+    }
+    // Cualquier otra cookie (miembro u otro invitado) deja de valer: el navegador queda solo con el invitado nuevo.
+    await dropCurrentSession(c);
+    const { identity, token } = await createGuest(c.env, session, alias);
+    // Unión inmediata en el motor, para que aparezca en directo en la consola del instructor.
+    const joined = await room(c.env, session.tenantId, session.sessionId, {
+      op: 'command', tenantId: session.tenantId, actor: identity, command: { id: crypto.randomUUID(), type: 'join' }
+    });
+    if (!joined.ok) {
+      await c.env.DB.prepare('DELETE FROM guests WHERE id = ?').bind(identity.id).run();
+      return c.json({ error: PIN_INVALID }, 404);
+    }
+    await persistCommandEvent(c.env, c.get('requestId'), identity, session.sessionId, 'join', joined);
+    setGuestCookie(c, token);
+    c.set('identity', identity);
+    await audit(c.env, identity, session.sessionId, 'guest_joined', { participantId: identity.id });
+    return c.json({ sessionId: session.sessionId, alias: identity.name, participantId: identity.id }, 201);
+  });
   app.use('/api/*', async (c, next) => {
     const rejected = csrfRejection(c.req.raw);
     if (rejected) {
@@ -210,6 +274,11 @@ export function createApp(demo = false) {
     const identity = await identityFor(c, demo);
     if (!identity) return c.json({ error: 'Acceso no autorizado.' }, 401);
     c.set('identity', identity);
+    // Un invitado solo puede usar su sesión (lista cerrada de rutas en guests.ts).
+    if (identity.guest && !guestAllowed(c.req.method, c.req.path, identity.guest.sessionId)) {
+      console.warn(JSON.stringify({ code: 'GUEST_SCOPE_REJECTED', requestId: c.get('requestId'), method: c.req.method, path: c.req.path }));
+      return c.json({ error: GUEST_SCOPE_ERROR }, 403);
+    }
     if (!demo && c.env.API_LIMITER) {
       const { success } = await c.env.API_LIMITER.limit({ key: identity.id });
       if (!success) {
@@ -221,6 +290,16 @@ export function createApp(demo = false) {
   });
   app.get('/api/me', c => {
     const identity = c.get('identity');
+    if (identity.guest) {
+      // Invitado: campos en plano (contrato de /unirse y /jugar) y `identity` sin correo ni organización.
+      const { id, name } = identity;
+      const sessionId = identity.guest.sessionId;
+      return c.json({
+        id, name, role: 'participant', guest: true, sessionId, flags: flags(c.env), demo,
+        identity: { id, name, role: 'participant', guest: true, sessionId },
+        permissions: { participate: true, manageSessions: false, manageMembers: false, assignInstructor: false, viewAccessAudit: false }
+      });
+    }
     return c.json({ identity, demo, flags: flags(c.env), permissions: {
       participate: true,
       manageSessions: identity.role === 'instructor',
@@ -246,6 +325,7 @@ export function createApp(demo = false) {
     const sessionId = typeof body.sessionId === 'string' ? body.sessionId : '';
     const identity = c.get('identity');
     if (identity.role !== 'participant') return c.json({ error: 'La respuesta por voz está reservada al participante.' }, 403);
+    if (identity.guest && sessionId !== identity.guest.sessionId) return c.json({ error: GUEST_SCOPE_ERROR }, 403);
     if (!/^[\w-]{8,80}$/.test(sessionId) || !await sessionFor(c.env, identity.tenantId, sessionId))
       return c.json({ error: 'Sesión no encontrada.' }, 404);
     if (c.env.VOICE_LIMITER) {
@@ -283,6 +363,7 @@ export function createApp(demo = false) {
     const sessionId = typeof body.sessionId === 'string' ? body.sessionId : '';
     const phrase = typeof body.phrase === 'string' ? body.phrase.trim().slice(0, MAX_PHRASE_LENGTH) : '';
     if (!phrase) return c.json({ error: 'No se ha recibido ninguna frase.' }, 400);
+    if (identity.guest && sessionId !== identity.guest.sessionId) return c.json({ error: GUEST_SCOPE_ERROR }, 403);
     if (!/^[\w-]{8,80}$/.test(sessionId) || !await sessionFor(c.env, identity.tenantId, sessionId))
       return c.json({ error: 'Sesión no encontrada.' }, 404);
     const current = await room(c.env, identity.tenantId, sessionId, { op: 'state', tenantId: identity.tenantId, actor: identity });
@@ -528,6 +609,23 @@ export function createApp(demo = false) {
     // `participantView(state, actor.id)` y su informe individual; por eso `actor` debe ser siempre la identidad real.
     return room(c.env, identity.tenantId, c.req.param('id'), { op: 'state', tenantId: identity.tenantId, actor: identity, client: clientKind(c.req.header('x-axyro-client')) });
   });
+  // PIN de unión de invitados (worker/guests.ts). Cualquier instructor de la organización. GET lo crea si falta;
+  // POST lo regenera (revoca el anterior). Una sesión finalizada ya no admite invitados (409).
+  const pinResponse = async (c: Context<AuthContext>, regenerate: boolean) => {
+    const identity = c.get('identity');
+    const id = c.req.param('id') ?? '';
+    if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
+    const session = await c.env.DB.prepare('SELECT status FROM sessions WHERE tenant_id = ? AND id = ?').bind(identity.tenantId, id).first<{ status: string }>();
+    if (!session) return c.json({ error: 'Sesión no encontrada.' }, 404);
+    if (session.status === 'complete') return c.json({ error: 'La sesión ha finalizado y ya no admite invitados.' }, 409);
+    if (regenerate) await readJson(c, true);
+    const pin = await ensurePin(c.env, identity.tenantId, id, regenerate);
+    if (regenerate) await audit(c.env, identity, id, 'session_pin_regenerated', {});
+    c.header('cache-control', 'private, no-store');
+    return c.json({ pin, joinUrl: `${new URL(c.req.url).origin}/unirse/${pin}` });
+  };
+  app.get('/api/sessions/:id/pin', c => pinResponse(c, false));
+  app.post('/api/sessions/:id/pin', c => pinResponse(c, true));
   // Tiempo real: WebSocket con la vista de la sesión de cada identidad (ver roomPayload y SessionRoom.openLive).
   // Mismas comprobaciones que GET /api/sessions/:id (identidad, límite de peticiones y sesión de su organización)
   // y, como un WebSocket no pasa por la comprobación CSRF de tipo de contenido, Origin igual al propio origen.
@@ -586,24 +684,10 @@ export function createApp(demo = false) {
     const id = c.req.param('id');
     if (!await sessionFor(c.env, identity.tenantId, id)) return c.json({ error: 'Sesión no encontrada.' }, 404);
     const command = parseCommand(await readJson(c));
+    if (identity.guest && command.type !== 'join' && command.type !== 'decide') return c.json({ error: GUEST_SCOPE_ERROR }, 403);
     // La respuesta también pasa por roomPayload: el participante recibe solo su vista filtrada.
     const response = await room(c.env, identity.tenantId, id, { op: 'command', tenantId: identity.tenantId, actor: identity, command, client: clientKind(c.req.header('x-axyro-client')) });
-    // La cola persiste eventos de forma asíncrona. La unión, el avance de fase, la pausa, la reanudación y el
-    // final se escriben también aquí (persistEvent: INSERT OR IGNORE sobre (session_id, seq) y estado ordenado por
-    // seq), para que el listado refleje enseguida la sesión del participante, la fase y `sessions.status`.
-    const persisted = PERSISTED_COMMAND_EVENTS[command.type];
-    if (response.ok && persisted) {
-      const payload = await response.clone().json() as { state?: { events?: SimEvent[] } };
-      const event = payload.state?.events?.findLast(item => item.type === persisted && item.actorId === identity.id);
-      if (event) {
-        try {
-          await persistEvent(c.env, { tenantId: identity.tenantId, sessionId: id, event: queueSafeEvent(event) });
-        } catch (error) {
-          // La cola lo reintentará: el comando ya se aplicó en el Durable Object.
-          console.error(JSON.stringify({ code: 'EVENT_DIRECT_PERSIST_FAILED', requestId: c.get('requestId'), sessionId: id, seq: event.seq, message: String(error) }));
-        }
-      }
-    }
+    await persistCommandEvent(c.env, c.get('requestId'), identity, id, command.type, response);
     if (response.ok && command.type !== 'join' && command.type !== 'decide') await audit(c.env, identity, id, command.type, {});
     return response;
   });
@@ -675,6 +759,25 @@ const PERSISTED_COMMAND_EVENTS: Partial<Record<Command['type'], SimEvent['type']
   complete: 'completed'
 };
 
+/**
+ * La cola persiste eventos de forma asíncrona. La unión, el avance de fase, la pausa, la reanudación y el
+ * final se escriben también desde la API (persistEvent: INSERT OR IGNORE sobre (session_id, seq) y estado ordenado
+ * por seq), para que el listado refleje enseguida la sesión del participante, la fase y `sessions.status`.
+ */
+async function persistCommandEvent(env: Env, requestId: string, identity: Identity, sessionId: string, type: Command['type'], response: Response): Promise<void> {
+  const persisted = PERSISTED_COMMAND_EVENTS[type];
+  if (!response.ok || !persisted) return;
+  const payload = await response.clone().json() as { state?: { events?: SimEvent[] } };
+  const event = payload.state?.events?.findLast(item => item.type === persisted && item.actorId === identity.id);
+  if (!event) return;
+  try {
+    await persistEvent(env, { tenantId: identity.tenantId, sessionId, event: queueSafeEvent(event) });
+  } catch (error) {
+    // La cola lo reintentará: el comando ya se aplicó en el Durable Object.
+    console.error(JSON.stringify({ code: 'EVENT_DIRECT_PERSIST_FAILED', requestId, sessionId, seq: event.seq, message: String(error) }));
+  }
+}
+
 function clientKind(value?: string): 'unity' | undefined {
   return value === 'unity' ? 'unity' : undefined;
 }
@@ -683,7 +786,9 @@ export async function purgeSession(env: Env, tenantId: string, id: string): Prom
   await room(env, tenantId, id, { op: 'purge', tenantId });
   await env.DB.batch([
     env.DB.prepare('DELETE FROM simulation_events WHERE tenant_id = ? AND session_id = ?').bind(tenantId, id),
-    env.DB.prepare('DELETE FROM sessions WHERE tenant_id = ? AND id = ?').bind(tenantId, id)
+    env.DB.prepare('DELETE FROM sessions WHERE tenant_id = ? AND id = ?').bind(tenantId, id),
+    // Acceso invitado: el PIN y los invitados (alias y hash del token) desaparecen con la sesión.
+    ...purgeStatements(env, tenantId, id)
   ]);
 }
 
@@ -713,6 +818,7 @@ export async function applyRetention(env: Env, now = new Date()): Promise<number
   const pruned = await env.DB.prepare('DELETE FROM audit_log WHERE at < ?').bind(auditCutoff).run();
   const auditDeleted = pruned?.meta?.changes ?? 0;
   await pruneAuth(env, now);
+  await pruneGuests(env, now);
   if (rows.results.length || auditDeleted) console.log(JSON.stringify({ code: 'RETENTION_APPLIED', deleted: rows.results.length, retentionDays: days, auditDeleted, auditRetentionDays: auditDays }));
   return rows.results.length;
 }

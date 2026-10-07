@@ -6,6 +6,7 @@ import { EmptyState, Icon, Modal, PageHeader } from './kit';
 import { navigate, useLocation } from './router';
 import { errorText, plural, type ScenarioSummary, type SessionPayload } from './types';
 import { CopyButton, Sk, useToast } from './ui';
+import { JoinShare } from './share-qr';
 
 const STEPS = ['Escenario', 'Detalles', 'Listo'];
 
@@ -31,10 +32,11 @@ export function NewSessionPage() {
     else if (!scenarioId) setScenarioId(scenarios[0].id);
   }, [scenarios, preset]);
   // Cada paso lleva el foco a su título para lectores de pantalla y teclado.
-  useEffect(() => { document.querySelector<HTMLElement>('[data-step-title]')?.focus({ preventScroll: true }); }, [step]);
+  // En «Detalles», el foco va directamente al nombre (su etiqueta ya anuncia el paso).
+  useEffect(() => { document.querySelector<HTMLElement>(step === 1 ? '#session-name' : '[data-step-title]')?.focus({ preventScroll: true }); }, [step]);
 
   const chosen = scenarios?.find(item => item.id === scenarioId);
-  const placeholder = chosen ? `${chosen.title} · Grupo A` : 'Nombre de la sesión';
+  const placeholder = 'P. ej., Ética de la IA · 3.º Derecho · Grupo A';
 
   async function create() {
     if (!chosen) return;
@@ -57,7 +59,7 @@ export function NewSessionPage() {
   return <div className="page narrow">
     <PageHeader title="Nueva sesión" crumbs={[{ label: 'Sesiones', to: '/sesiones' }, { label: 'Nueva sesión' }]} description="Elige el escenario, ponle nombre y comparte el enlace con tu grupo."/>
     <ol className="stepper" aria-label="Pasos">
-      {STEPS.map((label, i) => <li key={label} className={i < step ? 'done' : i === step ? 'current' : ''} aria-current={i === step ? 'step' : undefined}><span>{i < step ? <Icon name="check" size={14}/> : i + 1}</span>{label}</li>)}
+      {STEPS.map((label, i) => <li key={label} className={i < step || created ? 'done' : i === step ? 'current' : ''} aria-current={i === step ? 'step' : undefined}><span>{i < step || created ?<Icon name="check" size={14}/> : i + 1}</span>{label}</li>)}
     </ol>
 
     {step === 0 && <section aria-labelledby="step-title">
@@ -86,6 +88,7 @@ export function NewSessionPage() {
         <h2 id="step-title" className="step-title" tabIndex={-1} data-step-title>La sesión «{created.name}» está lista</h2>
         <p>Comparte el enlace con tu grupo. El tiempo de la primera situación empieza cuando entra el primer participante.</p>
         <div className="share-box"><label className="sr-only" htmlFor="share-link">Enlace para participantes</label><input id="share-link" readOnly value={link} onFocus={event => event.currentTarget.select()}/><CopyButton text={link} className="btn btn-primary"/></div>
+        <div className="wizard-join"><JoinShare api={app.api} sessionId={created.id} variant="card"/></div>
         <ol className="steps-list compact">
           <li><span>1</span><div><strong>Comparte el enlace</strong><p>Por el campus virtual, el correo o proyectándolo en el aula.</p></div></li>
           <li><span>2</span><div><strong>Cada participante entra con su correo y su código</strong><p>Si alguien no tiene acceso, dale de alta en Participantes y accesos.</p></div></li>

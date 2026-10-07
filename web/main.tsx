@@ -7,6 +7,7 @@ import './style.css';
 import './polish.css';
 import './app.css';
 import { DialogProvider, Icon, PageHeader } from './kit';
+import { AnalyticsPage } from './page-analytics';
 import { HomePage } from './page-home';
 import { NewSessionPage } from './page-new-session';
 import { PeoplePage } from './page-people';
@@ -17,6 +18,9 @@ import { Link, navigate, useLegacyRedirect, useLocation, type Route } from './ro
 import { installStandaloneApi } from './standalone';
 import { errorText, roleLabel, type Identity, type Role, type ScenarioSummary, type SessionSummary } from './types';
 import { Sk, ToastProvider } from './ui';
+import { parsePublicRoute } from './guest';
+import { JoinPage } from './page-join';
+import { PlayPage } from './page-play';
 
 const standalone = import.meta.env.VITE_STANDALONE === '1';
 if (standalone) installStandaloneApi();
@@ -50,11 +54,11 @@ function App() {
 
   const loadMe = useCallback(async () => {
     try { const who = await api<Me>('/me'); setMe(who); setAuthRequired(false); setLoadError(''); }
-    catch (cause) { if ((cause as ApiError).status !== 401 || standalone) setLoadError(`No hay conexión con el servidor (${errorText(cause)}). Se reintentará automáticamente.`); }
+    catch (cause) { if ((cause as ApiError).status !== 401 || standalone) setLoadError('Se ha perdido la conexión con el servidor. Reintentando automáticamente…'); }
   }, [api]);
   const reloadSessions = useCallback(async () => {
     try { const listing = await api<{ sessions: SessionSummary[] }>('/sessions'); setSessions(listing.sessions); setLoadError(''); }
-    catch (cause) { if ((cause as ApiError).status !== 401) setLoadError(`No hay conexión con el servidor (${errorText(cause)}). Se reintentará automáticamente.`); }
+    catch (cause) { if ((cause as ApiError).status !== 401) setLoadError('Se ha perdido la conexión con el servidor. Reintentando automáticamente…'); }
   }, [api]);
 
   useEffect(() => { setSessions(null); setMe(null); void loadMe(); }, [loadMe]);
@@ -109,7 +113,7 @@ function App() {
   const openCount = (sessions ?? []).filter(item => item.status !== 'complete').length;
   const section = route.name === 'session' || route.name === 'new-session' ? 'sessions' : route.name === 'scenario' ? 'scenarios' : route.name;
   const nav = instructor
-    ? [{ key: 'home', to: '/', label: 'Inicio', icon: 'home' }, { key: 'sessions', to: '/sesiones', label: 'Sesiones', icon: 'sessions', badge: openCount }, { key: 'scenarios', to: '/escenarios', label: 'Escenarios', icon: 'scenarios' }, { key: 'people', to: '/participantes', label: 'Participantes y accesos', icon: 'people' }]
+    ? [{ key: 'home', to: '/', label: 'Inicio', icon: 'home' }, { key: 'sessions', to: '/sesiones', label: 'Sesiones', icon: 'sessions', badge: openCount }, { key: 'analytics', to: '/analitica', label: 'Analítica', icon: 'chart' }, { key: 'scenarios', to: '/escenarios', label: 'Escenarios', icon: 'scenarios' }, { key: 'people', to: '/participantes', label: 'Participantes y accesos', icon: 'people' }]
     : [{ key: 'home', to: '/', label: 'Mis sesiones', icon: 'home' }];
   const isActive = (key: string) => key === section || (!instructor && key === 'home' && section === 'sessions');
 
@@ -141,7 +145,7 @@ function App() {
 }
 
 function pageTitle(route: Route): string {
-  return ({ home: 'Inicio', sessions: 'Sesiones', 'new-session': 'Nueva sesión', session: 'Sesión', scenarios: 'Escenarios', scenario: 'Escenario', people: 'Participantes y accesos', 'not-found': 'Página no encontrada' } as Record<Route['name'], string>)[route.name];
+  return ({ home: 'Inicio', sessions: 'Sesiones', 'new-session': 'Nueva sesión', session: 'Sesión', scenarios: 'Escenarios', scenario: 'Escenario', people: 'Participantes y accesos', analytics: 'Analítica', 'not-found': 'Página no encontrada' } as Record<Route['name'], string>)[route.name];
 }
 
 function Page({ route, instructor }: { route: Route; instructor: boolean }) {
@@ -153,6 +157,7 @@ function Page({ route, instructor }: { route: Route; instructor: boolean }) {
     if (route.name === 'scenarios') return <ScenariosPage/>;
     if (route.name === 'scenario') return <ScenarioPage key={route.id} id={route.id}/>;
     if (route.name === 'people') return <PeoplePage/>;
+    if (route.name === 'analytics') return <AnalyticsPage/>;
   } else if (route.name === 'sessions') return <HomePage/>;
   return <div className="page"><PageHeader title="Página no encontrada" description={instructor || route.name === 'not-found' ? 'La dirección no existe o ha cambiado.' : 'Esta sección está reservada al equipo docente.'}/>
     <div className="card"><div className="empty-block"><span className="empty-icon"><Icon name="home" size={22}/></span><h3>Vuelve al inicio para seguir</h3><div className="empty-actions"><button className="btn btn-primary" onClick={() => navigate('/')}>Ir a Inicio</button>{instructor && <button className="btn" onClick={() => navigate('/sesiones')}>Ver sesiones</button>}</div></div></div></div>;
@@ -178,4 +183,13 @@ function Login({ api, onDone }: { api: AppContextValue['api']; onDone: () => voi
   return <div className="auth-screen"><div className="auth-card enter"><img src={brand.logoOnDark} alt={brand.organization}/><span className="eyebrow">{brand.product}</span><h1>Accede con tu código</h1><p>Introduce tu correo institucional y el código personal de seis cifras que te ha dado tu docente.</p><form onSubmit={submit}><label>Correo electrónico<input type="email" autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} required/></label><label>Código de acceso<input type="text" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code" value={code} onChange={event => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required aria-describedby="code-hint"/></label>{error && <p className="error" role="alert">{error}</p>}<button className="primary" disabled={busy || code.length !== 6}>{busy ? 'Comprobando…' : 'Entrar'}</button></form><small id="code-hint">El código es personal e intransferible. Si lo has perdido, pide uno nuevo a tu docente.</small></div></div>;
 }
 
-createRoot(document.getElementById('root')!).render(<React.StrictMode><ToastProvider><DialogProvider><App/></DialogProvider></ToastProvider></React.StrictMode>);
+/** Rutas públicas (/unirse, /jugar) antes del acceso de la consola: el invitado entra solo con código y alias. */
+function Root() {
+  const { path } = useLocation();
+  const open = parsePublicRoute(path);
+  if (open?.name === 'join') return <JoinPage pin={open.pin}/>;
+  if (open?.name === 'play') return <PlayPage key={open.id} sessionId={open.id}/>;
+  return <App/>;
+}
+
+createRoot(document.getElementById('root')!).render(<React.StrictMode><ToastProvider><DialogProvider><Root/></DialogProvider></ToastProvider></React.StrictMode>);

@@ -3,8 +3,10 @@ import type { Context } from 'hono';
 import type { Actor } from '../shared/engine';
 import type { Env } from './types';
 import { identityFromSession } from './access-codes';
+import { guestFromCookie } from './guests';
 
-export interface Identity extends Actor { tenantId: string; email: string }
+/** `guest`: identidad de invitado (acceso con PIN y alias, sin correo), limitada a esa sesión (worker/guests.ts). */
+export interface Identity extends Actor { tenantId: string; email: string; guest?: { sessionId: string } }
 export interface AuthContext { Bindings: Env; Variables: { identity: Identity; requestId: string } }
 
 type MembershipRow = { id: string; name: string; role: 'instructor' | 'participant'; tenantId: string };
@@ -125,8 +127,15 @@ export async function resolveIdentity(env: Env, email: string): Promise<Identity
   return row ? { ...row, email } : null;
 }
 
+/**
+ * Precedencia: la cookie de sesión (`axyro_session`) es de un miembro (código personal) o de un invitado (PIN y
+ * alias); unirse como invitado sustituye siempre la cookie. En la demo local la cookie de invitado gana a la
+ * identidad de demo, para poder probar la unión por PIN desde otro navegador o un móvil.
+ */
 export async function identityFor(c: Context<AuthContext>, demo: boolean): Promise<Identity | null> {
   if (demo) {
+    const guest = await guestFromCookie(c);
+    if (guest) return guest;
     const other = c.req.header('x-demo-tenant') === 'other';
     const tenantId = other ? 'demo-other' : 'demo';
     const participant = c.req.header('x-demo-user') === 'participant';
@@ -141,6 +150,8 @@ export async function identityFor(c: Context<AuthContext>, demo: boolean): Promi
   }
   const sessionIdentity = await identityFromSession(c);
   if (sessionIdentity) return sessionIdentity;
+  const guest = await guestFromCookie(c);
+  if (guest) return guest;
   if (c.env.LEGACY_ACCESS_AUTH !== 'true') return null;
   const domain = configuredDomain(c.env.ACCESS_TEAM_DOMAIN);
   const audience = c.env.ACCESS_AUD;
