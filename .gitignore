@@ -24,3 +24,5 @@ assets/avatar/build/
 assets/hud/build/
 # Se versiona la compilación WebGL para que GitHub Actions publique la misma experiencia.
 assets/feedback/build/
+# Copias de trabajo aisladas de agentes
+.claude/worktrees/
