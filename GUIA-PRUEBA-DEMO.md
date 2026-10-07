@@ -93,15 +93,20 @@ Hazlo primero con el **iPhone** y después repítelo con el **Android**.
 
 ---
 
-## 5. Prueba C · Clase simulada, revelar y finalizar (5 minutos)
+## 5. Prueba C · Demo rápida, voz de VictorIA en el proyector y finalizar (8 minutos)
 
-1. En el detalle de la sesión pulsa **Simular clase**. Se añaden 20 participantes simulados (marcados «Simulado»).
-2. Vuelve a **Proyectar en clase**: las barras se llenan solas en unos segundos.
-3. Pulsa **Mostrar respuesta**: se revela la mejor opción y la **Idea clave** con una animación.
+1. Ve a **Inicio** (o **Sesiones**) y pulsa **Demo rápida**. En unos segundos verás «Preparando la demo…» con tres pasos y se abrirá el **proyector a pantalla completa** con una sesión nueva y **20 participantes simulados**; las barras se llenan solas.
+   - Alternativa manual: en el detalle de una sesión pulsa **Simular clase** y luego **Proyectar en clase**.
+2. Comprueba que en la barra superior del proyector aparece **«Voz de VictorIA»** activada (tecla **V** para activarla o desactivarla).
+3. Haz **un clic** en el proyector (desbloquea el audio) y, cuando haya votos, pulsa **Mostrar respuesta**:
+   - Se revela la mejor opción y la **Idea clave**.
+   - **VictorIA comenta en voz alta los resultados de la clase** (por ejemplo, el porcentaje que eligió la mejor opción) y aparece el texto como subtítulo con la nota «Comentario automático generado a partir de los votos».
+   - Escucha cómo pronuncia los porcentajes y los títulos de las opciones. **Esc** corta la voz.
 4. Avanza con **Siguiente situación** y comprueba que las barras vuelven a cero y se llenan de nuevo.
 5. Prueba **Pausar** y **Reanudar** (en el móvil debe verse «En pausa»).
 6. Pulsa **Finalizar** antes de llegar al final: el aviso dice «¿Finalizar la sesión antes de tiempo?». Confirma.
 7. En el móvil debe aparecer el **resumen personal** de la sesión.
+8. En el proyector aparece la tarjeta **«Vuestra clase frente a la media»**. En la primera sesión de la organización dirá «Primera sesión de la organización: aún no hay media con la que comparar»; a partir de la segunda sesión finalizada mostrará las dos barras. También puedes abrirla con **Comparar con la media**.
 
 ✅ **Resultado esperado:** todo responde sin recargar la página y el indicador muestra «En directo».
 
@@ -203,6 +208,7 @@ La experiencia 3D es para ordenador (pesa unos 38 MB); en móvil se usa la vista
 | El 3D tarda mucho en cargar | Red lenta: usa la vista web del móvil o comparte datos del móvil. La segunda carga es instantánea. |
 | Modo IA: «Se ha alcanzado el límite diario de IA» | Se agotó la cuota gratuita de Cloudflare del día. Solución: plan de pago de Workers (5 $/mes) o esperar al día siguiente. |
 | Modo IA tarda más de 30 segundos | Recarga la página: retoma la situación en curso. |
+| El proyector no habla al mostrar la respuesta | Comprueba que «Voz de VictorIA» está activada (tecla V) y que has hecho un clic en el proyector antes; si no hay voz, el comentario aparece igualmente como subtítulo. |
 | La voz de VictorIA en el Modo IA suena robótica | Se está usando la voz del navegador de reserva porque falló la de Soniox: recarga; si persiste, revisa el saldo de Soniox. |
 | La página se queda en blanco | Recarga con Ctrl + F5. Si persiste, prueba en ventana de incógnito. |
 
@@ -217,7 +223,10 @@ Marca cada casilla en el equipo y la red de la demo.
 - [ ] iPhone: entra con alias, se oye VictorIA, voto tocando, voto por voz, reacción hablada.
 - [ ] Android: lo mismo.
 - [ ] El proyector se mueve en directo con cada voto.
+- [ ] Demo rápida abre el proyector con la clase simulada en un clic.
+- [ ] VictorIA comenta los resultados en voz alta al mostrar la respuesta (tecla V).
 - [ ] Clase simulada, mostrar respuesta, siguiente, pausa y finalizar funcionan.
+- [ ] La tarjeta «Vuestra clase frente a la media» aparece al finalizar.
 - [ ] 3D: carga en ___ segundos la primera vez y casi al instante la segunda.
 - [ ] 3D: se oye, se mueve la boca, aparecen las opciones y responde con voz.
 - [ ] 3D: la voz por micrófono funciona.

@@ -2,7 +2,7 @@
  * Contexto de la consola: API con la identidad, listado de sesiones, catálogo de escenarios y acciones de sesión
  * reutilizables (las mismas desde Inicio, el listado y el detalle). Las acciones destructivas piden confirmación.
  */
-import React, { createContext, useCallback, useContext, useMemo, useRef } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { Scenario } from '../shared/simulation';
 import { useDialogs } from './kit';
 import { navigate } from './router';
@@ -73,6 +73,21 @@ export function slug(text: string): string {
   return text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'sesion';
 }
 
+/* «Demo rápida»: estado global (una sola demo a la vez, aunque haya varios botones montados). */
+export const QUICK_DEMO_SCENARIO = 'ia-buenas-practicas';
+export const QUICK_DEMO_CLASS = 20;
+export const QUICK_DEMO_STEPS = ['Creando la sesión', `Incorporando ${QUICK_DEMO_CLASS} participantes simulados`, 'Abriendo el proyector'] as const;
+export type QuickDemoState = { running: boolean; step: number };
+let quickDemoState: QuickDemoState = { running: false, step: 0 };
+const quickDemoListeners = new Set<() => void>();
+function setQuickDemo(next: QuickDemoState) { quickDemoState = next; quickDemoListeners.forEach(listener => listener()); }
+export function useQuickDemoState(): QuickDemoState {
+  return useSyncExternalStore(listener => { quickDemoListeners.add(listener); return () => { quickDemoListeners.delete(listener); }; }, () => quickDemoState);
+}
+function quickDemoName(date = new Date()): string {
+  const day = date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).replace(/\.$/, '');
+  return `Demo · ${day}, ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
 
 /** Acciones sobre sesiones con avisos y confirmaciones. Devuelven el nuevo estado cuando el servidor lo envía. */
 export function useSessionActions() {
@@ -104,6 +119,39 @@ export function useSessionActions() {
       project(id: string) {
         if (document.documentElement.requestFullscreen) void document.documentElement.requestFullscreen().catch(() => undefined);
         navigate(`/sesiones/${id}?vista=directo`);
+      },
+      /**
+       * Demo rápida: crea una sesión del escenario por defecto, añade la clase simulada y abre el proyector.
+       * La pantalla completa se pide aquí, antes de cualquier await, para que cuente como gesto del clic.
+       */
+      async quickDemo(): Promise<string | null> {
+        if (quickDemoState.running) return null;
+        setQuickDemo({ running: true, step: 0 });
+        try { if (!document.fullscreenElement && document.documentElement.requestFullscreen) void document.documentElement.requestFullscreen().catch(() => undefined); } catch { /* sin pantalla completa */ }
+        let id: string;
+        try {
+          const result = await appRef.current.api<SessionPayload>('/sessions', { method: 'POST', body: JSON.stringify({ scenarioId: QUICK_DEMO_SCENARIO, name: quickDemoName() }) });
+          if (!result?.state?.id) throw new Error('El servidor no ha devuelto la sesión.');
+          id = result.state.id;
+        } catch (cause) {
+          setQuickDemo({ running: false, step: 0 });
+          if (document.fullscreenElement && document.exitFullscreen) void document.exitFullscreen().catch(() => undefined);
+          toast(`No se ha podido crear la sesión de demo: ${errorText(cause)}`, 'error');
+          return null;
+        }
+        setQuickDemo({ running: true, step: 1 });
+        let classError: unknown = null;
+        try { await appRef.current.api(`/sessions/${encodeURIComponent(id)}/demo-class`, { method: 'POST', body: JSON.stringify({ count: QUICK_DEMO_CLASS }) }); }
+        catch (cause) { classError = cause; }
+        setQuickDemo({ running: true, step: 2 });
+        void appRef.current.reloadSessions();
+        navigate(`/sesiones/${id}?vista=directo`);
+        setQuickDemo({ running: false, step: 0 });
+        if (classError) {
+          const status = (classError as ApiError).status;
+          toast(status === 404 || status === 405 || status === 501 ? 'No se ha podido añadir la clase simulada: este servidor aún no la admite. Añádela desde el panel de la sesión.' : `No se ha podido añadir la clase simulada: ${errorText(classError)}`, 'error');
+        } else toast(`Demo lista: ${QUICK_DEMO_CLASS} participantes simulados irán decidiendo en los próximos segundos.`);
+        return id;
       },
       async copyLink(id: string) {
         try { await navigator.clipboard.writeText(simulatorUrl(id, appRef.current.demo)); toast('Enlace para participantes copiado'); }

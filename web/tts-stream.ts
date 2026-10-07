@@ -253,6 +253,19 @@ export class SonioxSpeaker implements Speaker {
 
   speaking() { return !!this.finish; }
 
+  /**
+   * Cierra el WebSocket sin tocar el audio (aditivo; lo usa el proyector). La siguiente locución abre una conexión
+   * nueva con una credencial nueva: con claves temporales de un solo uso, Soniox rechaza los streams que se abren
+   * en una conexión ya usada en una locución anterior («Invalid or expired temporary API key»).
+   */
+  closeConnection() {
+    if (this.finish) return;
+    window.clearTimeout(this.idleTimer);
+    const socket = this.socket;
+    this.socket = null;
+    if (socket) { socket.onclose = null; try { socket.close(); } catch { /* cerrado */ } }
+  }
+
   level() {
     if (!this.analyser || !this.finish) return 0;
     this.analyser.getByteTimeDomainData(this.samples);

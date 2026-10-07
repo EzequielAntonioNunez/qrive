@@ -7,6 +7,7 @@ import { getScenario, getScenarioVersion, listScenarios, publishScenario } from 
 import { copyName, parseSessionName, SessionNameError, sessionRow, sessionRows } from './sessions';
 import { persistEvent } from './persist';
 import { AnalyticsQueryError, organizationAnalytics, parseAnalyticsQuery, type AnalyticsQuery } from './analytics';
+import { parseIncludeSimulated, sessionBenchmark } from './benchmark';
 import type { Scenario } from '../shared/simulation';
 import { allowedDomain, identityFor, isOwnerEmail, normalizeEmail, organizationTenant, type Identity, type AuthContext } from './auth';
 import type { Env } from './types';
@@ -399,7 +400,10 @@ export function createApp(demo = false) {
     const upstream = await fetch(`${service.api}/v1/auth/temporary-api-key`, {
       method: 'POST',
       headers: { authorization: `Bearer ${service.key}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ usage_type: 'tts_rt', expires_in_seconds: 60, single_use: true, max_session_duration_seconds: 1800, client_reference_id: identity.id })
+      // Soniox valida la clave en cada stream: una clave de un solo uso solo sirve para la primera frase (probado con la API
+      // real). Para la voz de una conversación la clave es reutilizable pero corta (15 min), solo de síntesis, solo para
+      // docentes y con TTS_LIMITER; el reconocimiento de voz sigue con claves de un solo uso.
+      body: JSON.stringify({ usage_type: 'tts_rt', expires_in_seconds: 900, single_use: false, max_session_duration_seconds: 1800, client_reference_id: identity.id })
     });
     if (!upstream.ok) {
       console.warn(JSON.stringify({ code: 'SONIOX_TTS_KEY_FAILED', region: service.region, status: upstream.status, requestId: c.get('requestId') }));
@@ -773,6 +777,19 @@ export function createApp(demo = false) {
     await purgeSession(c.env, identity.tenantId, id);
     await audit(c.env, identity, id, 'session_deleted', {});
     return c.json({ deleted: true });
+  });
+  // «Vuestra clase frente a la media» (worker/benchmark.ts): solo D1, cualquier instructor de la organización, solo
+  // agregados de grupo. Los invitados no llegan aquí (lista cerrada de guests.ts).
+  app.get('/api/sessions/:id/benchmark', async c => {
+    const identity = c.get('identity');
+    const id = c.req.param('id');
+    if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
+    const includeSimulated = parseIncludeSimulated(c.req.query('includeSimulated'));
+    if (includeSimulated === null) return c.json({ error: '«includeSimulated» debe ser true o false.' }, 400);
+    if (!await sessionFor(c.env, identity.tenantId, id)) return c.json({ error: 'Sesión no encontrada.' }, 404);
+    const body = await sessionBenchmark(c.env, identity.tenantId, id, includeSimulated);
+    c.header('cache-control', 'private, no-store');
+    return c.json(body);
   });
   app.get('/api/sessions/:id/events', async c => {
     const identity = c.get('identity');

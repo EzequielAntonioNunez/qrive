@@ -1,6 +1,7 @@
 /** Inicio. Docente: saludo, indicadores de la organización, sesiones abiertas y finalizadas recientes. Participante: «Mis sesiones». */
 import React from 'react';
-import { isMine, scenarioTitleOf, simulatorUrl, titleOf, useApp, useSessionActions } from './app-context';
+import { createPortal } from 'react-dom';
+import { isMine, QUICK_DEMO_CLASS, QUICK_DEMO_STEPS, scenarioTitleOf, simulatorUrl, titleOf, useApp, useQuickDemoState, useSessionActions } from './app-context';
 import { ActionMenu, EmptyState, Icon, PageHeader, StatusPill } from './kit';
 import { Link, navigate } from './router';
 import { AnalyticsStrip } from './page-analytics';
@@ -32,6 +33,33 @@ export function peopleText(session: SessionSummary): string | null {
   return `${plural(real, 'participante', 'participantes')}${simulated ? ` · ${simulated} simulados` : ''}`;
 }
 
+export const QUICK_DEMO_HINT = `Crea una sesión con ${QUICK_DEMO_CLASS} participantes simulados y abre el proyector`;
+
+/** Botón «Demo rápida» (solo docentes): sesión nueva + clase simulada + proyector, con un clic. */
+export function QuickDemoButton({ className = 'btn', size = 18, label = 'Demo rápida' }: { className?: string; size?: number; label?: React.ReactNode }) {
+  const app = useApp();
+  const actions = useSessionActions();
+  const state = useQuickDemoState();
+  if (!app.isInstructor) return null;
+  return <>
+    <button type="button" className={className} disabled={state.running} aria-busy={state.running} title={QUICK_DEMO_HINT} onClick={() => void actions.quickDemo()}>
+      <Icon name="play" size={size}/>{state.running ? 'Preparando…' : label}
+    </button>
+    {state.running && <QuickDemoProgress step={state.step}/>}
+  </>;
+}
+
+function QuickDemoProgress({ step }: { step: number }) {
+  return createPortal(<div className="modal-backdrop quick-demo-backdrop">
+    <div className="modal modal-sm quick-demo" role="alertdialog" aria-modal="true" aria-labelledby="quick-demo-title" aria-live="polite">
+      <div className="modal-head"><h2 id="quick-demo-title">Preparando la demo…</h2></div>
+      <ol className="quick-demo-steps">{QUICK_DEMO_STEPS.map((label, i) => <li key={label} className={i < step ? 'done' : i === step ? 'current' : ''} aria-current={i === step ? 'step' : undefined}>
+        <span aria-hidden="true">{i < step ? <Icon name="check" size={14}/> : i === step ? <i className="quick-demo-spin"/> : i + 1}</span>{label}
+      </li>)}</ol>
+    </div>
+  </div>, document.body);
+}
+
 export function HomePage() {
   const app = useApp();
   return app.isInstructor ? <InstructorHome/> : <ParticipantHome/>;
@@ -52,7 +80,7 @@ function InstructorHome() {
 
   return <div className="page">
     <PageHeader title={`${greeting()}, ${firstName(identity.name)}`} description={sessions?.length === 0 ? 'Te damos la bienvenida al Simulador de decisiones.' : 'Prepara una simulación, sigue las decisiones de tu grupo en directo y cierra con el informe de impacto.'}
-      actions={sessions?.length === 0 ? undefined : <button className="btn btn-primary btn-lg" onClick={() => navigate('/sesiones/nueva')}><Icon name="plus" size={18}/>Nueva sesión</button>}/>
+      actions={sessions?.length === 0 ? undefined : <><QuickDemoButton className="btn btn-lg"/><button className="btn btn-primary btn-lg" onClick={() => navigate('/sesiones/nueva')}><Icon name="plus" size={18}/>Nueva sesión</button></>}/>
 
     {sessions?.length !== 0 && <section className="stat-row" aria-label="Resumen de la organización">
       <Stat label="Sesiones en curso" value={sessions ? active : null} sub={sessions ? (paused ? `${paused} en pausa` : 'Ahora mismo') : ''}/>
@@ -115,6 +143,7 @@ function FirstRun() {
       <h2 id="first-title">Entrena la toma de decisiones con situaciones reales del aula</h2>
       <p>Tu grupo decide en cada situación desde su navegador; tú sigues las respuestas en directo y cierras con un informe de impacto listo para el debate.</p>
       <div className="hero-actions"><button className="btn btn-light btn-lg" onClick={() => navigate('/sesiones/nueva')}><Icon name="plus" size={18}/>Crear tu primera sesión</button><button className="btn btn-ghost-light btn-lg" onClick={() => navigate('/escenarios')}>Explorar escenarios</button></div>
+      <p className="hero-demo">o <QuickDemoButton className="link-light" size={16} label="prueba una demo rápida con una clase simulada"/></p>
     </div>
     <FirstRunPath/>
   </section>;

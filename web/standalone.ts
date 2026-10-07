@@ -276,6 +276,16 @@ async function handle(path: string, init: RequestInit | undefined, role: 'instru
     save(store);
     return json({ code }, 201);
   }
+  const benchmarkMatch = path.split('?')[0].match(/^\/sessions\/([^/]+)\/benchmark$/);
+  if (benchmarkMatch) {
+    if (role !== 'instructor') return reserved();
+    const target = store.sessions.find(state => state.id === decodeURIComponent(benchmarkMatch[1]));
+    if (!target) return json({ error: 'Sesión no encontrada.' }, 404);
+    const flag = new URLSearchParams(path.split('?')[1] ?? '').get('includeSimulated')?.trim().toLowerCase();
+    if (flag && !['true', 'false', '1', '0'].includes(flag)) return json({ error: '«includeSimulated» debe ser true o false.' }, 400);
+    save(store);
+    return json(benchmarkOf(store, target.id, flag === 'true' || flag === '1'));
+  }
   const match = path.match(/^\/sessions\/([^/]+)(\/commands|\/demo-class|\/duplicate|\/export)?$/);
   const index = match ? store.sessions.findIndex(state => state.id === decodeURIComponent(match[1])) : -1;
   if (!match || index < 0) return json({ error: 'Sesión no encontrada.' }, 404);
@@ -334,6 +344,36 @@ async function handle(path: string, init: RequestInit | undefined, role: 'instru
   const result = applyCommand(current, body as Command, actor, now);
   store.sessions[index] = result.state; save(store);
   return json(payload(store, result.state, role));
+}
+
+/**
+ * GET /api/sessions/:id/benchmark emulado con las mismas reglas que worker/benchmark.ts: esta sesión frente a las
+ * OTRAS de los últimos 365 días; simulados fuera salvo `includeSimulated`; tasa sin denominador → null.
+ */
+function benchmarkOf(store: Store, sessionId: string, includeSimulated: boolean) {
+  const since = new Date(Date.now() - 365 * 86400000).toISOString();
+  const own = { best: 0, rated: 0, decisions: 0 };
+  const org = { best: 0, rated: 0, decisions: 0, sessions: new Set<string>() };
+  for (const state of store.sessions) {
+    const mine = state.id === sessionId;
+    if (!mine && state.createdAt < since) continue;
+    const target = mine ? own : org;
+    for (const decision of state.decisions) {
+      if (!includeSimulated && decision.userId.startsWith('sim-')) continue;
+      target.decisions += 1;
+      const quality = state.scenario.phases.find(phase => phase.id === decision.phaseId)?.options.find(option => option.id === decision.optionId)?.quality ?? null;
+      if (quality === null) continue;
+      target.rated += 1;
+      if (quality === 'best') target.best += 1;
+      if (!mine) org.sessions.add(state.id);
+    }
+  }
+  const ratio = (a: number, b: number) => b > 0 ? Math.round((a / b) * 1000) / 1000 : null;
+  return {
+    session: { decisions: own.decisions, optimalRate: ratio(own.best, own.rated) },
+    organization: { sessions: org.sessions.size, decisions: org.decisions, optimalRate: ratio(org.best, org.rated) },
+    includeSimulated
+  };
 }
 
 /**

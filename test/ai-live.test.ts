@@ -457,7 +457,8 @@ describe('voz del modo IA en vivo (Soniox)', () => {
       const tts = await context.call('POST', '/api/voice/tts-key', { as: PROF, body: {} });
       expect(tts.status).toBe(200);
       expect(await json(tts)).toEqual({ apiKey: 'snx_temp_k', websocketUrl: 'wss://tts-rt.soniox.com/tts-websocket', model: 'tts-rt-v2', voice: 'Carmen', language: 'es', expiresAt: NOW });
-      expect(bodies[0]).toMatchObject({ usage_type: 'tts_rt', single_use: true });
+      // Reutilizable y corta: Soniox valida la clave en cada stream (una frase por stream).
+      expect(bodies[0]).toMatchObject({ usage_type: 'tts_rt', single_use: false, expires_in_seconds: 900 });
       expect((await context.call('POST', '/api/voice/temporary-key', { as: PROF, body: {} })).status).toBe(403);
       expect((await context.call('POST', '/api/voice/temporary-key', { as: PROF2, body: { aiRunId: run.id } })).status).toBe(404);
       expect((await context.call('POST', '/api/voice/temporary-key', { as: OTRO, body: { aiRunId: run.id } })).status).toBe(404);

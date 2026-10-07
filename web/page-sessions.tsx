@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { isMine, scenarioTitleOf, titleOf, useApp, useSessionActions } from './app-context';
 import { ActionMenu, EmptyState, Icon, PageHeader, SearchField, StatusPill } from './kit';
-import { FirstRunPath, progressText, peopleText } from './page-home';
+import { FirstRunPath, progressText, peopleText, QuickDemoButton } from './page-home';
 import { Link, navigate, setQuery, useLocation } from './router';
 import { sessionMenu } from './session-menu';
 import { relativeDate, type SessionSummary } from './types';
@@ -62,7 +62,7 @@ export function SessionsPage() {
 
   return <div className="page">
     <PageHeader title="Sesiones" description="Todas las simulaciones de tu organización. Abre una para conducirla en directo o consultar su informe."
-      actions={sessions?.length === 0 ? undefined : <button className="btn btn-primary" onClick={() => navigate('/sesiones/nueva')}><Icon name="plus" size={18}/>Nueva sesión</button>}/>
+      actions={sessions?.length === 0 ? undefined : <><QuickDemoButton/><button className="btn btn-primary" onClick={() => navigate('/sesiones/nueva')}><Icon name="plus" size={18}/>Nueva sesión</button></>}/>
 
     {sessions?.length === 0 ? <EmptyForFilter filter="todas" search="" total={0} onClear={() => undefined}/> : <>
     <div className="toolbar">
@@ -111,7 +111,7 @@ export function SessionsPage() {
 }
 
 function EmptyForFilter({ filter, search, total, onClear }: { filter: Filter; search: string; total: number; onClear: () => void }) {
-  if (total === 0) return <div className="empty-hero"><EmptyState icon="sessions" title="Aquí aparecerán tus sesiones" action={<button className="btn btn-primary btn-lg" onClick={() => navigate('/sesiones/nueva')}><Icon name="plus" size={18}/>Crear tu primera sesión</button>}>Cada sesión es una simulación con tu grupo: la conduces en directo y al terminar tienes su informe de impacto.</EmptyState><FirstRunPath/></div>;
+  if (total === 0) return <div className="empty-hero"><EmptyState icon="sessions" title="Aquí aparecerán tus sesiones" action={<><button className="btn btn-primary btn-lg" onClick={() => navigate('/sesiones/nueva')}><Icon name="plus" size={18}/>Crear tu primera sesión</button><QuickDemoButton className="btn btn-lg"/></>}>Cada sesión es una simulación con tu grupo: la conduces en directo y al terminar tienes su informe de impacto.</EmptyState><FirstRunPath/></div>;
   if (search) return <EmptyState icon="search" title="Sin resultados" action={<button className="btn" onClick={onClear}>Limpiar filtros</button>}>Ninguna sesión coincide con «{search}».</EmptyState>;
   const text: Record<Filter, [string, string]> = {
     todas: ['Sin sesiones', ''],

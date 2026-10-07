@@ -421,3 +421,19 @@ a.list-main:hover strong{color:var(--ufv-navy);text-decoration:underline}
   .shell-main{padding:0}
   .page{max-width:none;animation:none}
 }
+
+/* ---------- Demo rápida ---------- */
+.hero-demo{position:relative;z-index:1;margin:14px 0 0;font-size:14px;color:#D5E1EF}
+.link-light{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:0;color:#fff;font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:3px;text-decoration-color:#ffffff80;cursor:pointer}
+.link-light:hover:not(:disabled){text-decoration-color:#fff}.link-light:disabled{opacity:.7;cursor:progress}
+.quick-demo-backdrop{z-index:98}
+.quick-demo{padding-bottom:20px}
+.quick-demo-steps{list-style:none;margin:16px 0 0;padding:0 24px;display:grid;gap:12px}
+.quick-demo-steps li{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--muted)}
+.quick-demo-steps li>span{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;border:1px solid var(--grey-2);background:var(--surface)}
+.quick-demo-steps li.current{color:var(--ufv-navy);font-weight:700}.quick-demo-steps li.current>span{border-color:var(--ufv-navy)}
+.quick-demo-steps li.done{color:var(--ufv-ink)}.quick-demo-steps li.done>span{background:var(--ufv-navy);border-color:var(--ufv-navy);color:#fff}
+.quick-demo-spin{width:14px;height:14px;border-radius:50%;border:2px solid #9CC0FF;border-top-color:var(--ufv-navy);animation:quick-demo-spin .8s linear infinite}
+@keyframes quick-demo-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.quick-demo-spin{animation-duration:2.4s}}
+@media(max-width:640px){.quick-demo-steps{padding:0 18px}}
