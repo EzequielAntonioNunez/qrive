@@ -17,6 +17,8 @@ export type PersistOutcome = 'stored' | 'session-missing';
  * - Inserción y cambio de estado van en el mismo batch (una transacción de D1).
  * - Si la sesión ya no existe (borrada por RGPD o retención), devuelve 'session-missing' para hacer ack:
  *   reintentar solo chocaría con la clave foránea una y otra vez.
+ * - `participant_removed` borra los eventos anteriores de esa persona en la sesión, y ningún evento suyo anterior
+ *   a la retirada se vuelve a insertar aunque llegue después (supresión por persona).
  * El `detail` se vuelve a filtrar por la lista blanca de la cola por si llegan mensajes de una versión anterior.
  */
 export async function persistEvent(env: Pick<Env, 'DB'>, body: EventMessage): Promise<PersistOutcome> {
@@ -25,9 +27,18 @@ export async function persistEvent(env: Pick<Env, 'DB'>, body: EventMessage): Pr
   const session = await env.DB.prepare('SELECT status FROM sessions WHERE id = ? AND tenant_id = ?').bind(sessionId, tenantId).first<{ status: string }>();
   if (!session) return 'session-missing';
   const statements = [
-    env.DB.prepare('INSERT OR IGNORE INTO simulation_events (tenant_id,session_id,seq,type,at,actor_id,detail_json) VALUES (?,?,?,?,?,?,?)')
-      .bind(tenantId, sessionId, event.seq, event.type, event.at, event.actorId, JSON.stringify(event.detail))
+    // Supresión por persona: un evento de alguien ya retirado (con seq anterior a su retirada) que llega tarde por la
+    // cola no vuelve a entrar en D1.
+    env.DB.prepare(`INSERT OR IGNORE INTO simulation_events (tenant_id,session_id,seq,type,at,actor_id,detail_json) SELECT ?,?,?,?,?,?,?
+      WHERE NOT EXISTS (SELECT 1 FROM simulation_events WHERE tenant_id = ? AND session_id = ? AND type = 'participant_removed'
+        AND json_extract(detail_json, '$.participantId') = ? AND seq > ?)`)
+      .bind(tenantId, sessionId, event.seq, event.type, event.at, event.actorId, JSON.stringify(event.detail), tenantId, sessionId, event.actorId, event.seq)
   ];
+  if (event.type === 'participant_removed' && typeof event.detail.participantId === 'string') {
+    // RGPD: se borran de D1 la unión y las decisiones de esa persona en la sesión (los eventos son suyos: actor_id).
+    statements.push(env.DB.prepare('DELETE FROM simulation_events WHERE tenant_id = ? AND session_id = ? AND actor_id = ? AND seq < ?')
+      .bind(tenantId, sessionId, event.detail.participantId, event.seq));
+  }
   if (event.type === 'completed') {
     statements.push(env.DB.prepare("UPDATE sessions SET status = 'complete', completed_at = ? WHERE id = ? AND tenant_id = ?")
       .bind(event.at, sessionId, tenantId));

@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import type { Phase, SessionState, SimEvent } from '../shared/simulation';
 import { download } from './app-context';
-import { EmptyState, Icon, SearchField } from './kit';
+import { ActionMenu, EmptyState, Icon, SearchField, type MenuItem } from './kit';
 import { ImpactReport } from './report';
 import { share, type Tally } from './stats';
 import {
@@ -82,7 +82,7 @@ export function Meter({ label, value, initial, danger = false }: { label: string
 }
 
 /** Pestaña «Participantes»: estado en la situación actual, última actividad y resultados (valoran decisiones, no personas). */
-export function ParticipantsTab({ state, results, simCount, excludeSimulated, onToggle, onCopy, onManage }: { state: SessionState; results: ParticipantResult[]; simCount: number; excludeSimulated: boolean; onToggle: () => void; onCopy?: () => void; onManage?: () => void }) {
+export function ParticipantsTab({ state, results, simCount, excludeSimulated, onToggle, onCopy, onManage, rowActions }: { state: SessionState; results: ParticipantResult[]; simCount: number; excludeSimulated: boolean; onToggle: () => void; onCopy?: () => void; onManage?: () => void; /** Acciones por fila (RGPD: exportar sus datos, retirar de la sesión). Sin ellas, la tabla no cambia. */ rowActions?: (person: Person) => MenuItem[] }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'pending' | 'decided'>('all');
   const phase = state.scenario.phases[state.phaseIndex];
@@ -112,12 +112,13 @@ export function ParticipantsTab({ state, results, simCount, excludeSimulated, on
     </div>
     {rows.length === 0 ? <p className="empty-line">Ningún participante coincide con la búsqueda.</p>
     : <div className="table-wrap"><table className="table">
-      <thead><tr><th scope="col">Participante</th><th scope="col">Situación actual</th><th scope="col">Última actividad</th><th scope="col" className="num">Puntuación</th><th scope="col" className="num hide-sm">Óptimas</th><th scope="col" className="num hide-sm">Críticas</th><th scope="col" className="num hide-sm">Decisiones</th></tr></thead>
+      <thead><tr><th scope="col">Participante</th><th scope="col">Situación actual</th><th scope="col">Última actividad</th><th scope="col" className="num">Puntuación</th><th scope="col" className="num hide-sm">Óptimas</th><th scope="col" className="num hide-sm">Críticas</th><th scope="col" className="num hide-sm">Decisiones</th>{rowActions && <th scope="col"><span className="sr-only">Acciones</span></th>}</tr></thead>
       <tbody>{rows.map(person => { const row = resultOf(person.userId); const dimmed = excludeSimulated && person.simulated; return <tr key={person.userId} className={dimmed ? 'excluded' : ''}>
         <th scope="row"><span className="person"><span className="avatar" aria-hidden="true">{initials(person.name)}</span>{person.name}{person.simulated && <em className="tag-sim">Simulado</em>}</span></th>
         <td>{complete ? <span className="state-pill done">Completó</span> : decidedNow.has(person.userId) ? <span className="state-pill done">Decidió</span> : <span className="state-pill">Pendiente</span>}</td>
         <td className="muted-cell">{relativeDate(lastActivity.get(person.userId))}</td>
         <td className="num">{dimmed ? '—' : row?.score ?? '—'}</td><td className="num hide-sm">{dimmed ? '—' : pct(row?.correctDecisionsPct)}</td><td className="num hide-sm">{dimmed ? '—' : row?.criticalDecisions ?? '—'}</td><td className="num hide-sm">{dimmed ? '—' : row?.decisions ?? '—'}</td>
+        {rowActions && <td className="menu-cell">{(() => { const items = rowActions(person); return items.length ? <ActionMenu label={`Acciones de ${person.name}`} items={items}/> : null; })()}</td>}
       </tr>; })}</tbody></table></div>}
     <p className="fine-print">Las puntuaciones valoran las decisiones tomadas en el escenario, nunca a las personas.</p>
   </section>;

@@ -17,7 +17,8 @@ import { codeSummaries, consumeLoginAttempt, issueCode, pruneAuth, revokeCodes, 
 import { queueSafeEvent, ROOM_ACTOR_HEADER, type RoomActor } from './room';
 import { DEFAULT_SIMULATED, MAX_SIMULATED } from './demo-class';
 import { CLEF_MODEL, MAX_PHRASE_LENGTH, clefRequest, interpretClef } from './voice-intent';
-import { AiServiceError } from './ai-common';
+import { AiServiceError, aiCallLog } from './ai-common';
+import { participantExport } from '../shared/participant-export';
 import { ownsRun, pruneAiRuns } from './ai-live';
 import { aiErrorResponse, registerAiLiveRoutes } from './ai-routes';
 import type { SessionState } from '../shared/simulation';
@@ -35,6 +36,13 @@ const INVALID_JSON = 'Cuerpo JSON no válido.';
 const MEMBER_UNAVAILABLE = 'Ese correo no se puede dar de alta en esta organización.';
 const LAST_INSTRUCTOR = 'Debe quedar al menos un instructor en la organización.';
 const OWNER_PROTECTED = 'No se puede modificar al propietario de la organización.';
+/** IDs seudónimos de participante: usuario (UUID), invitado (`guest-…`), simulado (`sim-…`) o de la demo local. */
+const PARTICIPANT_ID = /^[\w-]{1,120}$/;
+/** Registro de auditoría: tamaño de página por defecto y máximo de GET /api/audit. */
+const AUDIT_PAGE = 50;
+const AUDIT_PAGE_MAX = 200;
+/** Claves de `detail` que nunca se devuelven en el visor de auditoría, aunque una versión futura las registrara. */
+const AUDIT_SECRET_KEY = /secret|token|password|pepper|api_?key|^code$|^pin$|phrase|text|note/i;
 
 function parseCommand(value: unknown): Command {
   if (!value || typeof value !== 'object') throw new DomainError('Comando no válido.');
@@ -44,6 +52,7 @@ function parseCommand(value: unknown): Command {
   if (data.type === 'decide' && typeof data.optionId === 'string') return { id: data.id, type: data.type, optionId: data.optionId };
   if (data.type === 'incident' && typeof data.note === 'string' && typeof data.riskDelta === 'number') return { id: data.id, type: data.type, note: data.note, riskDelta: data.riskDelta };
   if (data.type === 'set-meter' && typeof data.meter === 'string' && typeof data.value === 'number') return { id: data.id, type: data.type, meter: data.meter as 'relationship' | 'margin' | 'risk', value: data.value };
+  if (data.type === 'remove-participant' && typeof data.participantId === 'string' && PARTICIPANT_ID.test(data.participantId)) return { id: data.id, type: data.type, participantId: data.participantId };
   throw new DomainError('Comando no válido.');
 }
 
@@ -327,7 +336,7 @@ export function createApp(demo = false) {
       return c.json({
         id, name, role: 'participant', guest: true, sessionId, flags: flags(c.env), demo,
         identity: { id, name, role: 'participant', guest: true, sessionId },
-        permissions: { participate: true, manageSessions: false, manageMembers: false, assignInstructor: false, viewAccessAudit: false }
+        permissions: { participate: true, manageSessions: false, manageMembers: false, assignInstructor: false, viewAccessAudit: false, viewAudit: false }
       });
     }
     return c.json({ identity, demo, flags: flags(c.env), permissions: {
@@ -335,7 +344,8 @@ export function createApp(demo = false) {
       manageSessions: identity.role === 'instructor',
       manageMembers: identity.role === 'instructor',
       assignInstructor: identity.role === 'instructor' && isOwnerEmail(c.env, identity.email),
-      viewAccessAudit: identity.role === 'instructor'
+      viewAccessAudit: identity.role === 'instructor',
+      viewAudit: canViewAudit(c.env, identity, demo)
     } });
   });
   app.get('/api/voice/config', c => {
@@ -434,6 +444,7 @@ export function createApp(demo = false) {
     const phase = state.status === 'active' ? state.scenario.phases[state.phaseIndex] : undefined;
     if (!phase?.options.length) return c.json({ error: 'Ahora mismo no hay opciones entre las que elegir.' }, 409);
     let result: unknown;
+    const started = Date.now();
     try {
       result = await c.env.AI.run(CLEF_MODEL, clefRequest(phase, phrase));
     } catch (error) {
@@ -441,6 +452,11 @@ export function createApp(demo = false) {
       return c.json({ error: 'No he podido interpretar la respuesta. Di el número de la opción.' }, 502);
     }
     const intent = interpretClef(result, phase.options.length);
+    // Auditoría de IA (§25): modelo, tipo de llamada, resultado y confianza. Nunca la frase ni las opciones.
+    console.log(JSON.stringify(aiCallLog({
+      model: CLEF_MODEL, kind: 'voice-intent', requestId: c.get('requestId'), durationMs: Date.now() - started, result,
+      extra: { outcome: intent.kind, confidence: Math.round(intent.confidence * 1000) / 1000 }
+    })));
     return c.json({ ...intent, phaseId: phase.id });
   });
   app.get('/api/scenarios', async c => c.json({ scenarios: await listScenarios(c.env, c.get('identity').tenantId) }));
@@ -750,8 +766,35 @@ export function createApp(demo = false) {
     // La respuesta también pasa por roomPayload: el participante recibe solo su vista filtrada.
     const response = await room(c.env, identity.tenantId, id, { op: 'command', tenantId: identity.tenantId, actor: identity, command, client: clientKind(c.req.header('x-axyro-client')) });
     await persistCommandEvent(c.env, c.get('requestId'), identity, id, command.type, response);
-    if (response.ok && command.type !== 'join' && command.type !== 'decide') await audit(c.env, identity, id, command.type, {});
+    if (response.ok && command.type === 'remove-participant') {
+      // RGPD: un invitado retirado pierde también su fila (alias y hash del token): su cookie deja de valer.
+      await c.env.DB.prepare('DELETE FROM guests WHERE id = ? AND tenant_id = ? AND session_id = ?').bind(command.participantId, identity.tenantId, id).run();
+      await audit(c.env, identity, id, 'participant_removed', { participantId: command.participantId });
+    } else if (response.ok && command.type !== 'join' && command.type !== 'decide') await audit(c.env, identity, id, command.type, {});
     return response;
+  });
+  // RGPD (acceso y portabilidad por persona): datos de un participante dentro de la sesión, sin datos de compañeros.
+  // Mismo permiso que la exportación de la sesión completa (canManage).
+  app.get('/api/sessions/:id/participants/:participantId/export', async c => {
+    const identity = c.get('identity');
+    const id = c.req.param('id');
+    const participantId = c.req.param('participantId');
+    if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
+    const session = await sessionFor(c.env, identity.tenantId, id);
+    if (!session) return c.json({ error: 'Sesión no encontrada.' }, 404);
+    if (!await canManage(c.env, identity, session)) return c.json({ error: 'Solo el instructor que creó la sesión puede exportar sus datos.' }, 403);
+    if (!PARTICIPANT_ID.test(participantId)) return c.json({ error: 'Participante no encontrado.' }, 404);
+    const current = await room(c.env, identity.tenantId, id, { op: 'state', tenantId: identity.tenantId, actor: identity });
+    if (!current.ok) return current;
+    const { state } = await current.json() as { state: SessionState };
+    const data = participantExport(state, participantId, new Date().toISOString());
+    if (!data) return c.json({ error: 'Participante no encontrado.' }, 404);
+    // Eventos guardados en D1 de esa persona (IDs seudónimos), para que la exportación refleje también el registro.
+    const stored = await c.env.DB.prepare('SELECT seq, type, at, detail_json AS detailJson FROM simulation_events WHERE tenant_id = ? AND session_id = ? AND actor_id = ? ORDER BY seq')
+      .bind(identity.tenantId, id, participantId).all<{ seq: number; type: string; at: string; detailJson: string }>();
+    await audit(c.env, identity, id, 'participant_exported', { participantId });
+    c.header('cache-control', 'private, no-store');
+    return c.json({ ...data, storedEvents: stored.results.map(row => ({ seq: row.seq, type: row.type, at: row.at, detail: JSON.parse(row.detailJson) })) });
   });
   // RGPD: exportación completa de una sesión (estado, eventos con IDs seudónimos e informe). Solo su instructor.
   app.get('/api/sessions/:id/export', async c => {
@@ -800,6 +843,46 @@ export function createApp(demo = false) {
       .bind(identity.tenantId, id).all();
     return c.json({ events: rows.results.map(row => ({ seq: row.seq, type: row.type, at: row.at, actorId: row.actorId, detail: JSON.parse(String(row.detailJson)) })) });
   });
+  /**
+   * Visor del registro de auditoría de la organización: solo el propietario (403 para el resto). Paginado del más
+   * reciente al más antiguo; `before` es el cursor `nextBefore` de la página anterior. Devuelve acción, nombre visible
+   * de quien actuó, sesión, fecha y `detail` sin claves sensibles (auditDetail). Consultarlo no se audita.
+   */
+  app.get('/api/audit', async c => {
+    const identity = c.get('identity');
+    if (!canViewAudit(c.env, identity, demo)) return c.json({ error: 'El registro de auditoría está reservado al propietario de la organización.' }, 403);
+    const limitRaw = c.req.query('limit');
+    const limit = limitRaw === undefined ? AUDIT_PAGE : Number(limitRaw);
+    if (!Number.isInteger(limit) || limit < 1 || limit > AUDIT_PAGE_MAX) return c.json({ error: `«limit» debe ser un entero entre 1 y ${AUDIT_PAGE_MAX}.` }, 400);
+    const before = c.req.query('before');
+    let cursor: { at: string; id: string } | null = null;
+    if (before !== undefined) {
+      const match = /^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)~([\w-]{1,80})$/.exec(before);
+      if (!match) return c.json({ error: '«before» no es un cursor válido.' }, 400);
+      cursor = { at: match[1], id: match[2] };
+    }
+    const rows = await c.env.DB.prepare(`SELECT a.id, a.action, a.actor_id AS actorId, a.session_id AS sessionId, a.at, a.detail_json AS detailJson,
+        u.display_name AS actorName
+      FROM audit_log a LEFT JOIN users u ON u.id = a.actor_id
+        AND EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.id AND m.tenant_id = a.tenant_id)
+      WHERE a.tenant_id = ? AND (? IS NULL OR a.at < ? OR (a.at = ? AND a.id < ?))
+      ORDER BY a.at DESC, a.id DESC LIMIT ?`)
+      .bind(identity.tenantId, cursor?.at ?? null, cursor?.at ?? null, cursor?.at ?? null, cursor?.id ?? null, limit + 1)
+      .all<{ id: string; action: string; actorId: string; sessionId: string | null; at: string; detailJson: string; actorName: string | null }>();
+    const page = rows.results.slice(0, limit);
+    const last = page.at(-1);
+    c.header('cache-control', 'private, no-store');
+    return c.json({
+      entries: page.map(row => ({
+        id: row.id, action: row.action, at: row.at, sessionId: row.sessionId,
+        // Invitados y sistema no son usuarios: se etiquetan sin revelar su alias.
+        actorKind: row.actorId === 'system' ? 'system' : row.actorId.startsWith('guest-') ? 'guest' : row.actorName ? 'member' : 'former',
+        actorName: row.actorId === 'system' ? 'Sistema' : row.actorId.startsWith('guest-') ? 'Invitado' : row.actorName ?? 'Persona dada de baja',
+        detail: auditDetail(row.detailJson)
+      })),
+      nextBefore: rows.results.length > limit && last ? `${last.at}~${last.id}` : null
+    });
+  });
   // Modo IA en vivo (demo): colecciones de conocimiento y partidas generadas (worker/ai-routes.ts).
   registerAiLiveRoutes(app, { readJson, audit });
   app.all('/api/*', c => c.json({ error: 'Ruta no encontrada.' }, 404));
@@ -830,6 +913,8 @@ export function liveRejection(request: Request, demo = false): { status: 403 | 4
 /** Comandos cuyo evento se escribe en D1 desde la API además de por la cola (ver POST /api/sessions/:id/commands). */
 const PERSISTED_COMMAND_EVENTS: Partial<Record<Command['type'], SimEvent['type']>> = {
   join: 'participant_joined',
+  // Supresión inmediata en D1 (persistEvent borra los eventos de esa persona), sin esperar a la cola.
+  'remove-participant': 'participant_removed',
   advance: 'phase_advanced',
   pause: 'paused',
   resume: 'resumed',
@@ -900,6 +985,23 @@ export async function applyRetention(env: Env, now = new Date()): Promise<number
   await pruneAiRuns(env, days, now);
   if (rows.results.length || auditDeleted) console.log(JSON.stringify({ code: 'RETENTION_APPLIED', deleted: rows.results.length, retentionDays: days, auditDeleted, auditRetentionDays: auditDays }));
   return rows.results.length;
+}
+
+/**
+ * Visor del registro de auditoría: solo el propietario (BOOTSTRAP_OWNER_EMAIL) y siempre como instructor de su
+ * organización. En la demo local (sin propietario configurado) lo ve el instructor de demostración.
+ */
+function canViewAudit(env: Env, identity: Identity, demo: boolean): boolean {
+  if (identity.guest || identity.role !== 'instructor') return false;
+  return isOwnerEmail(env, identity.email) || demo;
+}
+
+/** Copia de `detail` sin claves que pudieran llevar secretos o texto libre (ver AUDIT_SECRET_KEY). */
+export function auditDetail(json: string): Record<string, unknown> {
+  let detail: unknown;
+  try { detail = JSON.parse(json); } catch { return {}; }
+  if (!detail || typeof detail !== 'object' || Array.isArray(detail)) return {};
+  return Object.fromEntries(Object.entries(detail as Record<string, unknown>).filter(([key]) => !AUDIT_SECRET_KEY.test(key)));
 }
 
 async function sessionFor(env: Env, tenantId: string, sessionId: string): Promise<{ instructorId: string } | null> {

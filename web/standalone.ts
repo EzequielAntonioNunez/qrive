@@ -6,6 +6,7 @@
 import { applyCommand, createSession, DomainError, expireTimer, type Actor, type Command } from '../shared/engine';
 import { catalogScenarios, classMeters, defaultScenario, participantReport, participantView, performanceReport, type Meters, type Scenario, type SessionState } from '../shared/simulation';
 import { ScenarioError, validateScenario } from '../shared/scenario';
+import { participantExport } from '../shared/participant-export';
 import { AI_DRAFT_MIN_PHASES, aiScenarioProblem, draftFromSituations, isAiScenarioIdFor } from '../shared/ai-draft';
 import type { AnalyticsResponse } from './page-analytics';
 import { fakeDraftInput, handleAiLive } from './ai-live-fake';
@@ -286,6 +287,15 @@ async function handle(path: string, init: RequestInit | undefined, role: 'instru
     save(store);
     return json(benchmarkOf(store, target.id, flag === 'true' || flag === '1'));
   }
+  // RGPD por persona: exportación de los datos de un participante (mismo contrato que el Worker, sin eventos de D1).
+  const personExport = path.match(/^\/sessions\/([^/]+)\/participants\/([^/]+)\/export$/);
+  if (personExport) {
+    if (role !== 'instructor') return reserved();
+    const target = store.sessions.find(state => state.id === decodeURIComponent(personExport[1]));
+    if (!target) return json({ error: 'Sesión no encontrada.' }, 404);
+    const data = participantExport(target, decodeURIComponent(personExport[2]), now);
+    return data ? json({ ...data, storedEvents: [] }) : json({ error: 'Participante no encontrado.' }, 404);
+  }
   const match = path.match(/^\/sessions\/([^/]+)(\/commands|\/demo-class|\/duplicate|\/export)?$/);
   const index = match ? store.sessions.findIndex(state => state.id === decodeURIComponent(match[1])) : -1;
   if (!match || index < 0) return json({ error: 'Sesión no encontrada.' }, 404);
@@ -342,7 +352,10 @@ async function handle(path: string, init: RequestInit | undefined, role: 'instru
     return json({ ...payload(store, added.state, role), demoClass: { added: count, total: added.ids.length } }, 201);
   }
   const result = applyCommand(current, body as Command, actor, now);
-  store.sessions[index] = result.state; save(store);
+  store.sessions[index] = result.state;
+  // Un simulado retirado deja de decidir solo.
+  if ((body as Command).type === 'remove-participant') store.simulated[current.id] = (store.simulated[current.id] ?? []).filter(item => item !== (body as { participantId?: string }).participantId);
+  save(store);
   return json(payload(store, result.state, role));
 }
 

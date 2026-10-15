@@ -24,7 +24,8 @@ export const QUEUE_DETAIL_FIELDS: Record<SimEventType, readonly string[]> = {
   incident: ['riskDelta'],
   meter_changed: ['meter', 'value'],
   timer_expired: ['phaseId', 'riskDelta'],
-  completed: ['score', 'early']
+  completed: ['score', 'early'],
+  participant_removed: ['participantId']
 };
 
 /** Copia del evento apta para la cola: `detail` filtrado por la lista blanca de su tipo. */

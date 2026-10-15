@@ -17,7 +17,8 @@ export const EVENT_CATALOG = {
   incident: 'Incidente introducido por el instructor. detail: note, riskDelta',
   meter_changed: 'Ajuste manual de un indicador. detail: meter, value',
   timer_expired: 'Vence el tiempo de la fase. actor: system. detail: phaseId, riskDelta',
-  completed: 'Sesión finalizada. detail: score'
+  completed: 'Sesión finalizada. detail: score',
+  participant_removed: 'El instructor retira a un participante (RGPD): se borran su unión, sus decisiones y sus indicadores. detail: participantId'
 } as const;
 
 export type SimEventType = keyof typeof EVENT_CATALOG;

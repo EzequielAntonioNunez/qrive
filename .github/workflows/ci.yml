@@ -18,6 +18,33 @@ jobs:
       - name: Comprobar simulador WebGL
         run: test -s web/public/simulador/index.html
       - run: pnpm check
+      # Cadena de suministro: visible en el resumen del job, pero no bloquea (los avisos actuales son de dependencias de desarrollo).
+      - name: Auditoría de dependencias (pnpm audit, informativa)
+        run: pnpm audit --audit-level high
+        continue-on-error: true
+      # Puerta de calidad de Simulation Core: API local (identidad demo, D1 local) y 50 simulaciones completas.
+      - name: Migraciones D1 locales
+        run: pnpm db:local
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+      - name: Puerta de calidad (SMOKE_RUNS=50)
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          pnpm dev:api > dev-api.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8787/api/health > /dev/null; then break; fi
+            sleep 2
+          done
+          if ! curl -sf http://127.0.0.1:8787/api/health > /dev/null; then
+            echo "::error::La API local no ha arrancado."
+            cat dev-api.log
+            exit 1
+          fi
+          SMOKE_RUNS=50 pnpm smoke || { cat dev-api.log | tail -n 80; exit 1; }
+      - name: Registro de la API local
+        if: failure()
+        run: test -f dev-api.log && tail -n 200 dev-api.log || true
 
   # Cada push a main que pasa la verificación se despliega en axyro.qhel.dev.
   # Se activa con la variable de repositorio CLOUDFLARE_DEPLOY=true (Settings > Secrets and variables > Actions > Variables)

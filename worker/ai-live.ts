@@ -482,7 +482,7 @@ export async function answer(ctx: LiveContext, id: string, request: ReturnType<t
   if (quick?.kind === 'repeat') return { kind: 'repeat' };
   if (quick?.kind === 'next') return skip();
 
-  const result = await runAi(ctx.env, CLEF_MODEL, liveClefRequest(situation, phrase), ctx.requestId);
+  const result = await runAi(ctx.env, CLEF_MODEL, liveClefRequest(situation, phrase), ctx.requestId, 'live-intent');
   const intent = interpretLiveClef(result, situation.options.length);
   if (intent.kind === 'option') return intent.decide ? decide(intent.option) : confirm(intent.option);
   if (intent.kind === 'pregunta') return ask(phrase);

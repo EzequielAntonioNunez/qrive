@@ -240,7 +240,7 @@ export async function generateJson<T>(env: Env, prompt: { system: string; user: 
   let problem = '';
   for (let attempt = 0; attempt < 2; attempt++) {
     const current = attempt === 0 ? prompt : { system: prompt.system, user: `${prompt.user}\n\nTu respuesta anterior no era válida: ${problem} Corrige el problema y devuelve solo el JSON.` };
-    const result = await runAi(env, model, modelInput(model, current, schema, maxTokens), requestId);
+    const result = await runAi(env, model, modelInput(model, current, schema, maxTokens), requestId, 'generation');
     const parsed = parseModelJson(responseText(result));
     const checked = parsed === null ? 'La respuesta no es JSON válido.' : validate(parsed);
     if (typeof checked !== 'string') return checked;

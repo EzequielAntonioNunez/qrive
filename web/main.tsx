@@ -29,7 +29,7 @@ const ScenarioEditorPage = React.lazy(() => import('./page-scenario-editor').the
 const standalone = import.meta.env.VITE_STANDALONE === '1';
 if (standalone) installStandaloneApi();
 
-type Me = { identity: Identity; demo: boolean; flags?: { phase_timers?: boolean; realtime_websocket?: boolean; ai_live_demo?: boolean }; permissions?: { assignInstructor?: boolean } };
+type Me = { identity: Identity; demo: boolean; flags?: { phase_timers?: boolean; realtime_websocket?: boolean; ai_live_demo?: boolean }; permissions?: { assignInstructor?: boolean; viewAudit?: boolean } };
 
 function App() {
   useLegacyRedirect();
@@ -111,6 +111,7 @@ function App() {
   const value = useMemo<AppContextValue | null>(() => me ? {
     api, identity: me.identity, isInstructor: me.identity.role === 'instructor', demo: me.demo, standalone,
     timersOn: me.flags?.phase_timers !== false, realtime: me.flags?.realtime_websocket === true, canAssignInstructor: me.permissions?.assignInstructor === true,
+    canViewAudit: me.permissions?.viewAudit === true,
     sessions, reloadSessions, updateSession, dropSessions, scenarios, scenarioDetails, loadScenario, reloadScenarios
   } : null, [api, me, sessions, reloadSessions, updateSession, dropSessions, scenarios, scenarioDetails, loadScenario, reloadScenarios]);
 

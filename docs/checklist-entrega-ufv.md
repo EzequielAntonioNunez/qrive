@@ -68,7 +68,7 @@ Responsables: **Dev** (equipo de desarrollo), **UFV-SI** (Servicios Informático
 - [ ] Cola de eventos: aceptada por el DPO sin jurisdicción UE (solo IDs seudónimos y campos de una lista blanca, sin texto de incidentes) o recreada en la UE. (Dev, UFV-DPO)
 - [ ] Ubicación UE de la base de datos D1 y de R2 comprobada en el panel de Cloudflare. (Dev)
 - [ ] Tarea diaria de conservación activa (03:17 UTC) y comprobada con datos de prueba: sesiones a los 365 días (también las no finalizadas desde su creación), auditoría y usos de códigos a los 730 días, invitados caducados (12 h o 2 h tras finalizar), PIN revocados a las 24 h, límites de intentos a las 24 h y partidas del Modo IA a los 365 días. (Dev)
-- [ ] **Dar de baja** desde «Participantes y accesos» y rectificación del nombre (volviendo a dar de alta) probadas; pendiente el borrado y la exportación de un participante concreto dentro de una sesión. (Dev)
+- [ ] **Dar de baja** desde «Participantes y accesos» y rectificación del nombre (volviendo a dar de alta) probadas; también **Retirar de la sesión** y **Exportar sus datos (JSON)** de un participante concreto (pestaña «Participantes» de la sesión). (Dev)
 - [ ] Vista del participante comprobada (miembro e invitado): solo sus sesiones, sus decisiones y sus resultados, sin valoraciones antes de decidir. (Dev)
 - [ ] **Exportar datos (JSON)** y **Eliminar** (individual y por selección) probados desde la consola; la auditoría registra ambos y el borrado elimina PIN e invitados. (Dev)
 - [ ] Copias de seguridad y recuperación de la base de datos documentadas y probadas (procedimiento de restauración). (Dev)

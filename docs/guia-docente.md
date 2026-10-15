@@ -442,7 +442,7 @@ Solo el docente que creó la sesión puede exportarla o eliminarla (si ya no es 
 
 Aun así, elimina las sesiones de prueba en cuanto no las necesites.
 
-Si un participante pide acceder a sus datos o que se borren, sigue el procedimiento de la UFV para el ejercicio de derechos. Hoy no se puede borrar a una sola persona dentro de una sesión: se elimina la sesión completa o se atiende por el procedimiento que indique la UFV. **[Pendiente UFV]** Definir el canal (DPO o Secretaría General) y el plazo de respuesta.
+Si un participante pide acceder a sus datos o que se borren, sigue el procedimiento de la UFV para el ejercicio de derechos. En la pestaña **Participantes** de la sesión, el menú de cada persona ofrece **Exportar sus datos (JSON)** (solo sus datos) y **Retirar de la sesión** (borra a esa persona, sus decisiones y sus indicadores; no se puede deshacer, así que exporta antes si lo necesitas). **[Pendiente UFV]** Definir el canal (DPO o Secretaría General) y el plazo de respuesta.
 
 ---
 
