@@ -1,6 +1,6 @@
-/* Analítica de la organización (/analitica) y franja de Inicio. Prefijo an-. Identidad UFV: azul UFV, azul cielo y
-   Rockwell en cifras. Colores de serie: participantes = cielo, decisiones = azul UFV, % óptimas = verde azulado.
-   Valoración de opciones (como el informe): mejor = azul UFV, aceptable = cielo, crítica = coral. */
+/* Analítica de la organización (/analitica) y franja de Inicio. Prefijo an-. Identidad AXYRO: azul marino, azul cielo y
+   Rockwell en cifras. Colores de serie: participantes = cielo, decisiones = azul marino, % óptimas = verde azulado.
+   Valoración de opciones (como el informe): mejor = azul marino, aceptable = cielo, crítica = coral. */
 .an-page{--an-participants:var(--ufv-sky);--an-decisions:var(--ufv-navy);--an-line:#1F8A70;--an-good:#17784A;--an-bad:var(--ufv-crimson);
   --an-q-best:var(--ufv-navy);--an-q-acceptable:var(--ufv-sky);--an-q-poor:var(--ufv-coral);--an-q-none:#C3CEDB}
 .an-strip{--an-good:#17784A}

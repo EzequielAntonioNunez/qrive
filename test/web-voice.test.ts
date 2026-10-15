@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
-const source = readFileSync(new URL('../unity/AXYRO.Simulation/Assets/WebGLTemplates/UFV/voice.js', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../unity/AXYRO.Simulation/Assets/WebGLTemplates/AXYRO/voice.js', import.meta.url), 'utf8');
 
 function voiceAt(now: number, fetch?: (url: string, init: RequestInit) => Promise<Response>) {
   const window = {} as { axyroVoice?: any };

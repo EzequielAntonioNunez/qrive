@@ -15,7 +15,7 @@ const { createApp } = await import('../worker/app');
 const { AI_EFFECTS, AI_METER_LABELS, aiScenarioProblem, draftFromSituations, isAiScenarioIdFor } = await import('../shared/ai-draft');
 const { validateScenario, ScenarioError } = await import('../shared/scenario');
 const { applyCommand, createSession } = await import('../shared/engine');
-const { catalogScenarios, participantView, performanceReport } = await import('../shared/simulation');
+const { catalogScenarios, defaultScenario, participantView, performanceReport } = await import('../shared/simulation');
 type Scenario = import('../shared/simulation').Scenario;
 type DraftSituation = import('../shared/ai-draft').DraftSituation;
 
@@ -317,7 +317,7 @@ describe('API: POST /api/ai-runs/:id/draft y /publish', () => {
     expect((await call('GET', `/api/scenarios/${draft.id}`, { as: ALUMNA })).status).toBe(200);
     expect((await json(await call('GET', '/api/scenarios', { as: OTRO }))).scenarios.some((item: { id: string }) => item.id === draft.id)).toBe(false);
     expect((await call('GET', `/api/scenarios/${draft.id}`, { as: OTRO })).status).toBe(404);
-    const catalogItem = (await json(await call('GET', '/api/scenarios', { as: PROF }))).scenarios.find((item: { id: string }) => item.id === 'ia-buenas-practicas');
+    const catalogItem = (await json(await call('GET', '/api/scenarios', { as: PROF }))).scenarios.find((item: { id: string }) => item.id === defaultScenario.id);
     expect(catalogItem).toMatchObject({ catalog: true, origin: null, publishedBy: null });
 
     // Se puede crear una sesión con él («Nueva sesión»): el Durable Object recibe el escenario publicado.
@@ -345,7 +345,7 @@ describe('API: POST /api/ai-runs/:id/draft y /publish', () => {
     const { runId } = await runWithTwoSituations(context);
     const draft = (await json(await call('POST', `/api/ai-runs/${runId}/draft`, { as: PROF, body: {} }))).draft as Scenario;
     const publish = (scenario: unknown) => call('POST', `/api/ai-runs/${runId}/publish`, { as: PROF, body: { scenario } });
-    expect((await publish({ ...draft, id: 'ia-buenas-practicas' })).status).toBe(400);
+    expect((await publish({ ...draft, id: defaultScenario.id })).status).toBe(400);
     expect((await publish({ ...draft, id: 'mi-escenario' })).status).toBe(400);
     expect((await publish({ ...draft, phases: draft.phases.slice(0, 1) })).status).toBe(400);
     const noBest = structuredClone(draft);

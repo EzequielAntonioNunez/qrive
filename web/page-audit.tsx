@@ -18,7 +18,7 @@ const ACTIONS: Record<string, string> = {
   session_pin_regenerated: 'PIN de la sesión regenerado', advance: 'Siguiente situación', pause: 'Sesión en pausa', resume: 'Sesión reanudada',
   complete: 'Sesión finalizada', incident: 'Incidente lanzado', 'set-meter': 'Indicador ajustado',
   participant_removed: 'Participante retirado de una sesión', participant_exported: 'Datos de un participante exportados',
-  guest_joined: 'Invitado unido con PIN', demo_class_added: 'Clase simulada añadida', demo_class_removed: 'Clase simulada retirada',
+  guest_joined: 'Invitado unido con PIN', demo_class_added: 'Equipo simulado añadido', demo_class_removed: 'Equipo simulado retirado',
   member_upserted: 'Alta o cambio de miembro', member_deleted: 'Baja de miembro', access_code_issued: 'Código personal generado',
   access_code_revoked: 'Código personal revocado', scenario_published: 'Escenario publicado', scenario_published_from_ai: 'Escenario publicado desde el Modo IA',
   knowledge_collection_created: 'Colección de documentos creada', knowledge_collection_deleted: 'Colección de documentos eliminada',

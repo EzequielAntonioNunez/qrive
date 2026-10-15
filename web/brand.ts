@@ -1,12 +1,17 @@
 /**
- * Identidad visual de la organización cliente. Hoy es la UFV (plantilla UFV_Rockw_25_03).
- * Nada de la interfaz muestra la marca interna del producto: solo la del cliente.
- * Para otro cliente se cambia este archivo y los logos de web/public/brand, sin tocar la consola.
+ * Identidad visual del producto: AXYRO · Simulador de decisiones, para despachos de abogados y formación jurídica.
+ * La paleta (azul marino, azul cielo, coral y carmesí) vive en los tokens de style.css; los logos, en web/public/brand.
  */
 export const brand = {
-  organization: 'Universidad Francisco de Vitoria',
-  shortName: 'UFV',
-  logoOnDark: '/brand/ufv-logo-white.svg',
-  logoOnLight: '/brand/ufv-logo-navy.svg',
-  product: 'Simulador de decisiones'
+  /** Nombre visible del producto (texto alternativo de los logos, pies de página e informes). */
+  organization: 'AXYRO',
+  shortName: 'AXYRO',
+  product: 'Simulador de decisiones',
+  tagline: 'Simulación de decisiones para despachos',
+  /** Logotipo completo (isotipo + «AXYRO»): blanco sobre azul marino y azul marino sobre fondo claro. */
+  logoOnDark: '/brand/axyro-logo-white.svg',
+  logoOnLight: '/brand/axyro-logo-navy.svg',
+  /** Isotipo solo (hexágono con la «A»). */
+  markOnDark: '/brand/axyro-mark-white.svg',
+  markOnLight: '/brand/axyro-mark-navy.svg'
 };

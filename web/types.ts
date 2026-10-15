@@ -33,7 +33,7 @@ export type Report = Omit<PerformanceReport, 'timeline' | 'participants' | 'part
 };
 /** Recuento en vivo de la fase activa (solo docente). Puede faltar si el servidor aún no lo envía. */
 export type LiveTally = { phaseId: string; counts: number[]; decided: number; total: number };
-/** Participante tal como llega a la consola: los de «Simular clase» traen `simulated: true`. */
+/** Participante tal como llega a la consola: los de «Simular equipo» traen `simulated: true`. */
 export type Person = Participant & { simulated?: boolean };
 export type SessionPayload = { state: SessionState; report: Report; clients?: { unity?: string }; liveTally?: LiveTally };
 export type ScenarioSummary = { id: string; version: number; title: string; summary: string; phases: number; catalog: boolean; origin?: 'ai' | null; publishedBy?: string | null; publishedAt?: string | null };
@@ -45,7 +45,7 @@ export const METERS = ['relationship', 'margin', 'risk'] as const;
 
 export function pct(value: number | null | undefined): string { return value == null ? '—' : `${value} %`; }
 export function signed(value: number): string { return value > 0 ? `+${value}` : value < 0 ? `−${Math.abs(value)}` : '0'; }
-export function roleLabel(role: string): string { return role === 'instructor' ? 'Docente' : 'Participante'; }
+export function roleLabel(role: string): string { return role === 'instructor' ? 'Formador' : 'Participante'; }
 export function statusLabel(status: string): string { return status === 'complete' ? 'Finalizada' : status === 'paused' ? 'En pausa' : 'En curso'; }
 export function qualityLabel(value: string | null | undefined): string { return value === 'best' ? 'Mejor opción' : value === 'acceptable' ? 'Aceptable' : value === 'poor' ? 'Crítica' : 'Sin valorar'; }
 export function formatClock(ms: number): string { const total = Math.max(0, Math.ceil(ms / 1000)); return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`; }
@@ -91,6 +91,6 @@ export function eventLabel(type: string): string {
 }
 export function actorLabel(actorId: string, state: SessionState): string {
   if (actorId === 'system') return 'Sistema';
-  if (actorId === state.instructorId) return 'Docente';
+  if (actorId === state.instructorId) return 'Formador';
   return state.participants.find(person => person.userId === actorId)?.name ?? 'Participante';
 }

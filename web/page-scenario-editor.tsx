@@ -1,5 +1,5 @@
 /**
- * «Convertir en escenario para clase»: revisión y publicación del borrador generado a partir de una partida del
+ * «Convertir en escenario para sesiones»: revisión y publicación del borrador generado a partir de una partida del
  * modo IA en vivo. El docente revisa y edita TODO antes de publicar (supervisión humana: AI Act); al publicar se
  * convierte en un escenario versionado normal (inmutable) que sirve para sesiones, invitados, proyector e informes.
  * El borrador editado se guarda solo en este navegador (localStorage) hasta que se publica.
@@ -17,7 +17,7 @@ import './scenario-editor.css';
 type DraftResponse = { draft: Scenario; warnings: string[]; latestVersion: number | null; run: { id: string; status: string; generated: number; total: number } };
 type Saved = { draft: Scenario; savedAt: string };
 
-const storageKey = (runId: string) => `ufv-borrador-escenario:${runId}`;
+const storageKey = (runId: string) => `axyro-borrador-escenario:${runId}`;
 function readSaved(runId: string): Saved | null {
   try { const raw = localStorage.getItem(storageKey(runId)); return raw ? JSON.parse(raw) as Saved : null; } catch { return null; }
 }
@@ -153,7 +153,7 @@ export function ScenarioEditorPage({ runId }: { runId: string }) {
     const scenario = cleaned({ ...draft, version: version ?? draft.version });
     const ok = await confirm({
       title: 'Publicar escenario', confirmLabel: 'Publicar escenario',
-      body: <><p>«{scenario.title}» quedará disponible para crear sesiones de clase en tu organización (versión {scenario.version}).</p><p>Las versiones publicadas no se pueden modificar: un cambio posterior será una versión nueva. Confirmas que has revisado el contenido generado con IA.</p></>
+      body: <><p>«{scenario.title}» quedará disponible para crear sesiones en tu organización (versión {scenario.version}).</p><p>Las versiones publicadas no se pueden modificar: un cambio posterior será una versión nueva. Confirmas que has revisado el contenido generado con IA.</p></>
     });
     if (!ok) return;
     setPublishing(true); setPublishError('');
@@ -176,15 +176,15 @@ export function ScenarioEditorPage({ runId }: { runId: string }) {
   }
 
   const crumbs = [{ label: 'Escenarios', to: '/escenarios' }, { label: 'Modo IA en vivo', to: '/escenarios/ia' }, { label: 'Revisar escenario' }];
-  if (failure) return <div className="page"><PageHeader title="Convertir en escenario para clase" crumbs={crumbs}/>
+  if (failure) return <div className="page"><PageHeader title="Convertir en escenario para sesiones" crumbs={crumbs}/>
     <div className="card"><EmptyState icon="sparkles" title={failure.title} action={<><button className="btn btn-primary" onClick={() => navigate(`/ia/${encodeURIComponent(runId)}`)}>Volver a la partida</button><button className="btn" onClick={() => navigate('/escenarios/ia')}>Ir a colecciones</button></>}>{failure.text}</EmptyState></div></div>;
   if (!draft || !server) return <div className="page" aria-busy="true"><div className="page-header"><Sk w={200} h={10}/><Sk w="min(460px, 80vw)" h={30} className="sk-gap"/><Sk w="min(560px, 85vw)" h={12} className="sk-gap"/></div>{[0, 1].map(i => <div className="card se-phase" key={i}><Sk w={120} h={10}/><Sk w="60%" h={20} className="sk-gap"/><Sk w="100%" h={60} className="sk-gap"/></div>)}<p className="sr-only" role="status">Preparando el borrador…</p></div>;
 
   const incomplete = server.run.generated < server.run.total;
   return <div className="page se-page">
     <PageHeader crumbs={crumbs} eyebrow="Borrador · sin publicar" title="Revisa el escenario antes de publicarlo"
-      description="Edita lo que necesites. Al publicarlo será un escenario normal para tus clases: QR o PIN, proyector, votos en directo, informe y analítica."/>
-    <div className="ai-notice se-notice" role="note"><Icon name="sparkles" size={18}/><div><strong>Generado con IA a partir de tus documentos · revisa antes de usarlo con estudiantes.</strong> Comprueba que cada situación, opción y valoración es correcta. La valoración es de cada decisión, nunca de la persona.</div></div>
+      description="Edita lo que necesites. Al publicarlo será un escenario normal para tus sesiones: QR o PIN, proyector, votos en directo, informe y analítica."/>
+    <div className="ai-notice se-notice" role="note"><Icon name="sparkles" size={18}/><div><strong>Generado con IA a partir de tus documentos · revisa antes de usarlo con participantes.</strong> Comprueba que cada situación, opción y valoración es correcta. La valoración es de cada decisión, nunca de la persona.</div></div>
     {restored && <div className="notice-inline se-restored" role="status"><span>Hemos recuperado los cambios que guardaste en este navegador ({new Date(restored).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}).</span><button className="text-button" onClick={() => void resetToServer()}>Volver al borrador original</button></div>}
     {(incomplete || server.warnings.length > 1) && <ul className="se-warnings" aria-label="Avisos del borrador">{server.warnings.filter(item => !item.startsWith('Revisa todo')).map(item => <li key={item}>{item}</li>)}</ul>}
 

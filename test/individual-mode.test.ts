@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { applyCommand, createSession, expireTimer, type Actor, type Command } from '../shared/engine';
 import {
-  defaultScenario, negotiationScenario, normalizeState, participantReport, participantView, performanceReport,
+  defaultScenario, normalizeState, participantReport, participantView, performanceReport,
   type Phase, type Scenario, type SessionState
 } from '../shared/simulation';
+import { negotiationScenario } from './fixtures/negotiation-scenario';
 
 /**
  * Modo individual: en una sesión con varios alumnos cada participante tiene sus propios indicadores y su propio

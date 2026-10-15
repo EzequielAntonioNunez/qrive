@@ -76,7 +76,7 @@ export function NewSessionPage() {
         <div className="chosen"><span className="eyebrow">Escenario</span><strong>{chosen.title}</strong><small>{plural(chosen.phases, 'situación', 'situaciones')}{estimatedMinutes(app.scenarioDetails[chosen.id]) ? ` · unos ${estimatedMinutes(app.scenarioDetails[chosen.id])} min` : ''}</small><button type="button" className="link" onClick={() => setStep(0)}>Cambiar</button></div>
         <label className="field" htmlFor="session-name"><span>Nombre de la sesión <em className="optional">opcional</em></span>
           <input id="session-name" value={name} maxLength={80} placeholder={placeholder} onChange={event => setName(event.target.value)} aria-describedby="session-name-hint" autoComplete="off"/></label>
-        <div className="field-meta"><small id="session-name-hint">Te ayuda a distinguirla en el listado (p. ej., asignatura y grupo). Si lo dejas vacío, se usará el escenario y la fecha.</small><small className="tabular">{name.length}/80</small></div>
+        <div className="field-meta"><small id="session-name-hint">Te ayuda a distinguirla en el listado (p. ej., área de práctica y grupo). Si lo dejas vacío, se usará el escenario y la fecha.</small><small className="tabular">{name.length}/80</small></div>
         {error && <p className="error" role="alert">{error}</p>}
         <div className="step-actions"><button type="button" className="btn" onClick={() => setStep(0)}><Icon name="back" size={16}/>Atrás</button><button className="btn btn-primary" disabled={busy}>{busy ? 'Creando…' : 'Crear sesión'}</button></div>
       </form>
@@ -90,11 +90,11 @@ export function NewSessionPage() {
         <div className="share-box"><label className="sr-only" htmlFor="share-link">Enlace para participantes</label><input id="share-link" readOnly value={link} onFocus={event => event.currentTarget.select()}/><CopyButton text={link} className="btn btn-primary"/></div>
         <div className="wizard-join"><JoinShare api={app.api} sessionId={created.id} variant="card"/></div>
         <ol className="steps-list compact">
-          <li><span>1</span><div><strong>Comparte el enlace</strong><p>Por el campus virtual, el correo o proyectándolo en el aula.</p></div></li>
+          <li><span>1</span><div><strong>Comparte el enlace</strong><p>Por correo, por la intranet o proyectándolo en la sala.</p></div></li>
           <li><span>2</span><div><strong>Cada participante entra con su correo y su código</strong><p>Si alguien no tiene acceso, dale de alta en Participantes y accesos.</p></div></li>
           <li><span>3</span><div><strong>Conduce la sesión desde el panel</strong><p>Abre cada situación, sigue la votación y finaliza para obtener el informe.</p></div></li>
         </ol>
-        <div className="step-actions center"><button className="btn btn-primary btn-lg" onClick={() => navigate(`/sesiones/${created.id}`)}>Abrir panel de la sesión</button><button className="btn btn-lg" onClick={() => actions.project(created.id)}><Icon name="project" size={18}/>Proyectar en clase</button></div>
+        <div className="step-actions center"><button className="btn btn-primary btn-lg" onClick={() => navigate(`/sesiones/${created.id}`)}>Abrir panel de la sesión</button><button className="btn btn-lg" onClick={() => actions.project(created.id)}><Icon name="project" size={18}/>Proyectar en la sala</button></div>
       </div>
     </section>}
 

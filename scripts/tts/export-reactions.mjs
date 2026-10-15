@@ -26,7 +26,7 @@ const openers = {
 const MAX_CHARS = 230;
 
 // Solo para la locución: siglas que el TTS leería letra a letra.
-const spoken = [[/\bel RGPD\b/g, 'el reglamento de protección de datos'], [/\bRGPD\b/g, 'reglamento de protección de datos']];
+const spoken = [[/\bel RGPD\b/g, 'el reglamento de protección de datos'], [/\bRGPD\b/g, 'reglamento de protección de datos'], [/\bUE\b/g, 'Unión Europea']];
 const toSpeech = text => spoken.reduce((value, [pattern, replacement]) => value.replace(pattern, replacement), text);
 
 function firstSentence(text) {

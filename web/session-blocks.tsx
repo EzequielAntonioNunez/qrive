@@ -30,7 +30,7 @@ export function KpiStrip({ state, report, tally, remainingMs, phaseExpired, time
       ? <div className="kpi"><span className="kpi-label">Decisiones óptimas</span><strong className="kpi-value">{report.correctDecisionsPct == null ? '—' : <CountUp value={report.correctDecisionsPct} suffix=" %"/>}</strong><span className="kpi-sub">{plural(report.decisions, 'decisión', 'decisiones')} en total</span></div>
       : <div className="kpi"><span className="kpi-label">Han decidido</span><strong className="kpi-value"><CountUp value={decidedPct} suffix=" %"/></strong><span className="kpi-sub">{tally.decided} de {tally.total} en la situación {state.phaseIndex + 1}</span><Bar value={decidedPct} tone="sky" label={`${decidedPct} % ha decidido`}/></div>}
     {complete
-      ? <div className="kpi"><span className="kpi-label">Puntuación de la clase</span><strong className="kpi-value"><CountUp value={report.score}/><small>/100</small></strong><span className="kpi-sub">Media de los indicadores</span></div>
+      ? <div className="kpi"><span className="kpi-label">Puntuación del equipo</span><strong className="kpi-value"><CountUp value={report.score}/><small>/100</small></strong><span className="kpi-sub">Media de los indicadores</span></div>
       : <div className={`kpi ${remainingMs != null && remainingMs < 60000 && !phaseExpired && state.status === 'active' ? 'urgent' : ''}`}><span className="kpi-label">Tiempo restante</span><strong className="kpi-value tabular">{time.value}</strong><span className="kpi-sub">{time.sub}</span></div>}
     <div className="kpi"><span className="kpi-label">Progreso</span><strong className="kpi-value">{done}<small>/{total}</small></strong><span className="kpi-sub">{!complete ? 'situaciones cerradas' : skipped ? `Finalizada antes · ${plural(skipped, 'sin jugar', 'sin jugar')}` : 'Todas las situaciones cerradas'}</span><span className="segments" aria-hidden="true">{state.scenario.phases.map((item, i) => <i key={item.id} className={i < done ? 'done' : i === state.phaseIndex && !complete ? 'current' : ''}/>)}</span></div>
   </section>;
@@ -56,9 +56,9 @@ export function NextStep({ state, tally, phaseVotes, lastPhase, busy, onCommand,
   if (state.status === 'complete') { text = 'La sesión ha terminado. Comenta las ideas clave con el grupo y descarga el informe de impacto.'; action = <button className="btn btn-primary" onClick={onReport}>Ver informe</button>; }
   else if (state.status === 'paused') { text = 'La sesión está en pausa: los participantes no pueden decidir y el tiempo está detenido.'; action = <button className="btn btn-primary" disabled={busy} onClick={() => onCommand('resume')}>Reanudar</button>; }
   else if (state.participants.length === 0) { text = 'Comparte el enlace con tu grupo. El tiempo de la primera situación empieza cuando se une el primer participante.'; action = onCopy ? <button className="btn btn-primary" onClick={onCopy}><Icon name="link" size={16}/>Copiar enlace</button> : null; }
-  else if (phaseVotes === 0) { text = `Esperando la primera decisión de ${plural(tally.total, 'participante', 'participantes')}. Proyecta el panel en directo para seguir la votación con la clase.`; action = <button className="btn" onClick={onProject}><Icon name="project" size={16}/>Proyectar en clase</button>; }
+  else if (phaseVotes === 0) { text = `Esperando la primera decisión de ${plural(tally.total, 'participante', 'participantes')}. Proyecta el panel en directo para seguir la votación con el equipo.`; action = <button className="btn" onClick={onProject}><Icon name="project" size={16}/>Proyectar en clase</button>; }
   else if (pending > 0) { text = `Faltan ${plural(pending, 'participante', 'participantes')} por decidir. Puedes esperar o ${lastPhase ? 'finalizar la sesión' : 'abrir la siguiente situación'}: quien no decida conservará sus indicadores.`; }
-  else { text = lastPhase ? 'Toda la clase ha decidido en la última situación. Finaliza la sesión para cerrar el informe.' : 'Toda la clase ha decidido. Comenta el resultado y abre la siguiente situación.'; action = <button className="btn btn-primary" disabled={busy} onClick={() => onCommand(lastPhase ? 'complete' : 'advance')}>{lastPhase ? 'Finalizar sesión' : 'Siguiente situación'}</button>; }
+  else { text = lastPhase ? 'Todo el equipo ha decidido en la última situación. Finaliza la sesión para cerrar el informe.' : 'Todo el equipo ha decidido. Comenta el resultado y abre la siguiente situación.'; action = <button className="btn btn-primary" disabled={busy} onClick={() => onCommand(lastPhase ? 'complete' : 'advance')}>{lastPhase ? 'Finalizar sesión' : 'Siguiente situación'}</button>; }
   return <div className="next-step" role="status" aria-live="polite"><span className="eyebrow">Siguiente paso</span><p>{text}</p>{action}</div>;
 }
 
@@ -191,13 +191,13 @@ function groupByPhase(timeline: TimelineEntry[]): { phaseId: string; phaseTitle:
   }
   return groups;
 }
-/** Nombre base de las descargas: simulador-ufv-<escenario>-<fecha de la sesión>. */
+/** Nombre base de las descargas: axyro-<escenario>-<fecha de la sesión>. */
 export function exportBaseName(state: SessionState): string {
   const scenario = state.scenario.id.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'escenario';
   const created = new Date(state.createdAt);
   const day = Number.isNaN(created.getTime()) ? new Date() : created;
   const date = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
-  return `simulador-ufv-${scenario}-${date}`;
+  return `axyro-${scenario}-${date}`;
 }
 export function downloadCsv(state: SessionState, report: Report) {
   const quote = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;

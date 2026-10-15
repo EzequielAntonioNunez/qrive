@@ -3,7 +3,7 @@
  * Solo envía frases públicas del escenario; nunca voz ni datos de participantes.
  *
  * Uso:
- *   SONIOX_API_KEY=... node scripts/tts/generate_soniox.mjs --phase datos-personales
+ *   SONIOX_API_KEY=... node scripts/tts/generate_soniox.mjs --phase secreto-profesional
  *   SONIOX_API_KEY=... node scripts/tts/generate_soniox.mjs --all --install
  *
  * Sin --install se escribe en .local-state/tts/soniox-preview. Con --install se

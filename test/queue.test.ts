@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { applyCommand, createSession, type Actor } from '../shared/engine';
 import { EVENT_CATALOG } from '../shared/events';
 import type { SimEvent } from '../shared/simulation';
+import { negotiationScenario } from './fixtures/negotiation-scenario';
 import type { EventMessage } from '../worker/types';
 
 vi.mock('cloudflare:workers', () => ({ DurableObject: class {} }));
@@ -82,7 +83,7 @@ describe('redacción de la cola', () => {
   });
 
   it('keeps the note in the Durable Object state but never in the queue messages', () => {
-    let state = createSession(SESSION, TENANT, instructor, at(1));
+    let state = createSession(SESSION, TENANT, instructor, at(1), negotiationScenario);
     state = applyCommand(state, { id: 'cmd-join-a', type: 'join' }, alumna, at(2)).state;
     const result = applyCommand(state, { id: 'cmd-incident', type: 'incident', note: 'Ana García se ha ido', riskDelta: 5 }, instructor, at(3));
     expect(result.state.events.at(-1)?.detail.note).toBe('Ana García se ha ido');
@@ -162,7 +163,7 @@ describe('consumidor de la cola: idempotencia, orden y sesiones borradas', () =>
 
 describe('vista por rol en la sala', () => {
   it('gives the instructor the full state and a participant only their own view', () => {
-    let state = createSession(SESSION, TENANT, instructor, at(1));
+    let state = createSession(SESSION, TENANT, instructor, at(1), negotiationScenario);
     state = applyCommand(state, { id: 'cmd-join-a', type: 'join' }, alumna, at(2)).state;
     state = applyCommand(state, { id: 'cmd-join-b', type: 'join' }, alumno, at(3)).state;
     expect(roomPayload(state, instructor, {}).state.participants.map(person => person.userId)).toEqual(['user-a', 'user-b']);
@@ -173,7 +174,7 @@ describe('vista por rol en la sala', () => {
   });
 
   it('falls back to the restricted view when the actor is missing', () => {
-    let state = createSession(SESSION, TENANT, instructor, at(1));
+    let state = createSession(SESSION, TENANT, instructor, at(1), negotiationScenario);
     state = applyCommand(state, { id: 'cmd-join-a', type: 'join' }, alumna, at(2)).state;
     expect(roomPayload(state, undefined, {}).state.participants).toEqual([]);
   });

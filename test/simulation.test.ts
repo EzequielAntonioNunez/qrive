@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { applyChoice, clampMeter, negotiationScenario, performanceReport, type SessionState } from '../shared/simulation';
+import { applyChoice, clampMeter, performanceReport, type SessionState } from '../shared/simulation';
+import { negotiationScenario } from './fixtures/negotiation-scenario';
 
 describe('negotiation simulation', () => {
   it('keeps meter effects deterministic and bounded', () => {
@@ -29,7 +30,7 @@ describe('performance report for debriefing', () => {
     const { applyCommand, createSession } = await import('../shared/engine');
     const instructor = { id: 'i', name: 'I', role: 'instructor' as const };
     const participant = { id: 'p', name: 'P', role: 'participant' as const };
-    let state = createSession('s', 't', instructor, '2026-10-06T10:00:00.000Z');
+    let state = createSession('s', 't', instructor, '2026-10-06T10:00:00.000Z', negotiationScenario);
     state = applyCommand(state, { id: 'join-00001', type: 'join' }, participant, '2026-10-06T10:00:00.000Z').state;
     // 120 s de 480 s disponibles: queda el 75 % del tiempo.
     state = applyCommand(state, { id: 'dec-000001', type: 'decide', optionId: 'ask-data' }, participant, '2026-10-06T10:02:00.000Z').state;

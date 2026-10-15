@@ -46,7 +46,7 @@ export function JoinPage({ pin: initialPin }: { pin: string | null }) {
         if (window.location.pathname !== `/unirse/${pin}`) navigate(`/unirse/${pin}`, { replace: true });
         window.setTimeout(() => aliasRef.current?.focus(), 60);
       })
-      .catch(cause => { if (alive) setPinError((cause as GuestError).status === 404 ? 'Ese código no corresponde a ninguna sesión abierta. Revísalo en la pantalla del aula.' : (cause as GuestError).status === 429 ? errorText(cause) : `No se ha podido comprobar el código: ${errorText(cause)}`); })
+      .catch(cause => { if (alive) setPinError((cause as GuestError).status === 404 ? 'Ese código no corresponde a ninguna sesión abierta. Revísalo en la pantalla de la sala.' : (cause as GuestError).status === 429 ? errorText(cause) : `No se ha podido comprobar el código: ${errorText(cause)}`); })
       .finally(() => { if (alive) setChecking(false); });
     return () => { alive = false; };
   }, [pin, complete]);
@@ -80,7 +80,7 @@ export function JoinPage({ pin: initialPin }: { pin: string | null }) {
       navigate(`/jugar/${encodeURIComponent(result.sessionId)}`);
     } catch (cause) {
       const status = (cause as GuestError).status;
-      setJoinError(status === 404 ? 'El código ya no es válido. Revísalo en la pantalla del aula.' : errorText(cause) || 'Demasiados intentos. Espera unos minutos.');
+      setJoinError(status === 404 ? 'El código ya no es válido. Revísalo en la pantalla de la sala.' : errorText(cause) || 'Demasiados intentos. Espera unos minutos.');
     } finally { setJoining(false); }
   }
 
@@ -90,8 +90,8 @@ export function JoinPage({ pin: initialPin }: { pin: string | null }) {
       <div className="join-card enter">
         <span className="play-eyebrow">Únete a la sesión</span>
         <h1 className="join-title">{info ? (info.sessionName || info.scenarioTitle) : 'Introduce el código'}</h1>
-        {info ? <p className="join-lead">{info.sessionName ? <>{info.scenarioTitle}. </> : null}Elige cómo quieres aparecer. En la pantalla del aula solo se ven los totales de la clase, nunca tu alias junto a tus respuestas.</p>
-          : <p className="join-lead">Escribe el código de seis cifras que aparece en la pantalla del aula.</p>}
+        {info ? <p className="join-lead">{info.sessionName ? <>{info.scenarioTitle}. </> : null}Elige cómo quieres aparecer. En la pantalla de la sala solo se ven los totales del grupo, nunca tu alias junto a tus respuestas.</p>
+          : <p className="join-lead">Escribe el código de seis cifras que aparece en la pantalla de la sala.</p>}
 
         {resume && !info && <button type="button" className="join-resume" onClick={() => navigate(`/jugar/${encodeURIComponent(resume.sessionId)}`)}>Volver a tu sesión{resume.name ? ` como «${resume.name}»` : ''} →</button>}
 

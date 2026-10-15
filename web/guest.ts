@@ -56,6 +56,6 @@ export function parsePublicRoute(pathname: string): PublicRoute | null {
   return null;
 }
 
-const ALIAS_KEY = 'ufv-alias';
+const ALIAS_KEY = 'axyro-alias';
 export function rememberedAlias(): string { try { return localStorage.getItem(ALIAS_KEY) ?? ''; } catch { return ''; } }
 export function rememberAlias(alias: string) { try { localStorage.setItem(ALIAS_KEY, alias); } catch { /* sin almacenamiento */ } }

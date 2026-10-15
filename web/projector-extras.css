@@ -1,4 +1,4 @@
-/* Proyector: voz y subtítulo de VictorIA, y «Vuestra clase frente a la media» (projector.tsx, projector-voice.ts). */
+/* Proyector: voz y subtítulo de VictorIA, y «Vuestro equipo frente a la media» (projector.tsx, projector-voice.ts). */
 .pj-voice-toggle{display:inline-flex;align-items:center;gap:8px}
 .pj-voice-toggle i{width:8px;height:8px;border-radius:50%;background:#ffffff55;flex:none;transition:background .2s}
 .pj-voice-toggle.on{border-color:var(--ufv-sky)}.pj-voice-toggle.on i{background:var(--ufv-sky);box-shadow:0 0 0 3px #649EFF33}

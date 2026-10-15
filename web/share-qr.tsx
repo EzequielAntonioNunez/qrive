@@ -37,7 +37,7 @@ export function useJoinPin(api: Api, sessionId: string, enabled = true) {
 /** El enlace se construye con el origen de la página (en local, el Worker responde con su propio puerto). */
 function withLocalUrl(result: JoinPin): JoinPin { return { ...result, joinUrl: `${window.location.origin}/unirse/${result.pin}` }; }
 
-/** «483920» → «483 920», más fácil de leer en voz alta y desde el fondo del aula. */
+/** «483920» → «483 920», más fácil de leer en voz alta y desde el fondo de la sala. */
 export function spacedPin(pin: string): string { return pin.length === 6 ? `${pin.slice(0, 3)} ${pin.slice(3)}` : pin; }
 
 export function QrCode({ text, size = 240, label, className = '' }: { text: string; size?: number; label: string; className?: string }) {
@@ -51,7 +51,7 @@ export function QrCode({ text, size = 240, label, className = '' }: { text: stri
 type Variant = 'projector' | 'card' | 'compact';
 
 /**
- * Bloque de unión. `projector`: grande y oscuro para el aula; `card`: tarjeta en el detalle o el asistente;
+ * Bloque de unión. `projector`: grande y oscuro para la sala; `card`: tarjeta en el detalle o el asistente;
  * `compact`: QR pequeño junto al resto de acciones.
  */
 export function JoinShare({ api, sessionId, variant = 'card', canRegenerate = true, onHide }: { api: Api; sessionId: string; variant?: Variant; canRegenerate?: boolean; onHide?: () => void }) {
@@ -67,8 +67,8 @@ export function JoinShare({ api, sessionId, variant = 'card', canRegenerate = tr
     </div>
     <div className="join-share-text">
       <span className="join-share-eyebrow">Únete desde el móvil</span>
-      {/* Sin dirección visible: el dominio provisional no es de la UFV. El QR lleva el enlace y el docente puede copiarlo. */}
-      <p className="join-share-step">Escanea el QR con la cámara del móvil e introduce un alias.</p>
+      {/* Dirección corta para quien no pueda escanear: el dominio es el de la propia marca. */}
+      <p className="join-share-step">Escanea el QR o entra en <strong className="join-share-url">{`${window.location.host}/unirse`}</strong> e introduce un alias.</p>
       <div className="join-share-pin" aria-label={pin ? `Código ${pin.pin.split('').join(' ')}` : 'Cargando el código'}>
         {pin ? spacedPin(pin.pin).split('').map((digit, i) => digit === ' ' ? <span key={i} className="pin-gap"/> : <span key={i} className="pin-digit">{digit}</span>) : <span className="pin-loading">······</span>}
       </div>

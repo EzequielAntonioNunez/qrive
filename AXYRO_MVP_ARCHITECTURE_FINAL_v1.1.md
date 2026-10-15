@@ -1678,16 +1678,23 @@ Eso aplica especialmente a:
 
 # Addendum · Estado real y decisiones a 7 de octubre de 2026
 
-Este addendum no modifica el cuerpo del documento: recoge dónde la implementación se ha separado del plan y qué falta para cerrar el MVP. Detalle técnico en `README.md`; estado y pendientes en `CLAUDE.md`; documentación para la UFV en `docs/`.
+Este addendum no modifica el cuerpo del documento: recoge dónde la implementación se ha separado del plan y qué falta para cerrar el MVP. Detalle técnico en `README.md`; estado y pendientes en `CLAUDE.md`; documentación para clientes en `docs/`.
+
+## Nota del 15 de octubre de 2026 · Cambio de orientación del producto
+
+- **Marca visible AXYRO.** El producto se presenta como «AXYRO · Simulador de decisiones» (consola web, proyector, vista móvil y Unity, cuyo ejecutable Windows es `Build/AXYRO.exe` y cuya plantilla WebGL es `WebGLTemplates/AXYRO`). La paleta azul marino `#003865` y azul cielo `#649EFF` se mantiene como paleta de AXYRO. El dominio `axyro.qhel.dev` es válido para producción; un dominio propio es decisión de cada cliente.
+- **Público: despachos de abogados**, colegios profesionales y formación jurídica. La organización cliente es la responsable del tratamiento y AXYRO actúa como encargado.
+- **Roles visibles: Formador y Participante.** El id interno del rol sigue siendo `instructor`. El vocabulario de interfaz pasa de aula y clase a sala, equipo y sesión («Proyectar en la sala», «Simular equipo», «Vuestro equipo frente a la media», «Convertir en escenario para sesiones»).
+- **Escenario por defecto y único del catálogo: `ia-despacho`** «Uso responsable de la IA en el despacho» (fases `secreto-profesional`, `jurisprudencia-inventada`, `proveedor-ia` y `transparencia-cliente`; indicadores Confianza del cliente, Deontología y Riesgo). Los escenarios anteriores salen del catálogo. VictorIA sigue siendo la tutora virtual.
 
 ## Decisiones que difieren del plan
 
 - **Identidad.** Cloudflare Access está retirado. El acceso es propio: miembros con correo y código personal de seis cifras (HMAC en D1, sesión de 24 h) e **invitados** con el PIN de seis cifras de una sesión y un alias, con ámbito limitado a esa sesión y caducidad de 12 h (o 2 h tras finalizar). El código antiguo de Access solo existe tras `LEGACY_ACCESS_AUTH`.
 - **Recuperación (RAG).** Sin Vectorize ni AI Search: embeddings `bge-m3` guardados como vectores Float32 en R2 (UE), un fichero por documento, y similitud coseno en el propio Worker; fragmentos y citas en D1.
 - **Sin AI Gateway ni Workflows todavía.** El Worker llama a Workers AI directamente (`gpt-oss-120b`, `bge-m3`, `toMarkdown`, Clef). Las interfaces `shared/contracts/ai-provider.ts` y `context-engine.ts` siguen sin implementación.
-- **Proveedor de voz: Soniox**, proyecto en región **EE. UU.** (`SONIOX_REGION = us`, transferencia internacional avisada al usuario y pendiente del DPO). Locuciones y 33 reacciones pregrabadas con Soniox TTS; STT en tiempo real para participantes (credenciales de un solo uso) y TTS en tiempo real para el proyector y el Modo IA (credenciales de 15 min solo para docentes). En Windows, Vosk local.
-- **Funciones de la macrofase 3 adelantadas como demo** tras el flag `ai_live_demo` (activo en el entorno actual, solo docentes): Modo IA en vivo con colecciones de documentos, situaciones generadas con citas y voz en tiempo real (IA-1, IA-3 e IA-4 parciales); «Convertir en escenario para clase», que pasa una partida a un escenario versionado con **revisión docente obligatoria** antes de publicar (`origin: ai`). El producto de clase sigue siendo determinista; su única IA es Clef para asignar una respuesta libre por voz a una opción existente.
-- **La web es también cliente del participante.** Además de la consola, hay vista móvil (`/unirse`, `/jugar/:id`) con voz y reacciones, y proyector para el aula. Unity WebGL queda como experiencia 3D opcional («Abrir en 3D»).
+- **Proveedor de voz: Soniox**, proyecto en región **EE. UU.** (`SONIOX_REGION = us`, transferencia internacional avisada al usuario y pendiente del DPD del cliente). Locuciones y reacciones pregrabadas (16 en `ia-despacho`) con Soniox TTS; STT en tiempo real para participantes (credenciales de un solo uso) y TTS en tiempo real para el proyector y el Modo IA (credenciales de 15 min solo para formadores). En Windows, Vosk local.
+- **Funciones de la macrofase 3 adelantadas como demo** tras el flag `ai_live_demo` (activo en el entorno actual, solo formadores): Modo IA en vivo con colecciones de documentos, situaciones generadas con citas y voz en tiempo real (IA-1, IA-3 e IA-4 parciales); «Convertir en escenario para sesiones», que pasa una partida a un escenario versionado con **revisión obligatoria por un formador** antes de publicar (`origin: ai`). El producto de sesiones sigue siendo determinista; su única IA es Clef para asignar una respuesta libre por voz a una opción existente.
+- **La web es también cliente del participante.** Además de la consola, hay vista móvil (`/unirse`, `/jugar/:id`) con voz y reacciones, y proyector para la sala. Unity WebGL queda como experiencia 3D opcional («Abrir en 3D»).
 - **Tiempo real** por WebSocket con hibernación del Durable Object, con consulta periódica de respaldo.
 - **Analítica agregada** de la organización (`GET /api/analytics`) y comparación con la media (`/benchmark`), solo desde D1 y sin datos por persona.
 

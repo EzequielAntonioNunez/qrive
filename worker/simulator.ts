@@ -69,7 +69,7 @@ function otherSessionPage(ownSessionId: string): Response {
   const own = encodeURIComponent(ownSessionId);
   const html = `<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Simulador UFV</title><link rel="icon" href="/brand/ufv-logo-navy.svg">
+<title>AXYRO · Simulador de decisiones</title><link rel="icon" href="/brand/favicon.svg" type="image/svg+xml">
 <style>
 html,body{margin:0;min-height:100%;background:#001A33;color:#fff;font-family:Arial,Helvetica,sans-serif}
 main{min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box}
@@ -83,9 +83,9 @@ a{display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border-r
 a:focus-visible{outline:2px solid #fff;outline-offset:2px}
 </style></head>
 <body><main><section role="alert">
-<img src="/brand/ufv-logo-white.svg" alt="Universidad Francisco de Vitoria">
+<img src="/brand/axyro-logo-white.svg" alt="AXYRO">
 <h1>Este enlace es de otra sesión</h1>
-<p>Tu acceso de invitado solo vale para la sesión a la que te uniste con el código del aula. Si quieres entrar en otra, únete con su código.</p>
+<p>Tu acceso de invitado solo vale para la sesión a la que te uniste con el código de la sala. Si quieres entrar en otra, únete con su código.</p>
 <div class="acciones">
 <a class="principal" href="/simulador/?sesion=${escapeHtml(own)}">Abrir mi sesión en 3D</a>
 <a class="secundaria" href="/jugar/${escapeHtml(own)}">Volver a mi sesión</a>

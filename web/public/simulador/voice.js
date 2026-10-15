@@ -66,7 +66,7 @@
         if (this.region !== 'eu' && !this.noticeAccepted) {
           this.noticeAccepted = true;
           this.button.textContent = '🎙 Aceptar y activar';
-          this.setStatus('Tu voz se transcribe en Soniox (EE. UU.) solo mientras la voz está activa; ni el simulador ni la UFV guardan el audio. Si prefieres no usarla, elige con el ratón.');
+          this.setStatus('Tu voz se transcribe en Soniox (EE. UU.) solo mientras la voz está activa; AXYRO no guarda el audio. Si prefieres no usarla, elige con el ratón.');
           return;
         }
         this.start();

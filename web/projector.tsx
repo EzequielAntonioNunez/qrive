@@ -1,5 +1,5 @@
 /**
- * Modo proyector: panel a pantalla completa para el aula. Muestra solo datos agregados (nunca nombres).
+ * Modo proyector: panel a pantalla completa para la sala. Muestra solo datos agregados (nunca nombres).
  * Mientras la situación está abierta no se muestra ninguna valoración; al cerrarse (avance, tiempo agotado,
  * fin de la sesión o «Mostrar respuesta») se revela la mejor opción y la idea clave, si el escenario las define.
  * Al revelarla, VictorIA comenta el resultado de la clase con una frase de plantilla (projector-voice.ts): en voz
@@ -213,12 +213,12 @@ export function ProjectorView({ state, liveTally, remainingMs, phaseExpired, mod
           })}
         </ol>
         {reveal && phase.takeaway && <aside className="pj-takeaway"><span>Idea clave</span><p>{phase.takeaway}</p></aside>}
-        {!isCurrent && state.status !== 'complete' && <div className="pj-next-note">La clase ya está en la situación {current + 1}.{!canControl && <button type="button" onClick={() => setShown(current)}>Ver situación {current + 1} →</button>}</div>}
+        {!isCurrent && state.status !== 'complete' && <div className="pj-next-note">El equipo ya está en la situación {current + 1}.{!canControl && <button type="button" onClick={() => setShown(current)}>Ver situación {current + 1} →</button>}</div>}
       </section>
 
       <aside className="pj-side">
         <ProgressRing value={tally.decided} total={tally.total} size={208} stroke={14} label={`${tally.decided} de ${tally.total} participantes han decidido`}/>
-        <p className="pj-side-caption">{tally.total === 0 ? 'Esperando participantes' : allDecided ? 'Toda la clase ha decidido' : 'han decidido'}</p>
+        <p className="pj-side-caption">{tally.total === 0 ? 'Esperando participantes' : allDecided ? 'Todo el equipo ha decidido' : 'han decidido'}</p>
         <div className="pj-timer"><span>Tiempo</span>{isCurrent ? <Timer remainingMs={remainingMs} expired={phaseExpired} paused={state.status === 'paused'} limitSec={phase.timeLimitSec} complete={state.status === 'complete'}/> : <span className="timer idle">Cerrada</span>}</div>
         {canControl && <div className="pj-controls">
           {isCurrent && !reveal && hasAnswer && votes > 0 && <button type="button" className="pj-ghost" onClick={() => { voice.unlock(); setRevealed(current => new Set(current).add(phase.id)); }}>Mostrar respuesta</button>}
@@ -283,7 +283,7 @@ function liveSessionRate(state: SessionState, exclude?: Set<string>) {
 }
 
 /**
- * «Vuestra clase frente a la media». La clase se calcula con el estado en vivo (la cola puede ir unos segundos por
+ * «Vuestro equipo frente a la media». La clase se calcula con el estado en vivo (la cola puede ir unos segundos por
  * detrás); del servidor solo se usa la media de las OTRAS sesiones de la organización. Si la clase que se ve incluye
  * simulados (demo), la media también los incluye, para comparar lo mismo con lo mismo.
  */
@@ -317,12 +317,12 @@ function BenchmarkCard({ api, state, exclude, voice, onClose }: { api: Api; stat
       <span className="pj-eyebrow">Comparativa de grupo</span>
       <button type="button" className="pj-caption-close" onClick={onClose} aria-label="Cerrar comparación">×</button>
     </header>
-    <h2 id="pj-bench-title">Vuestra clase frente a la media</h2>
+    <h2 id="pj-bench-title">Vuestro equipo frente a la media</h2>
     {error ? <p className="pj-bench-note">No se ha podido cargar la media de la organización.</p>
       : !org ? <p className="pj-bench-note">Calculando la media de la organización…</p>
       : <>
         <div className="pj-bench-row">
-          <div className="pj-bench-head"><span>Vuestra clase</span><strong>{ownPct === null ? '—' : <CountUp value={ownPct} suffix=" %"/>}</strong></div>
+          <div className="pj-bench-head"><span>Vuestro equipo</span><strong>{ownPct === null ? '—' : <CountUp value={ownPct} suffix=" %"/>}</strong></div>
           <Bar value={grown && ownPct !== null ? ownPct : 0} tone="best"/>
           <small>de decisiones óptimas · {plural(own.decisions, 'decisión', 'decisiones')}</small>
         </div>

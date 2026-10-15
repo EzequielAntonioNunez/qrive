@@ -52,7 +52,7 @@ export function KnowledgePage() {
   useEffect(() => { document.title = 'Modo IA en vivo · Escenarios'; }, []);
 
   async function create() {
-    const name = await prompt({ title: 'Nueva colección de conocimiento', label: 'Nombre', placeholder: 'Ej.: Guía de IA en la docencia', maxLength: 80, confirmLabel: 'Crear colección', hint: 'Agrupa los documentos de un mismo tema.' });
+    const name = await prompt({ title: 'Nueva colección de conocimiento', label: 'Nombre', placeholder: 'Ej.: Política de uso de IA del despacho', maxLength: 80, confirmLabel: 'Crear colección', hint: 'Agrupa los documentos de un mismo tema.' });
     if (!name) return;
     try {
       const result = await app.api<{ collection: KnowledgeCollection }>('/knowledge/collections', { method: 'POST', body: JSON.stringify({ name }) });
@@ -79,7 +79,7 @@ export function KnowledgePage() {
     <PageHeader title="Escenarios" description="Situaciones de aprendizaje listas para usar o generadas en directo por VictorIA a partir de tus documentos."
       actions={<button className="btn" onClick={create}><Icon name="plus" size={16}/>Nueva colección</button>}/>
     <ScenarioTabs current="ai"/>
-    <div className="ai-notice" role="note"><Icon name="sparkles" size={18}/><div><strong>Demostración con IA generativa.</strong> No subas datos personales. El contenido se procesa con IA en Cloudflare; la voz, con Soniox (EE. UU.). Las situaciones se generan a partir de tus documentos y pueden contener errores: revísalas antes de usarlas en clase.</div></div>
+    <div className="ai-notice" role="note"><Icon name="sparkles" size={18}/><div><strong>Demostración con IA generativa.</strong> No subas datos personales. El contenido se procesa con IA en Cloudflare; la voz, con Soniox (EE. UU.). Las situaciones se generan a partir de tus documentos y pueden contener errores: revísalas antes de usarlas en una sesión.</div></div>
     {offline && <div className="error" role="alert">{offline}</div>}
     {collections === null ? <div className="kb-layout" aria-busy="true"><div className="card kb-list"><Sk w="70%" h={14}/><Sk w="90%" h={12} className="sk-gap"/><Sk w="60%" h={12} className="sk-gap"/></div><div className="card kb-detail"><Sk w="40%" h={22}/><Sk w="100%" h={120} className="sk-gap"/></div></div>
     : collections.length === 0 ? <div className="card"><EmptyState icon="sparkles" title="Crea tu primera colección de conocimiento" action={<button className="btn btn-primary" onClick={create} disabled={!!offline && !app.standalone}><Icon name="plus" size={16}/>Nueva colección</button>}>Sube guías, normativas o apuntes. VictorIA generará situaciones de decisión con ellos y las conducirá por voz, citando las fuentes.</EmptyState></div>
@@ -220,7 +220,7 @@ function CollectionDetail({ collection, onRemove, onChange }: { collection: Know
   </section>;
 }
 
-/** Partidas recientes de la colección: continuar o convertir las situaciones generadas en un escenario para clase. */
+/** Partidas recientes de la colección: continuar o convertir las situaciones generadas en un escenario para sesiones. */
 function RecentRuns({ collectionId }: { collectionId: string }) {
   const app = useApp();
   const [runs, setRuns] = useState<AiRunListItem[] | null>(null);
@@ -232,7 +232,7 @@ function RecentRuns({ collectionId }: { collectionId: string }) {
   if (!runs?.length) return null;
   return <>
     <h3 className="kb-subtitle">Partidas recientes</h3>
-    <p className="kb-runs-hint">Convierte una partida en un escenario para clase: revisarás y editarás cada situación antes de publicarla.</p>
+    <p className="kb-runs-hint">Convierte una partida en un escenario para sesiones: revisarás y editarás cada situación antes de publicarla.</p>
     <ul className="doc-list kb-runs">{runs.map(run => {
       const done = run.status === 'complete';
       const enough = run.generated >= 2;
@@ -242,7 +242,7 @@ function RecentRuns({ collectionId }: { collectionId: string }) {
           <small>{new Date(run.createdAt).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · {done ? `Terminada · ${plural(run.generated, 'situación', 'situaciones')}` : `En curso · ${run.generated} de ${run.situationsTotal} situaciones generadas`}</small></div>
         <div className="kb-run-actions">
           {!done && <Link className="btn btn-sm" to={`/ia/${encodeURIComponent(run.id)}`}>Continuar</Link>}
-          <button className="btn btn-primary btn-sm" disabled={!enough} title={enough ? undefined : 'Hacen falta al menos 2 situaciones generadas'} onClick={() => navigate(`/escenarios/borrador/${encodeURIComponent(run.id)}`)}><Icon name="scenarios" size={14}/>Convertir en escenario para clase</button>
+          <button className="btn btn-primary btn-sm" disabled={!enough} title={enough ? undefined : 'Hacen falta al menos 2 situaciones generadas'} onClick={() => navigate(`/escenarios/borrador/${encodeURIComponent(run.id)}`)}><Icon name="scenarios" size={14}/>Convertir en escenario para sesiones</button>
         </div>
       </li>;
     })}</ul>

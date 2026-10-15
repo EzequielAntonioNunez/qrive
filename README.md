@@ -1,15 +1,22 @@
-# Simulador de decisiones UFV
+# AXYRO · Simulador de decisiones
 
-Plataforma de simulación para formación y toma de decisiones. Primer despliegue: Universidad Francisco de Vitoria (UFV). Todo lo que ve el usuario lleva la marca UFV: la consola web se presenta como «Simulador de decisiones» (`web/brand.ts`) y el cliente Unity como «Simulador UFV». **AXYRO** es solo el nombre interno del código, del repositorio y de los recursos de Cloudflare.
+Plataforma de simulación para la formación y la toma de decisiones en despachos de abogados, colegios profesionales y programas de formación jurídica. La marca visible es **AXYRO**: la consola web se presenta como «AXYRO · Simulador de decisiones» (`web/brand.ts`, lema «Simulación de decisiones para despachos») y el cliente Unity como «AXYRO». Roles visibles: **Formador** (id interno `instructor`) y **Participante**; la tutora virtual es VictorIA.
 
 Piezas:
 
 - **API** Hono en Cloudflare Workers: estado vivo de cada sesión en Durable Objects (UE), datos en D1, eventos por Queues, ficheros en R2 (UE), tiempo real por WebSocket y Workers AI (Clef para la respuesta libre por voz; modelos del Modo IA).
-- **Web (React + Vite):** consola del docente (Inicio, Sesiones, Nueva sesión, Analítica, Escenarios, Participantes y accesos), **proyector** para el aula, **vista móvil** del participante (`/unirse`, `/jugar/:id`, acceso de invitados por QR/PIN y alias, con la voz y las reacciones de VictorIA) y **Modo IA en vivo (demo)** para docentes.
+- **Web (React + Vite):** consola del formador (Inicio, Sesiones, Nueva sesión, Analítica, Escenarios, Participantes y accesos), **proyector** para la sala, **vista móvil** del participante (`/unirse`, `/jugar/:id`, acceso de invitados por QR/PIN y alias, con la voz y las reacciones de VictorIA) y **Modo IA en vivo (demo)** para formadores.
 - **Unity** (cliente 3D en WebGL y Windows): personaje, escena, animación, audio, lip sync e interacción. **Rive** se usa solo para el HUD dentro de Unity.
 - **Voz:** locuciones y reacciones pregrabadas con Soniox TTS; reconocimiento de voz opcional y síntesis en tiempo real con Soniox (proyecto en EE. UU.).
 
-La definición de alcance está en [AXYRO_MVP_ARCHITECTURE_FINAL_v1.1.md](./AXYRO_MVP_ARCHITECTURE_FINAL_v1.1.md) (con un addendum del estado real). VR y la IA avanzada pertenecen a fases posteriores; como excepción, el Modo IA en vivo (IA generativa y RAG sobre documentos del docente) está construido como demostración detrás del flag `ai_live_demo`, solo para docentes.
+La definición de alcance está en [AXYRO_MVP_ARCHITECTURE_FINAL_v1.1.md](./AXYRO_MVP_ARCHITECTURE_FINAL_v1.1.md) (con un addendum del estado real). VR y la IA avanzada pertenecen a fases posteriores; como excepción, el Modo IA en vivo (IA generativa y RAG sobre documentos del formador) está construido como demostración detrás del flag `ai_live_demo`, solo para formadores.
+
+Documentación para clientes y operación:
+
+- [Guía del formador](./docs/guia-formador.md) y [Guía del participante](./docs/guia-participante.md).
+- [Privacidad y transparencia](./docs/privacidad-y-transparencia.md): borrador para el DPD del cliente (la organización cliente es responsable del tratamiento; AXYRO, encargado).
+- [Lista de verificación de la entrega](./docs/checklist-entrega.md): técnica, legal, contenidos y piloto; las decisiones del cliente (dominio propio si lo pide, DPA, base jurídica, plazos, ubicación de datos) se marcan con «[Validar cliente]».
+- [Operación y recuperación](./docs/operacion-y-recuperacion.md) y [guía de prueba de la demo](./GUIA-PRUEBA-DEMO.md).
 
 ## Desarrollo local
 
@@ -27,7 +34,7 @@ En otra terminal:
 pnpm dev:web
 ```
 
-Abre `http://127.0.0.1:5173`. El selector local alterna entre instructor y participante. Los datos locales persisten en `.local-state/`, ignorado por Git.
+Abre `http://127.0.0.1:5173`. El selector local alterna entre formador (`instructor`) y participante. Los datos locales persisten en `.local-state/`, ignorado por Git.
 
 Demo completa en segundo plano (API, consola web y cliente Unity con una sesión ya creada):
 
@@ -45,7 +52,7 @@ Otros comandos:
 
 ## Cliente Unity
 
-El proyecto `unity/AXYRO.Simulation` usa Unity **6000.3.25f1** con URP, el paquete Rive para Unity **v0.5.1** y uLipSync **v3.1.5** (MIT). La escena `Assets/Scenes/AXYRO Avatar Demo.unity` se genera con el menú `AXYRO > Crear escena de avatar` (`Editor/AxyroSceneBuilder.cs`). `pnpm unity:build` (con el editor cerrado) la regenera y compila el ejecutable Windows `unity/AXYRO.Simulation/Build/Simulador-UFV.exe`; la carpeta `Build/` está ignorada por Git.
+El proyecto `unity/AXYRO.Simulation` usa Unity **6000.3.25f1** con URP, el paquete Rive para Unity **v0.5.1** y uLipSync **v3.1.5** (MIT). La escena `Assets/Scenes/AXYRO Avatar Demo.unity` se genera con el menú `AXYRO > Crear escena de avatar` (`Editor/AxyroSceneBuilder.cs`). `pnpm unity:build` (con el editor cerrado) la regenera y compila el ejecutable Windows `unity/AXYRO.Simulation/Build/AXYRO.exe`; la carpeta `Build/` está ignorada por Git.
 
 ### Tutor 3D
 
@@ -53,10 +60,10 @@ El proyecto `unity/AXYRO.Simulation` usa Unity **6000.3.25f1** con URP, el paque
 - `AxyroTutor3D.cs`: alterna animaciones de escucha y de habla, parpadeo aleatorio y mirada a cámara por IK.
 - Lip sync con uLipSync (perfil femenino de ejemplo): las vocales A, I, U, E, O y la N se mapean a los visemas del modelo.
 - Escena de despacho generada por `AxyroSceneBuilder` (recursos hechos en el propio proyecto), iluminación de estudio y postproceso URP (`Rendering/AXYRO-Volume.asset`).
-- Pantalla de pared diegética (`AxyroSceneScreen.cs`): muestra el objeto de cada situación según el id de fase (la hoja de notas, el chat del asistente, el detector…), con contenido ficticio y nombres tachados o desenfocados; las fases desconocidas muestran el título.
+- Pantalla de pared diegética (`AxyroSceneScreen.cs`): muestra el objeto de cada situación según el id de fase (el expediente del cliente, el borrador con las sentencias, las condiciones del proveedor, la minuta…), con contenido ficticio y nombres tachados o desenfocados; las fases desconocidas muestran el título.
 - Dirección de cámara (`AxyroCinematics.cs`): acercamiento mientras VictorIA plantea la situación, plano abierto con las opciones y plano cercano tras la decisión, sin que la interfaz tape la cara.
 - Reacciones habladas a cada decisión (`AxyroReactions.cs`, ver «Reacciones de VictorIA a cada decisión»); las opciones aparecen siempre aunque falle el audio.
-- Pantalla de carga propia en la plantilla WebGL `UFV`, con `Build/` en caché inmutable.
+- Pantalla de carga propia en la plantilla WebGL `AXYRO`, con `Build/` en caché inmutable.
 
 ### Interacción
 
@@ -66,7 +73,7 @@ El proyecto `unity/AXYRO.Simulation` usa Unity **6000.3.25f1** con URP, el paque
 - `Espacio` reproduce o detiene la intervención; `F11` (o `Alt+Intro`) alterna pantalla completa; `Esc` cierra.
 - Se abre siempre en ventana de 1600×900 (`--axyro-fullscreen` para arrancar en pantalla completa).
 - Sin sesión: demo autónoma; `1`/`2`/`3` cambian de fase.
-- Pausa y finalización del instructor se reflejan en Unity.
+- Pausa y finalización del formador se reflejan en Unity.
 - Argumentos de QA: `--axyro-autodecide=<1-4>` elige esa opción en cada fase; `--axyro-capture=<png>` guarda una captura tras `--axyro-capture-delay=<s>` (3 s por defecto); `--axyro-capture-feedback=<png>` captura la animación de respuesta a la decisión; `--axyro-autoplay` reproduce la intervención al arrancar.
 
 El HUD Rive se edita en `assets/hud/scene.rml`; el `.riv` compilado se versiona en `unity/AXYRO.Simulation/Assets/AXYRO/hud.riv`.
@@ -77,23 +84,23 @@ El ejecutable Windows solo usa la identidad demo de bucle local (`--axyro-sessio
 
 El participante abre el simulador 3D en el navegador, sin instalar nada, desde `https://axyro.qhel.dev/simulador/?sesion=<id>`.
 
-1. El instructor crea la sesión en la consola. En «Experiencia del participante» aparece el enlace para participantes con «Copiar enlace» y «Abrir simulador».
-2. El docente registra a cada persona en «Vista general › Personas y códigos» con cualquier dirección de correo, le asigna un rol y genera su código personal de seis cifras. El código se muestra una sola vez; el docente lo entrega por un canal privado. Cada persona pertenece a una sola organización.
+1. El formador crea la sesión en la consola. En «Experiencia del participante» aparece el enlace para participantes con «Copiar enlace» y «Abrir simulador».
+2. El formador registra a cada persona en «Participantes y accesos» con cualquier dirección de correo, le asigna un rol y genera su código personal de seis cifras. El código se muestra una sola vez; el formador lo entrega por un canal privado. Cada persona pertenece a una sola organización.
 3. Al abrir el enlace, la persona introduce correo y código en la página propia de acceso. El Worker crea una sesión propia de 24 horas con cookie segura. El código se guarda en D1 como HMAC con un secreto del Worker; no viaja dentro de la build WebGL. Cambiar o revocar el código invalida las sesiones activas.
 4. El cliente consulta `GET /api/me` para conocer su identidad y rol, se une a la sesión y decide con el ratón o con la tecla correspondiente a una opción. Se puede unir en cualquier fase mientras la sesión no haya terminado: quien llega tarde empieza en la fase actual con los indicadores iniciales.
 
 ### Acceso invitado con PIN de sesión
 
-Para clases abiertas y demostraciones, cualquiera en el aula puede entrar sin cuenta: escanea el QR o abre `/unirse`, teclea el PIN de seis cifras de la sesión y un alias, y juega en `/jugar/<id>` como participante de esa sesión (`worker/guests.ts`).
+Para sesiones abiertas y demostraciones, cualquiera en la sala puede entrar sin cuenta: escanea el QR o abre `/unirse`, teclea el PIN de seis cifras de la sesión y un alias, y juega en `/jugar/<id>` como participante de esa sesión (`worker/guests.ts`).
 
 - PIN: `GET /api/sessions/:id/pin` (instructor de la organización; lo crea si falta) → `{ pin, joinUrl }`; `POST` con `{}` lo regenera y revoca el anterior. Es único entre los PIN activos y se revoca al finalizar la sesión (409 si se pide después) o se borra con ella.
 - Públicas: `GET /api/join/:pin` → `{ scenarioTitle, sessionName, status }` o 404; `POST /api/join` con `{ pin, alias }` → 201 `{ sessionId, alias, participantId }`, une al invitado en directo y fija la cookie de sesión (`axyro_session`, HttpOnly, SameSite=Lax, 12 horas). Volver a unirse a la misma sesión desde el mismo navegador conserva el participante; unirse a otra sustituye la cookie anterior (también la de un miembro).
 - Alias de 2 a 30 caracteres (letras, números, espacios, «.», «-», «_»; sin correos ni direcciones web). Los repetidos en la sesión pasan a «Ana 2», «Ana 3»...
-- Límites: `AUTH_IP_LIMITER` por IP y, contra la fuerza bruta, 30 PIN fallidos por IP cada 10 minutos (holgado porque una clase suele compartir IP).
+- Límites: `AUTH_IP_LIMITER` por IP y, contra la fuerza bruta, 30 PIN fallidos por IP cada 10 minutos (holgado porque un equipo en la misma sala suele compartir IP).
 - Ámbito: un invitado (`guest-<uuid>`) solo puede usar `GET /api/me`, su sesión (`GET`, `/live` y comandos `join`/`decide`), la voz para su sesión y `POST /api/auth/logout`; el resto responde 403 «Acceso de invitado limitado a su sesión.». Cuenta como participante real (no simulado) y recibe la misma vista filtrada que cualquier participante.
 - Caducidad: 12 horas o, al finalizar la sesión, dos horas de margen para leer su informe. El cron borra los invitados caducados.
 
-Comportamiento del cliente en WebGL (`AxyroSessionClient.cs`, `#if UNITY_WEBGL && !UNITY_EDITOR`): la API es `<origen>/api`, sin cabecera `x-demo-user`, y la sesión sale del parámetro `sesion`. Sin él muestra «Abre el simulador desde el enlace que te comparta tu docente». Un instructor que abre el enlace ve la sesión sin poder decidir. La escena web sustituye Vosk por `AxyroWebVoice`, que recibe las órdenes de Soniox desde el navegador cuando hay una clave Soniox configurada (región de `SONIOX_REGION`, hoy `us`, con aviso de transferencia antes de abrir el micrófono). Los invitados también pueden abrir el 3D de su sesión (`guestSimulatorGate` en `worker/simulator.ts`; «Abrir en 3D» en la vista móvil). El lip sync de uLipSync funciona en WebGL leyendo las muestras del clip (`autoAudioSyncOnWebGL`); por eso las locuciones llevan en WebGL `Decompress On Load`. El navegador no reproduce audio hasta el primer clic del participante.
+Comportamiento del cliente en WebGL (`AxyroSessionClient.cs`, `#if UNITY_WEBGL && !UNITY_EDITOR`): la API es `<origen>/api`, sin cabecera `x-demo-user`, y la sesión sale del parámetro `sesion`. Sin él muestra «Abre el simulador desde el enlace que te comparta tu formador». Un formador que abre el enlace ve la sesión sin poder decidir. La escena web sustituye Vosk por `AxyroWebVoice`, que recibe las órdenes de Soniox desde el navegador cuando hay una clave Soniox configurada (región de `SONIOX_REGION`, hoy `us`, con aviso de transferencia antes de abrir el micrófono). Los invitados también pueden abrir el 3D de su sesión (`guestSimulatorGate` en `worker/simulator.ts`; «Abrir en 3D» en la vista móvil). El lip sync de uLipSync funciona en WebGL leyendo las muestras del clip (`autoAudioSyncOnWebGL`); por eso las locuciones llevan en WebGL `Decompress On Load`. El navegador no reproduce audio hasta el primer clic del participante.
 
 ### Compilar y publicar
 
@@ -102,7 +109,7 @@ pnpm unity:webgl        # con el editor de Unity cerrado; requiere el módulo «
 pnpm deploy:cloud
 ```
 
-- `scripts/unity-webgl.ps1` ejecuta `AxyroSceneBuilder.BuildWebGL` (escena regenerada, plantilla `Assets/WebGLTemplates/UFV/`, Brotli con `decompressionFallback`, nombres con hash, sin el modelo Vosk) en `unity/AXYRO.Simulation/Build/WebGL` y lo copia a `web/public/simulador/`. Esta salida se versiona para que GitHub Actions despliegue el mismo simulador sin instalar Unity. Vite lo incluye en `dist/web` y el despliegue lo sube como static assets.
+- `scripts/unity-webgl.ps1` ejecuta `AxyroSceneBuilder.BuildWebGL` (escena regenerada, plantilla `Assets/WebGLTemplates/AXYRO/`, Brotli con `decompressionFallback`, nombres con hash, sin el modelo Vosk) en `unity/AXYRO.Simulation/Build/WebGL` y lo copia a `web/public/simulador/`. Esta salida se versiona para que GitHub Actions despliegue el mismo simulador sin instalar Unity. Vite lo incluye en `dist/web` y el despliegue lo sube como static assets.
 - Los static assets de Workers admiten como máximo 25 MiB por fichero. Los ficheros que lo superan se suben a R2 (`axyro-files/simulador/<ruta>`, jurisdicción UE) con `wrangler r2 object put --remote`. `pnpm unity:webgl -SkipBuild` repite solo la publicación.
 - El Worker atiende `/simulador` y `/simulador/*` antes que los assets (`run_worker_first`): sirve el asset si existe y, si no, el objeto de R2 con su `Content-Type` (`.wasm` → `application/wasm`, `.data`/`.unityweb` → `application/octet-stream`) y caché `immutable` para `Build/` (`worker/simulator.ts`). `/simulador` redirige a `/simulador/` conservando `?sesion=` y, si no hay una sesión válida (miembro o invitado), muestra la página propia de acceso antes de cargar Unity.
 - En local: con `pnpm dev:api` y `pnpm dev:web`, el enlace de la consola apunta a `http://127.0.0.1:5173/simulador/index.html?sesion=<id>` (Vite no resuelve la carpeta). Con la API local el cliente WebGL detecta el modo demo en `/api/me` y actúa como participante demo.
@@ -116,19 +123,19 @@ Las locuciones de situación y las reacciones son WAV (y MP3 para el móvil) gen
 
 ```powershell
 $env:SONIOX_API_KEY = '<clave del proyecto Soniox>'
-node scripts/tts/generate_soniox.mjs --phase datos-personales # muestra en .local-state/tts/soniox-preview/
-node scripts/tts/generate_soniox.mjs --all --install         # actualiza los 12 WAV de Unity
+node scripts/tts/generate_soniox.mjs --phase secreto-profesional # muestra en .local-state/tts/soniox-preview/
+node scripts/tts/generate_soniox.mjs --all --install         # actualiza los WAV de Unity (uno por fase)
 Remove-Item Env:SONIOX_API_KEY
 pnpm unity:webgl
 ```
 
 ### Reacciones de VictorIA a cada decisión
 
-Tras confirmar una decisión, VictorIA responde por voz con la misma voz Carmen (mismo modelo, 48 kHz, WAV PCM 16 bits). El guion se deriva de forma determinista de los escenarios publicados, sin cambiarlos: una entrada breve según la valoración de la **decisión** (`best`: «Buena decisión.», «Bien visto.»…; `acceptable`: «Es un paso, pero se puede hacer mejor.»…; `poor`: «Cuidado.», «Ojo con esta decisión.»…, alternadas en orden fijo), la `consequence` de la opción y, si cabe en unos 230 caracteres y no repite la consecuencia, la primera frase de su `rationale`. Nunca valora a la persona. Solo hay reacciones en las fases con locución y personaje VictorIA (33 opciones de `ia-buenas-practicas`, `ia-docencia` e `ia-atencion-estudiantes`); la negociación con proveedor no las tiene.
+Tras confirmar una decisión, VictorIA responde por voz con la misma voz Carmen (mismo modelo, 48 kHz, WAV PCM 16 bits). El guion se deriva de forma determinista de los escenarios publicados, sin cambiarlos: una entrada breve según la valoración de la **decisión** (`best`: «Buena decisión.», «Bien visto.»…; `acceptable`: «Es un paso, pero se puede hacer mejor.»…; `poor`: «Cuidado.», «Ojo con esta decisión.»…, alternadas en orden fijo), la `consequence` de la opción y, si cabe en unos 230 caracteres y no repite la consecuencia, la primera frase de su `rationale`. Nunca valora a la persona. Solo hay reacciones en las fases con locución y personaje VictorIA: hoy las 16 opciones de `ia-despacho`.
 
 - `export-reactions.mjs` escribe `scripts/tts/reactions.json` (para revisar: `text` es el subtítulo y `speech` lo que se envía a Soniox, con siglas como RGPD desarrolladas) y el catálogo de Unity `Audio/Reacciones/Resources/Reacciones/reacciones.json`.
 - `generate_reactions.mjs` genera cada clip, lo iguala en sonoridad (RMS medio) a las locuciones de situación con pico máximo de -1 dBFS y comprueba duración, silencio y saturación. Con `--install` copia los WAV a `Assets/AXYRO/Audio/Reacciones/Resources/Reacciones/<idFase>__<idOpcion>.wav` (con su `.meta`: Decompress On Load en WebGL, como las locuciones) y una versión MP3 a `web/public/voz/reacciones/` para la vista móvil. `--only <id,...>` limita la generación y `--reuse` no llama a Soniox.
-- Unity (`AxyroAvatarDemo.PlayReaction`, `AxyroReactions.cs`) carga el clip con `Resources.Load` y lo reproduce por la misma fuente de voz, así que uLipSync mueve la boca; dispara el gesto de `AxyroTutor3D.React`, muestra la reacción como subtítulo y mantiene el panel de resultado. Si el docente avanza, la reacción se corta. «Repetir» vuelve a plantear la situación. En el modo demostración sin sesión (Windows y editor) también se puede elegir una opción con el ratón y escuchar la reacción.
+- Unity (`AxyroAvatarDemo.PlayReaction`, `AxyroReactions.cs`) carga el clip con `Resources.Load` y lo reproduce por la misma fuente de voz, así que uLipSync mueve la boca; dispara el gesto de `AxyroTutor3D.React`, muestra la reacción como subtítulo y mantiene el panel de resultado. Si el formador avanza, la reacción se corta. «Repetir» vuelve a plantear la situación. En el modo demostración sin sesión (Windows y editor) también se puede elegir una opción con el ratón y escuchar la reacción.
 - La vista móvil (`/jugar/:id`) empieza la reacción al tocar «Confirmar» (gesto necesario en iOS) y ofrece «Escuchar a VictorIA» en la tarjeta del resultado. Si falta el audio, solo se muestra el texto.
 
 ```powershell
@@ -146,7 +153,7 @@ En producción, guarda la clave del proyecto Soniox como secreto del Worker `SON
 pnpm exec wrangler secret put SONIOX_API_KEY
 ```
 
-Con `SONIOX_REGION=us` hay transferencia internacional de la voz: el primer clic en «Activar voz» muestra dónde se transcribe y solo el segundo («Aceptar y activar») abre el micrófono. Pendiente de validación por el DPO (ver `docs/privacidad-y-transparencia.md`).
+Con `SONIOX_REGION=us` hay transferencia internacional de la voz: el primer clic en «Activar voz» muestra dónde se transcribe y solo el segundo («Aceptar y activar») abre el micrófono. Pendiente de validación por el delegado de protección de datos del cliente (ver `docs/privacidad-y-transparencia.md`).
 
 El botón «Activar voz» pide permiso al navegador. El Worker autentica al participante y emite una clave temporal de un solo uso, válida 60 segundos para abrir una sesión de hasta 10 minutos. El audio PCM mono de 16 kHz va del navegador al WebSocket de Soniox de la región configurada; ni el Worker ni Unity reciben el audio. Unity recibe únicamente el estado del micrófono, la señal de interrupción y la frase final. La interrupción requiere voz detectada en el micrófono y texto provisional de Soniox; detiene la locución Carmen y el lip sync y muestra las opciones. Las decisiones se registran solo cuando Soniox emite `<end>`. Se puede desactivar con el mismo botón; al ocultar la pestaña se corta el micrófono.
 
@@ -160,7 +167,7 @@ Para pruebas **locales exclusivamente**, `worker/local.ts` acepta `SONIOX_TEST_A
 
 `export-lines.mjs` vuelca las frases (`characterLine`) de los escenarios de catálogo. Antes de Soniox, las locuciones se generaban en local con Chatterbox Multilingual sobre una referencia sintética Kokoro (`generate_voice.py`, `make_reference.py`, `master.py`, `generate_parler.py`); se conservan solo como referencia. `generate_voice.py` admite `--only <ids>`, `--exaggeration`, `--cfg`, `--seed` y `--variants`.
 
-Entorno Python en `.local-state/tts/.venv`, creado con uv: Python 3.11 y PyTorch 2.8 con CUDA 12.8 (`cu128`), necesario para la GPU Blackwell. En la red de la UFV, que inspecciona TLS, hay que exportar `UV_SYSTEM_CERTS=1` al instalar y tener `truststore` en el entorno (los scripts lo inyectan si está disponible).
+Entorno Python en `.local-state/tts/.venv`, creado con uv: Python 3.11 y PyTorch 2.8 con CUDA 12.8 (`cu128`), necesario para la GPU Blackwell. En redes que inspeccionan TLS (como la del equipo de desarrollo) hay que exportar `UV_SYSTEM_CERTS=1` al instalar y tener `truststore` en el entorno (los scripts lo inyectan si está disponible).
 
 ## Verificación
 
@@ -177,7 +184,7 @@ pnpm smoke
 - Mientras tanto: `pnpm deploy:cloud` desde un equipo con sesión `wrangler login` activa (tests, migraciones D1 remotas y despliegue).
 - Secretos del Worker: `BOOTSTRAP_OWNER_EMAIL` identifica al propietario inicial, `ACCESS_CODE_PEPPER` protege los códigos de seis cifras y `SONIOX_API_KEY` activa la voz (reconocimiento y síntesis). Se guardan como secretos de Cloudflare, nunca en `wrangler.jsonc` ni en Git. En local la API usa la identidad demo.
 - Tras cambiar la escena o el código de Unity, ejecuta `pnpm unity:webgl` y confirma también `web/public/simulador/` en Git. El CI comprueba que la build está presente; en el navegador se pulsa «Escuchar» para iniciar la locución y después aparecen las opciones.
-- En la red de la UFV, `curl.exe` necesita `--ssl-no-revoke` para las comprobaciones HTTPS.
+- En redes con inspección TLS, `curl.exe` necesita `--ssl-no-revoke` para las comprobaciones HTTPS.
 
 ## Cloudflare
 
@@ -189,7 +196,7 @@ El código conserva una vía antigua de identidad por Cloudflare Access, desacti
 
 Entorno cloud de desarrollo: <https://axyro.qhel.dev/>. Se entra con correo y código personal.
 
-El dominio definitivo (p. ej. bajo `ufv.es`) está por decidir; al cambiarlo hay que actualizar `wrangler.jsonc`, `scripts/deploy.ps1` y `.github/workflows/ci.yml`.
+`axyro.qhel.dev` es válido como dominio de producción; si un cliente pide un dominio propio, hay que actualizar `wrangler.jsonc`, `scripts/deploy.ps1` y `.github/workflows/ci.yml`.
 
 La cuenta permite desplegar Workers y gestionar Queues/R2. Si la API administrativa de D1 responde 7403, la migración puede aplicarse desde un Worker local con la vinculación D1 remota; no se debe omitir una migración sin verificarla. La cola actual se creó sin jurisdicción porque la API de Queues rechazó la opción `eu`; sus mensajes solo llevan IDs seudónimos y los campos de la lista blanca `QUEUE_DETAIL_FIELDS` (`worker/room.ts`): el texto de los incidentes no sale a la cola.
 
@@ -197,10 +204,7 @@ La cuenta permite desplegar Workers y gestionar Queues/R2. Si la API administrat
 
 Los escenarios son datos versionados en D1 (tabla `scenarios`, migración `0002`). Los escenarios de catálogo viven en `catalogScenarios` (`shared/simulation.ts`) y se publican automáticamente en D1 al consultarse:
 
-- `ia-buenas-practicas` «Uso responsable de la IA en la universidad» (`defaultScenario`): fases `datos-personales`, `verificacion` y `evaluacion`, de 3 minutos cada una. Indicadores con etiquetas propias: Confianza, Productividad y Riesgo. Versión 3 (añade `rationale` y `takeaway`).
-- `ia-docencia` «IA generativa en la docencia» (VictorIA): fases `actividad-evaluable`, `feedback-asistido` y `materiales-fuentes`, de 3 minutos cada una. Indicadores Aprendizaje, Eficiencia y Riesgo.
-- `ia-atencion-estudiantes` «IA en la atención al estudiante» (VictorIA): fases `chatbot-plazos`, `sesgo-becas` y `transparencia-ia`, de 3 minutos cada una. Indicadores Confianza, Agilidad y Riesgo.
-- `supplier-negotiation` «Renegociación con un proveedor estratégico»: fases `prepare`, `counteroffer` y `close` (8, 5 y 4 minutos). Indicadores Relación, Margen y Riesgo.
+- `ia-despacho` «Uso responsable de la IA en el despacho» (`lawFirmAiScenario`, `defaultScenario` y único escenario de catálogo: `catalogScenarios = [lawFirmAiScenario]`), con VictorIA: fases `secreto-profesional` (Secreto profesional, 3 min 30 s), `jurisprudencia-inventada` (Jurisprudencia inventada, 3 min), `proveedor-ia` (Contratar un proveedor de IA, 4 min) y `transparencia-cliente` (Transparencia con el cliente, 3 min), con cuatro opciones cada una. Indicadores con etiquetas propias: Confianza del cliente (`relationship`), Deontología (`margin`) y Riesgo (`risk`). Marco: secreto profesional, Código Deontológico y Estatuto General de la Abogacía Española, RGPD/LOPDGDD y alfabetización en IA del Reglamento de IA; las situaciones son ficticias.
 
 Aprendizaje explícito: cada opción puede llevar `rationale` (por qué es o no buena práctica, hasta 300 caracteres) y cada fase un `takeaway` (la idea clave de buena práctica, hasta 240). Ambos son opcionales; el informe los incluye en cada entrada del debriefing (`timeline[].rationale` de la opción elegida y `timeline[].takeaway` de la fase, `null` si no existen) para que la consola y Unity puedan mostrarlos. Los escenarios de VictorIA los rellenan en todas sus fases y opciones.
 
@@ -210,7 +214,7 @@ Cada sesión guarda una copia del escenario con el que empezó, así que publica
 - `GET /api/scenarios/:id`: definición completa; sirve de plantilla para crear otro.
 - `POST /api/scenarios`: el instructor publica un escenario propio o una versión nueva. Se valida con `shared/scenario.ts` (1–8 fases, 2–4 opciones, efectos entre -50 y 50, `characterLine` obligatorio, `meterLabels` opcional con `relationship`, `margin` y `risk` de hasta 24 caracteres, `rationale` y `takeaway` opcionales) y se audita. Las versiones son inmutables y deben crecer; los IDs del catálogo están reservados.
 - `POST /api/sessions` acepta `{ "scenarioId": "...", "name": "..." }` (`name` opcional, 1–80 caracteres tras recortar; sin él, la consola muestra el título del escenario y la fecha). Responde 201 con el cuerpo del Durable Object (`state`, `report`, `clients`, `liveTally`) y `session`, la fila del listado. La consola muestra un selector cuando hay más de un escenario.
-- `GET /api/sessions` (máximo 200; activas y pausadas primero, después por fecha de creación descendente; una consulta a D1, sin llamar a los Durable Objects) devuelve filas `{ id, name, scenarioId, scenarioTitle, scenarioVersion, status: 'active'|'paused'|'complete', createdAt, completedAt, instructorId, instructorName, mine, participantCount, simulatedCount, phaseIndex, phaseCount }`. `participantCount`/`simulatedCount` salen de los eventos `participant_joined` (IDs `sim-` = clase simulada, incluidos los ya retirados) y solo los recibe el instructor. `phaseIndex` sale del último `phase_advanced` en D1 (0 si no hay ninguno; null si la versión del escenario no está en D1).
+- `GET /api/sessions` (máximo 200; activas y pausadas primero, después por fecha de creación descendente; una consulta a D1, sin llamar a los Durable Objects) devuelve filas `{ id, name, scenarioId, scenarioTitle, scenarioVersion, status: 'active'|'paused'|'complete', createdAt, completedAt, instructorId, instructorName, mine, participantCount, simulatedCount, phaseIndex, phaseCount }`. `participantCount`/`simulatedCount` salen de los eventos `participant_joined` (IDs `sim-` = equipo simulado, incluidos los ya retirados) y solo los recibe el instructor. `phaseIndex` sale del último `phase_advanced` en D1 (0 si no hay ninguno; null si la versión del escenario no está en D1).
 - `PATCH /api/sessions/:id` con `{ "name": "..." }` renombra (quien puede exportar o borrar la sesión) y devuelve `{ session }`; se audita como `session_renamed` sin el texto del nombre.
 - `POST /api/sessions/:id/duplicate` (cuerpo `{}` en JSON; cualquier instructor de la organización) crea una sesión nueva con la misma versión del escenario y el nombre «<nombre o título> (copia)», hasta 80 caracteres. Misma respuesta 201 que `POST /api/sessions`; se audita como `session_duplicated`.
 - `sessions.status` en D1 cambia con los comandos `pause`, `resume` y `complete`, y la fase con `advance`: la API escribe ese evento en D1 en el momento (idempotente con la cola), así el listado no espera a la cola. El fin del temporizador de una fase no finaliza la sesión.
@@ -225,7 +229,7 @@ El informe sigue el formato de la arquitectura: decisiones correctas (% de opcio
 
 ### Modo individual
 
-Cada participante tiene sus propios indicadores (`participantMeters`): sus decisiones y los vencimientos de reloj solo le afectan a él; los incidentes y los ajustes del docente afectan a todos. `meters` es la media de la clase. El informe del instructor es el de la clase (puntuación y objetivos sobre la media) con `participantReports`, el informe de cada participante, que la consola muestra en «Resultados por participante».
+Cada participante tiene sus propios indicadores (`participantMeters`): sus decisiones y los vencimientos de reloj solo le afectan a él; los incidentes y los ajustes del formador afectan a todos. `meters` es la media del equipo. El informe del formador es el del equipo (puntuación y objetivos sobre la media) con `participantReports`, el informe de cada participante, que la consola muestra en «Resultados por participante».
 
 El participante solo recibe `participantView` y `participantReport` (`roomPayload` en `worker/room.ts`): sus indicadores, sus decisiones y su informe, sin datos de compañeros, y sin `quality`, `rationale`, `effects` ni `takeaway` en las fases en las que aún no ha decidido (con la sesión finalizada se muestra todo). La lista `GET /api/sessions` del participante solo incluye las sesiones a las que se ha unido, y no puede leer `/events`.
 
@@ -233,24 +237,24 @@ El participante solo recibe `participantView` y `participantReport` (`roomPayloa
 
 `GET /api/sessions/:id/live` con `Upgrade: websocket` abre un WebSocket (API de hibernación del Durable Object `SessionRoom`). Mismas comprobaciones que `GET /api/sessions/:id` (cookie, `API_LIMITER`, sesión de la organización: si no, 401/404) y, además, `Origin` igual al propio origen (403; en local se admite 127.0.0.1/localhost) y cabecera `Upgrade` (426). El Worker reenvía el upgrade con la identidad en una cabecera interna que construye él; nunca la del cliente. Se desactiva con el flag `realtime_websocket` (404).
 
-- Al conectar y tras cada cambio (unión, decisión, pausa, reanudación, avance, fin, incidente, ajuste, vencimiento del reloj, clase simulada) el servidor envía `{"type":"session","data": …}`, donde `data` es exactamente el cuerpo de `GET /api/sessions/:id` para la identidad de ese socket (calculado con `roomPayload`): el participante sigue recibiendo solo su vista.
+- Al conectar y tras cada cambio (unión, decisión, pausa, reanudación, avance, fin, incidente, ajuste, vencimiento del reloj, equipo simulado) el servidor envía `{"type":"session","data": …}`, donde `data` es exactamente el cuerpo de `GET /api/sessions/:id` para la identidad de ese socket (calculado con `roomPayload`): el participante sigue recibiendo solo su vista.
 - El cliente puede enviar el texto `ping` (respuesta `pong`, automática) o `{"type":"ping"}` (respuesta `{"type":"pong"}`); cualquier otro mensaje se ignora: los cambios van por la API HTTP.
 - La consulta periódica sigue funcionando igual (Unity WebGL consulta; la consola vuelve a consultar si el WebSocket falla). La CSP de la consola añade `wss://<host>` a `connect-src`. En desarrollo, el proxy de Vite necesita `ws: true` para `/api`.
 - Solo el instructor recibe `liveTally: { phaseId, counts, decided, total }` (votos por índice de opción de la fase activa, participantes que ya han decidido en ella y participantes unidos). El participante nunca lo recibe.
 
-### Clase simulada (demostraciones)
+### Equipo simulado (demostraciones)
 
 `POST /api/sessions/:id/demo-class` con `{ "count": 1-40 }` (20 por defecto) añade participantes simulados, solo para el instructor que creó la sesión y mientras no haya terminado (máximo 40 a la vez). Son seudónimos (`sim-<8 caracteres de la sesión>-NN`, «Participante simulado NN»), no son usuarios ni membresías y llevan `simulated: true` en `state.participants` y en `report.participantReports`. Se unen y deciden por el mismo camino del motor que una persona: la alarma del Durable Object (multiplexada con el reloj de fase) hace decidir a cada uno a los 2-12 s de empezar la fase, con un reparto por valoración de la opción de 45 % mejor, 35 % aceptable y 20 % mala; en pausa esperan. `DELETE /api/sessions/:id/demo-class` los retira con sus decisiones e indicadores (los eventos ya emitidos se conservan con su ID `sim-…`). Ambas operaciones devuelven el cuerpo de `GET /api/sessions/:id` más `demoClass: { added, total }` o `{ removed, total }` y quedan en la auditoría.
 
 ### Proyector: VictorIA comenta y comparación con la media
 
-- **Comentario al revelar** (`web/projector-voice.ts`). Al mostrarse la respuesta («Mostrar respuesta», avance, fin o tiempo agotado) de una situación que el proyector vio abierta, VictorIA dice una frase de **plantilla** (sin IA generativa, ≤ 35 palabras, tres variantes por tono según la situación) con los agregados reales: porcentaje de la mejor opción y la opción no óptima más elegida si llega al 15 %. Habla de «la clase» y de decisiones, nunca de personas. Sin votos no hay comentario. Siempre aparece como subtítulo (insignia, onda y nota «Comentario automático generado a partir de los votos»), descartable con × o Esc.
-- **Voz**: Soniox en tiempo real (`POST /api/voice/tts-key`, voz Carmen) para el docente que conduce la sesión, siempre que haya clave Soniox configurada (no depende del flag `ai_live_demo`). Solo se envía a Soniox la frase de plantilla, sin nombres. Botón «Voz de VictorIA» (tecla V, recordado en `localStorage`); Esc o cambiar de situación cortan la voz. El audio se desbloquea con el primer gesto en el proyector. La credencial temporal admite un único stream, así que cada frase abre su conexión. Sin voz (demo sin conexión, sin flag, error) queda solo el subtítulo: el proyector no usa la síntesis del navegador.
-- **Vuestra clase frente a la media**: botón «Comparar con la media» y apertura automática al finalizar la sesión con el proyector abierto. `GET /api/sessions/:id/benchmark[?includeSimulated=true]` (instructor de la organización; participantes 403; los invitados quedan fuera por la lista cerrada de `guests.ts`; 404 si la sesión no es del tenant) devuelve `{ session: { decisions, optimalRate }, organization: { sessions, decisions, optimalRate }, includeSimulated }`. Solo D1 (`worker/benchmark.ts`, dos consultas): la organización agrega las **otras** sesiones del tenant de los últimos 365 días, sin simulados salvo `includeSimulated`; tasas sin denominador → `null`. Como las decisiones llegan a D1 por la cola (pueden ir unos segundos por detrás), el proyector calcula la cifra de la clase con el estado en vivo y del servidor solo usa `organization`; si la clase visible incluye simulados, pide la media con ellos. Sin otras sesiones con datos muestra «Primera sesión de la organización: aún no hay media con la que comparar» (nunca una cifra inventada).
+- **Comentario al revelar** (`web/projector-voice.ts`). Al mostrarse la respuesta («Mostrar respuesta», avance, fin o tiempo agotado) de una situación que el proyector vio abierta, VictorIA dice una frase de **plantilla** (sin IA generativa, ≤ 35 palabras, tres variantes por tono según la situación) con los agregados reales: porcentaje de la mejor opción y la opción no óptima más elegida si llega al 15 %. Habla del grupo y de decisiones, nunca de personas. Sin votos no hay comentario. Siempre aparece como subtítulo (insignia, onda y nota «Comentario automático generado a partir de los votos»), descartable con × o Esc.
+- **Voz**: Soniox en tiempo real (`POST /api/voice/tts-key`, voz Carmen) para el formador que conduce la sesión, siempre que haya clave Soniox configurada (no depende del flag `ai_live_demo`). Solo se envía a Soniox la frase de plantilla, sin nombres. Botón «Voz de VictorIA» (tecla V, recordado en `localStorage`); Esc o cambiar de situación cortan la voz. El audio se desbloquea con el primer gesto en el proyector. La credencial temporal admite un único stream, así que cada frase abre su conexión. Sin voz (demo sin conexión, sin flag, error) queda solo el subtítulo: el proyector no usa la síntesis del navegador.
+- **Vuestro equipo frente a la media**: botón «Comparar con la media» y apertura automática al finalizar la sesión con el proyector abierto. `GET /api/sessions/:id/benchmark[?includeSimulated=true]` (instructor de la organización; participantes 403; los invitados quedan fuera por la lista cerrada de `guests.ts`; 404 si la sesión no es del tenant) devuelve `{ session: { decisions, optimalRate }, organization: { sessions, decisions, optimalRate }, includeSimulated }`. Solo D1 (`worker/benchmark.ts`, dos consultas): la organización agrega las **otras** sesiones del tenant de los últimos 365 días, sin simulados salvo `includeSimulated`; tasas sin denominador → `null`. Como las decisiones llegan a D1 por la cola (pueden ir unos segundos por detrás), el proyector calcula la cifra del equipo con el estado en vivo y del servidor solo usa `organization`; si el equipo visible incluye simulados, pide la media con ellos. Sin otras sesiones con datos muestra «Primera sesión de la organización: aún no hay media con la que comparar» (nunca una cifra inventada).
 
 ## Modo IA en vivo (demo)
 
-Modo aparte del producto determinista, para demostraciones: no cambia escenarios, motor, sesiones, invitados ni analítica, salvo cuando el docente publica una partida revisada como escenario («Guardar como escenario», abajo). Flag `ai_live_demo` (activo en `wrangler.jsonc`; con el flag desactivado todas sus rutas son 404) y **solo instructores** (participante 403; los invitados quedan fuera por la lista cerrada de `guests.ts`). Código en `worker/ai-routes.ts` (rutas), `worker/knowledge.ts` (colecciones, extracción, fragmentos, vectores y recuperación), `worker/ai-live.ts` (partidas, voz, resumen) y `worker/ai-live-prompts.ts` (prompts, esquemas y validadores). Migración `0008_ai_live.sql`.
+Modo aparte del producto determinista, para demostraciones: no cambia escenarios, motor, sesiones, invitados ni analítica, salvo cuando el formador publica una partida revisada como escenario («Guardar como escenario», abajo). Flag `ai_live_demo` (activo en `wrangler.jsonc`; con el flag desactivado todas sus rutas son 404) y **solo instructores** (participante 403; los invitados quedan fuera por la lista cerrada de `guests.ts`). Código en `worker/ai-routes.ts` (rutas), `worker/knowledge.ts` (colecciones, extracción, fragmentos, vectores y recuperación), `worker/ai-live.ts` (partidas, voz, resumen) y `worker/ai-live-prompts.ts` (prompts, esquemas y validadores). Migración `0008_ai_live.sql`.
 
 1. El instructor crea una colección y sube contenido: PDF, DOCX, TXT, MD o texto pegado.
 2. Inicia una partida sobre la colección (3-6 situaciones, opcionalmente con un tema).
@@ -274,13 +278,13 @@ Modo aparte del producto determinista, para demostraciones: no cambia escenarios
 - `POST /api/ai-runs/:id/answer` `{ phrase } | { optionIndex: 0-3 }` → `{ kind: 'decision', optionIndex, reaction: { spoken, quality, sources } } | { kind: 'confirm', optionIndex, prompt } | { kind: 'answer', spoken, sources } | { kind: 'repeat' } | { kind: 'next' } | { kind: 'unclear', spoken }`. «Siguiente» sin responder salta la situación (`chosen: null`).
 - Códigos de error: `AI_QUOTA` (429, «Se ha alcanzado el límite diario de IA»: cuota de Workers AI agotada, p. ej. 10 000 neuronas al día del plan gratuito), `AI_FAILED`/`AI_INVALID` (502), `AI_PENDING` (503, la situación tarda más de 60 s), `RATE_LIMITED` (429, `AI_LIMITER` 20/min por instructor).
 
-**Guardar como escenario.** Cierra el ciclo: la IA redacta, el docente revisa y publica un escenario versionado normal (sesiones, QR/PIN, proyector, votos en directo, informe y analítica).
+**Guardar como escenario.** Cierra el ciclo: la IA redacta, el formador revisa y publica un escenario versionado normal (sesiones, QR/PIN, proyector, votos en directo, informe y analítica).
 
 - `GET /api/ai-runs?collectionId=` → `{ runs: [{ …run, generated, answered }] }` (las 20 últimas de la persona).
 - `POST /api/ai-runs/:id/draft` (`{}`) → `{ draft, warnings[], latestVersion, run: { id, status, generated, total } }`. Conversión determinista sin IA (`shared/ai-draft.ts`) de **solo las situaciones ya generadas** (respondidas o no; no genera las que faltan, para no gastar IA ni esperar; avisa en `warnings`). 409 `DRAFT_TOO_SHORT` con menos de 2. No guarda nada. Correspondencias: id `ia-<slug>-<6 de la partida>`, versión = última publicada + 1, título = enfoque o nombre de la colección, VictorIA, indicadores Confianza/Cumplimiento/Riesgo; fase `<8 de la partida>-s<n>` (nunca coincide con fases del catálogo, así no se reproducen locuciones ajenas), `characterLine` = narración, `briefing` = fuentes citadas, `takeaway` = «por qué» de la mejor opción, 120 s; opciones `opcion-a…d`, `skill: risk` y efectos según la valoración de la **decisión**: mejor `+8/+8/-12`, aceptable `+2/+2/+2`, crítica `-10/-8/+15` (relationship/margin/risk).
 - `POST /api/ai-runs/:id/publish` `{ scenario }` → 201 `{ scenario }`. Misma validación e inmutabilidad que `POST /api/scenarios` y además: id del borrador de esa partida, al menos 2 situaciones, todas las opciones valoradas y con «por qué» y al menos una mejor opción por situación (400). Misma versión otra vez → 409 `VERSION_CONFLICT` con `latestVersion`. El servidor fija `origin: { kind: 'ai', runId, collectionId }` (la de cliente se descarta, también en `POST /api/scenarios`) y audita `scenario_published_from_ai` con IDs, versión y número de fases.
-- `GET /api/scenarios` añade `origin` (`'ai'` | null), `publishedBy` (nombre del docente que publicó esa versión, solo miembros de la organización) y `publishedAt`. La consola los muestra en «Tus escenarios» con «Creado con IA · revisado por …».
-- Consola: «Convertir en escenario para clase» en el resumen de la partida y en «Partidas recientes» de la colección abre `/escenarios/borrador/:runId`, que guarda el borrador editado en `localStorage` hasta publicarlo.
+- `GET /api/scenarios` añade `origin` (`'ai'` | null), `publishedBy` (nombre del formador que publicó esa versión, solo miembros de la organización) y `publishedAt`. La consola los muestra en «Tus escenarios» con «Creado con IA · revisado por …».
+- Consola: «Convertir en escenario para sesiones» en el resumen de la partida y en «Partidas recientes» de la colección abre `/escenarios/borrador/:runId`, que guarda el borrador editado en `localStorage` hasta publicarlo.
 
 **Límites.** 20 MB por fichero, 10 documentos y 1500 fragmentos por colección, 300 000 caracteres por documento, 50 colecciones por organización. Las partidas se borran con la retención diaria (`RETENTION_DAYS`); las colecciones las borra el instructor.
 
@@ -298,17 +302,17 @@ Modo aparte del producto determinista, para demostraciones: no cambia escenarios
 - Durable Objects de sesión en la jurisdicción UE (`SESSIONS_JURISDICTION = "eu"`). D1 y R2 también en la UE; la cola no (ver «Cloudflare»).
 - Los eventos y la cola solo llevan IDs seudónimos; la cola, además, solo los campos de `QUEUE_DETAIL_FIELDS` (la nota del incidente se queda en el Durable Object y no llega a D1 por la cola). El consumidor vuelve a filtrar por si llegan mensajes antiguos.
 - Voz: en Windows, reconocimiento local por palabras clave (Vosk), sin enviar audio. En el navegador (3D y móvil), opcional con Soniox (región `SONIOX_REGION`, hoy `us`: transferencia internacional avisada antes de abrir el micrófono); el audio va del navegador a Soniox y el Worker no lo recibe. Las frases libres pasan por Clef (Workers AI) sin identificadores y no se registran. A Soniox solo llega el ID seudónimo como `client_reference_id`.
-- Modo IA en vivo: documentos subidos por el docente en R2 (UE) y fragmentos en D1 hasta que se borran a mano (las colecciones no tienen retención automática); partidas a los `RETENTION_DAYS`; textos de documentos y frases fuera de logs, eventos y auditoría. Workers AI no garantiza procesamiento en la UE. No se deben subir datos personales.
+- Modo IA en vivo: documentos subidos por el formador en R2 (UE) y fragmentos en D1 hasta que se borran a mano (las colecciones no tienen retención automática); partidas a los `RETENTION_DAYS`; textos de documentos y frases fuera de logs, eventos y auditoría. Workers AI no garantiza procesamiento en la UE. No se deben subir datos personales.
 - Navegador: alias del invitado, preferencia de voz del proyector y borrador del editor de escenarios en `localStorage`; marca de «Empezar» en `sessionStorage`.
 - Acceso invitado: solo alias, sin correo; limitado a una sesión y con caducidad (12 horas, o dos horas tras finalizar la sesión). En D1 quedan el alias y el hash del token hasta que el cron los borra o se borra la sesión; el alias vive además en el estado de la sesión como nombre del participante. Eventos, cola y auditoría solo llevan el ID seudónimo `guest-<uuid>`.
 
 ## Demo en navegador
 
-`pnpm build:standalone` genera en `dist/standalone/` la consola con la API emulada dentro del navegador, usando el mismo motor. Sirve para enseñar el flujo de instructor y participante sin servidor ni Unity. No se despliega con el Worker.
+`pnpm build:standalone` genera en `dist/standalone/` la consola con la API emulada dentro del navegador, usando el mismo motor. Sirve para enseñar el flujo de formador y participante sin servidor ni Unity. No se despliega con el Worker.
 
 ## Identidad visual
 
-La consola usa la identidad UFV de la plantilla `UFV_Rockw_25_03`: azul UFV `#003865`, tinta `#001A33`, acento `#649EFF`, coral `#FF5D74` y carmesí `#C03656` para riesgo y decisiones críticas; Arial para texto y Rockwell para titulares (con alternativas serif si no está instalada). Los logos están en `web/public/brand/` y la configuración de marca (organización, logos y nombre de producto) en `web/brand.ts`, de modo que otro cliente solo cambia esos archivos. La interfaz no muestra la marca interna. La escena Unity usa la misma paleta; regenérala con `AXYRO > Crear escena de avatar` para aplicarla.
+La consola usa la identidad AXYRO: azul marino `#003865`, tinta `#001A33`, azul cielo `#649EFF` como acento, coral `#FF5D74` y carmesí `#C03656` para riesgo y decisiones críticas; Arial para texto y Rockwell para titulares (con alternativas serif si no está instalada). Los recursos de marca están en `web/public/brand/` (`axyro-logo-white.svg`, `axyro-logo-navy.svg`, `axyro-mark-white.svg`, `axyro-mark-navy.svg`, `favicon.svg`, `favicon-32.png`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png` y `manifest.webmanifest`) y la configuración de marca (nombre, producto, lema y logos) en `web/brand.ts`. La escena Unity usa la misma paleta; regenérala con `AXYRO > Crear escena de avatar` para aplicarla.
 
 ## Temporizadores de fase
 
@@ -319,12 +323,12 @@ Cada fase del escenario define `timeLimitSec` y `timeoutRiskDelta`. El reloj de 
 - `shared/events.ts`: catálogo versionado de eventos (`EVENT_SCHEMA_VERSION`). Solo IDs seudónimos.
 - `shared/contracts/ai-provider.ts` y `shared/contracts/context-engine.ts`: interfaces de AI Provider y Context Engine de la arquitectura. El Modo IA en vivo no las usa todavía: llama a Workers AI directamente desde `worker/ai-live.ts` y `worker/knowledge.ts`.
 - `worker/flags.ts`: feature flags desde la variable `FEATURE_FLAGS` (JSON). `phase_timers` desactiva las alarmas del reloj; `realtime_websocket` (activo por defecto) habilita el WebSocket de tiempo real; `ai_live_demo` habilita el «Modo IA en vivo (demo)»; `ai_characters` está reservado.
-- Rate limiting (solo en cloud): `API_LIMITER` 300/min por usuario; `VOICE_LIMITER` 6/min (credenciales STT); `TTS_LIMITER` 30/min (credenciales TTS, docentes); `AI_LIMITER` 20/min (Modo IA, por docente); `AUTH_LIMITER` 5/min por correo y `AUTH_IP_LIMITER` 120/min por IP (acceso y unión de invitados).
+- Rate limiting (solo en cloud): `API_LIMITER` 300/min por usuario; `VOICE_LIMITER` 6/min (credenciales STT); `TTS_LIMITER` 30/min (credenciales TTS, formadores); `AI_LIMITER` 20/min (Modo IA, por formador); `AUTH_LIMITER` 5/min por correo y `AUTH_IP_LIMITER` 120/min por IP (acceso y unión de invitados).
 
 ## Seguridad
 
 - Identidad (`worker/auth.ts`, `worker/access-codes.ts`): la API resuelve la cookie de sesión contra D1 en cada petición y comprueba que el código siga activo y la membresía vigente. El código tiene seis cifras, es único y se almacena como HMAC con `ACCESS_CODE_PEPPER`; el secreto no está en D1. D1 aplica de forma transaccional un máximo de cinco intentos por correo y 120 por IP en 60 segundos; los limitadores de Cloudflare quedan como defensa adicional. La sesión dura 24 horas. La unión a una simulación se registra también de forma síncrona para que aparezca al instante en la lista del participante.
-- Membresías: un usuario pertenece a una sola organización. Solo el propietario inicial asigna el rol docente; un docente puede registrar participantes. Los permisos efectivos se derivan de la membresía en el servidor. Cambiar o revocar el código invalida la sesión. Cada uso correcto, y cada intento con un código revocado conocido, queda en `access_code_uses`; la consola muestra contador y últimos accesos.
+- Membresías: un usuario pertenece a una sola organización. Solo el propietario inicial asigna el rol de formador (`instructor`); un formador puede registrar participantes. Los permisos efectivos se derivan de la membresía en el servidor. Cambiar o revocar el código invalida la sesión. Cada uso correcto, y cada intento con un código revocado conocido, queda en `access_code_uses`; la consola muestra contador y últimos accesos.
 - CSRF: `POST`/`PUT`/`PATCH`/`DELETE` en `/api/*` exigen `Sec-Fetch-Site` `same-origin` o `none` (o, sin esa cabecera, un `Origin` del mismo host) y cuerpo `application/json` (salvo `DELETE` sin cuerpo); si no, 403. Un JSON mal formado es un 400 «Cuerpo JSON no válido.».
 - Cabeceras: CSP distinta para API, consola y `/simulador` (esta admite WebAssembly y los scripts en línea de la plantilla de Unity), HSTS, `nosniff`, `X-Frame-Options`, `Referrer-Policy: same-origin`, COOP/CORP y `Permissions-Policy` sin cámara; micrófono `(self)` en `/simulador` y en las páginas web (vista móvil y consola) cuando la voz está disponible (clave Soniox configurada), y `()` en el resto. Con la voz disponible, la CSP de la consola añade los WebSocket de Soniox a `connect-src` y `blob:` a `media-src`. El Worker atiende todo salvo `/assets/*` y `/brand/*` (`run_worker_first`) para poder añadirlas.
 - Observabilidad: cada respuesta lleva `x-request-id` (el `cf-ray` si existe) y cada petición deja un log JSON con método, ruta, estado, duración y los IDs seudónimos de organización y usuario, sin correos. Un 500 devuelve el `requestId`, no el detalle del error.
@@ -337,10 +341,10 @@ Lista consolidada (todas las rutas bajo `/api`):
 - **Cualquier identidad (miembro o invitado; el invitado solo su sesión):** `GET /me`, `POST /auth/logout`, `GET /sessions/:id` (vista por rol), `GET /sessions/:id/live` (WebSocket), `POST /sessions/:id/commands` (invitado: solo `join` y `decide`), `GET /voice/config`.
 - **Miembros:** `GET /scenarios`, `GET /scenarios/:id`, `GET /sessions` (el participante, solo las suyas).
 - **Participantes (miembros e invitados):** `POST /voice/temporary-key` `{ sessionId }` (credencial STT de un solo uso, 60 s) y `POST /voice/interpret` `{ sessionId, phrase }` (Clef).
-- **Docentes:** `POST /scenarios`, `POST /sessions`, `PATCH /sessions/:id` (quien puede gestionarla), `POST /sessions/:id/duplicate` (cualquiera), `GET/POST /sessions/:id/pin`, `POST/DELETE /sessions/:id/demo-class` (el de la sesión), `GET /sessions/:id/events`, `GET /sessions/:id/export` y `DELETE /sessions/:id` (quien puede gestionarla), `GET /sessions/:id/benchmark`, `GET /analytics`, `GET/POST /memberships`, `DELETE /memberships/:userId`, `GET /access-codes`, `POST/DELETE /access-codes/:userId`, `POST /voice/tts-key` (credencial TTS de 15 min).
-- **Docentes, solo con `ai_live_demo` (si no, 404):** `GET/POST /knowledge/collections`, `DELETE /knowledge/collections/:id`, `GET/POST /knowledge/collections/:id/documents`, `DELETE /knowledge/documents/:id`, `GET/POST /ai-runs`, `GET/DELETE /ai-runs/:id`, `POST /ai-runs/:id/next`, `POST /ai-runs/:id/answer`, `POST /ai-runs/:id/draft`, `POST /ai-runs/:id/publish`; además `POST /voice/temporary-key` con `{ aiRunId }`.
+- **Formadores (`instructor`):** `POST /scenarios`, `POST /sessions`, `PATCH /sessions/:id` (quien puede gestionarla), `POST /sessions/:id/duplicate` (cualquiera), `GET/POST /sessions/:id/pin`, `POST/DELETE /sessions/:id/demo-class` (el de la sesión), `GET /sessions/:id/events`, `GET /sessions/:id/export` y `DELETE /sessions/:id` (quien puede gestionarla), `GET /sessions/:id/benchmark`, `GET /analytics`, `GET/POST /memberships`, `DELETE /memberships/:userId`, `GET /access-codes`, `POST/DELETE /access-codes/:userId`, `POST /voice/tts-key` (credencial TTS de 15 min).
+- **Formadores, solo con `ai_live_demo` (si no, 404):** `GET/POST /knowledge/collections`, `DELETE /knowledge/collections/:id`, `GET/POST /knowledge/collections/:id/documents`, `DELETE /knowledge/documents/:id`, `GET/POST /ai-runs`, `GET/DELETE /ai-runs/:id`, `POST /ai-runs/:id/next`, `POST /ai-runs/:id/answer`, `POST /ai-runs/:id/draft`, `POST /ai-runs/:id/publish`; además `POST /voice/temporary-key` con `{ aiRunId }`.
 
-La entrega del código es responsabilidad del docente; nunca se envía correo desde la plataforma.
+La entrega del código es responsabilidad del formador; nunca se envía correo desde la plataforma.
 
 Los comandos incluyen un `id` para idempotencia. Los roles y la organización se resuelven en el servidor; la identidad demo solo existe en `wrangler.local.jsonc` (`worker/local.ts`).
 
@@ -368,8 +372,8 @@ Parámetros opcionales: `from` y `to` (ISO; una fecha `AAAA-MM-DD` cubre el día
 - Decisiones: eventos `decision` (detail `phaseId`, `optionId`, `durationMs`), una por persona y fase; la valoración, la etiqueta y los efectos salen de la versión del escenario de su sesión. Títulos y orden de opciones, de la versión más reciente usada en el rango.
 - `optimalRate`: decisiones con opción `best` / decisiones con opción valorada. `completionRate`: participantes de sesiones finalizadas que decidieron en todas las fases / participantes de sesiones finalizadas (quien se une tarde no puede completar las fases anteriores). `avgDecisionSeconds`: **mediana** de `durationMs` en segundos (un decimal); el motor cuenta desde el inicio de la fase, la unión si fue posterior o la última reanudación.
 - `trend`: hasta 12 semanas que terminan en la de `to`, sin empezar antes de la de `from`; siempre rellenada con ceros. Todo se asigna a la semana de creación de la sesión.
-- `phases`: solo fases con decisiones; primero las de menor `optimalRate` (dónde más se equivoca la clase), a igualdad las de más decisiones. `distribution` incluye las opciones no elegidas (`count` 0) y `share` = `count` / decisiones de la fase. `mostChosenNonOptimal` es la opción valorada no `best` más elegida; null si nadie eligió una o la fase no valora sus opciones.
+- `phases`: solo fases con decisiones; primero las de menor `optimalRate` (dónde más se equivoca el equipo), a igualdad las de más decisiones. `distribution` incluye las opciones no elegidas (`count` 0) y `share` = `count` / decisiones de la fase. `mostChosenNonOptimal` es la opción valorada no `best` más elegida; null si nadie eligió una o la fase no valora sus opciones.
 - `meters`: solo sesiones finalizadas. `avgStart` = indicadores iniciales; `avgEnd` = media de los indicadores finales por participante, reconstruidos con los eventos persistidos (unión, efectos de cada decisión, incidentes, vencimientos y ajustes manuales). Etiquetas de `meterLabels` o Relación/Margen/Riesgo.
 - `participants` de `trend`, `scenarios` y `recentSessions` sigue a `includeSimulated`; `totals.participants` cuenta siempre solo personas.
 - **Campos que pueden ser null**: `totals.completionRate`, `totals.optimalRate`, `totals.avgDecisionSeconds`, y `optimalRate`/`completionRate` de `trend`, `scenarios`, `phases` y `recentSessions` (sin denominador: la consola muestra «Sin datos aún», nunca 0 %), `phases[].mostChosenNonOptimal`, `distribution[].quality` (opción sin valorar) y `recentSessions[].name`. Sin datos: recuentos a 0, listas vacías y `trend` con ceros; nunca `NaN`.
-- Límites: las decisiones llegan a D1 por la cola, así que una decisión de hace unos segundos puede no contar aún. Retirar la clase simulada no deja evento en D1: con `includeSimulated=true`, los indicadores finales de simulados retirados pueden incluir incidentes posteriores a su retirada.
+- Límites: las decisiones llegan a D1 por la cola, así que una decisión de hace unos segundos puede no contar aún. Retirar el equipo simulado no deja evento en D1: con `includeSimulated=true`, los indicadores finales de simulados retirados pueden incluir incidentes posteriores a su retirada.

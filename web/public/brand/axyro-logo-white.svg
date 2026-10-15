@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 182 48" width="182" height="48" role="img" aria-label="AXYRO">
+  <title>AXYRO</title>
+  <defs><clipPath id="axyro-mark-clip"><rect x="0" y="0" width="48" height="34.6"/></clipPath><clipPath id="axyro-word-clip"><rect x="-3" y="0" width="124" height="20"/></clipPath></defs>
+  <g fill="none" stroke-linejoin="miter" stroke-width="3.2">
+    <polygon points="24,3 42.19,13.5 42.19,34.5 24,45 5.81,34.5 5.81,13.5" stroke="#FFFFFF"/>
+    <path d="M18.6 27.5H29.4" stroke="#649EFF"/>
+    <g clip-path="url(#axyro-mark-clip)"><path d="M14.6 37L24 14.8L33.4 37" stroke="#FFFFFF"/></g>
+  </g>
+  <g transform="translate(64 14)" fill="none" stroke="#FFFFFF" stroke-width="3.2" stroke-linejoin="miter">
+    <g clip-path="url(#axyro-word-clip)">
+      <path d="M0 22L8 -2L16 22M2.9 13.4H13.1"/>
+      <path d="M24 -2L40 22M40 -2L24 22"/>
+      <path d="M48 -2L56 10.5L64 -2M56 10V22"/>
+      <path d="M73.6 22V1.6H81A4.7 4.7 0 0 1 81 11H73.6M80.4 11L88.4 22"/>
+      <circle cx="106" cy="10" r="8.4"/>
+    </g>
+  </g>
+</svg>

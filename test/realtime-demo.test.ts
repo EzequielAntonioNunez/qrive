@@ -6,7 +6,8 @@ vi.mock('cloudflare:workers', () => ({ DurableObject: class { constructor(public
 const { SessionRoom, broadcastMessages, liveMessage, parseRoomActor, processAlarm, roomPayload, queueSafeEvent } = await import('../worker/room');
 const { BOT_MAX_DELAY_MS, BOT_MIN_DELAY_MS, MAX_SIMULATED, addSimulated, liveTally, nextAlarmAt, pickOption, reconcileBots, removeSimulated, simulatedPrefix } = await import('../worker/demo-class');
 const { applyCommand, createSession } = await import('../shared/engine');
-const { defaultScenario, negotiationScenario, performanceReport } = await import('../shared/simulation');
+const { defaultScenario, performanceReport } = await import('../shared/simulation');
+const { negotiationScenario } = await import('./fixtures/negotiation-scenario');
 type SessionState = import('../shared/simulation').SessionState;
 type Actor = import('../shared/engine').Actor;
 
@@ -102,7 +103,7 @@ describe('clase simulada: motor puro', () => {
   });
 
   it('elige opciones con un reparto plausible: mejor 45 %, aceptable 35 %, mala 20 %', () => {
-    const phase = defaultScenario.phases[1]; // verificación: 1 mejor, 1 aceptable, 2 malas
+    const phase = defaultScenario.phases[1]; // jurisprudencia inventada: 1 mejor, 1 aceptable, 2 malas
     const count = { best: 0, acceptable: 0, poor: 0 };
     const steps = 1000;
     for (let i = 0; i < steps; i++) {

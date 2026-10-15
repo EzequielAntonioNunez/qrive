@@ -1,4 +1,4 @@
-import { applyChoice, classMeters, clampMeter, negotiationScenario, normalizeState, performanceReport, type Meters, type MeterName, type Phase, type Scenario, type SessionState, type SimEvent } from './simulation';
+import { applyChoice, classMeters, clampMeter, defaultScenario, normalizeState, performanceReport, type Meters, type MeterName, type Phase, type Scenario, type SessionState, type SimEvent } from './simulation';
 import { SYSTEM_ACTOR_ID } from './events';
 
 export type Role = 'instructor' | 'participant';
@@ -56,7 +56,7 @@ export function expireTimer(current: SessionState, at: string): { state: Session
   return { state: next, events: [event] };
 }
 
-export function createSession(id: string, tenantId: string, instructor: Actor, at: string, scenario: Scenario = negotiationScenario): SessionState {
+export function createSession(id: string, tenantId: string, instructor: Actor, at: string, scenario: Scenario = defaultScenario): SessionState {
   if (instructor.role !== 'instructor') throw new DomainError('Solo un instructor puede crear sesiones.');
   return {
     id, tenantId, instructorId: instructor.id, scenario,

@@ -1,4 +1,4 @@
-/* Unión por código y vista móvil del participante (/unirse, /jugar) + bloque «Únete» con QR. Identidad UFV. */
+/* Unión por código y vista móvil del participante (/unirse, /jugar) + bloque «Únete» con QR. Identidad AXYRO. */
 .play-root{--p-navy:#003865;--p-ink:#001A33;--p-sky:#649EFF;--p-wash:#EAF1FF;--p-line:#DDE3EB;--p-muted:#5A6B7E;--p-ok:#1F7A4D;--p-warn:#9A5B00;--p-bad:#B42346;--p-ease:cubic-bezier(.2,.8,.2,1);
   min-height:100vh;min-height:100dvh;background:radial-gradient(120% 60% at 100% 0%,#DCE9FA 0,transparent 55%),#F3F5F8;color:var(--p-ink);font-family:Arial,'Helvetica Neue',Helvetica,sans-serif;-webkit-tap-highlight-color:transparent}
 .play-root *{box-sizing:border-box}

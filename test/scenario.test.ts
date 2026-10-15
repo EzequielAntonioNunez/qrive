@@ -1,19 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { validateScenario } from '../shared/scenario';
-import { applyChoice, catalogScenarios, defaultScenario, meterLabels, negotiationScenario, performanceReport } from '../shared/simulation';
+import { applyChoice, catalogScenarios, defaultScenario, meterLabels, performanceReport } from '../shared/simulation';
+import { negotiationScenario } from './fixtures/negotiation-scenario';
 import { applyCommand, createSession, type Actor } from '../shared/engine';
 
 const clone = () => structuredClone(negotiationScenario) as unknown as Record<string, any>;
 
 describe('scenario definitions', () => {
-  it('accepts the catalog scenario unchanged', () => {
+  it('accepts the generic fixture scenario unchanged', () => {
     expect(validateScenario(negotiationScenario)).toEqual(negotiationScenario);
   });
 
-  it('publishes every catalog scenario, with the AI practices one as default and unique phase ids', () => {
+  it('publishes every catalog scenario, with the law-firm AI one as default and unique phase ids', () => {
     for (const scenario of catalogScenarios) expect(validateScenario(scenario)).toEqual(scenario);
-    expect(defaultScenario.id).toBe('ia-buenas-practicas');
-    expect(meterLabels(defaultScenario)).toEqual({ relationship: 'Confianza', margin: 'Productividad', risk: 'Riesgo' });
+    expect(defaultScenario.id).toBe('ia-despacho');
+    expect(meterLabels(defaultScenario)).toEqual({ relationship: 'Confianza del cliente', margin: 'Deontología', risk: 'Riesgo' });
     expect(meterLabels(negotiationScenario).relationship).toBe('Relación');
     // Unity busca la locución por id de fase, así que no pueden repetirse entre escenarios del catálogo.
     const phaseIds = catalogScenarios.flatMap(scenario => scenario.phases.map(phase => phase.id));
@@ -21,23 +22,31 @@ describe('scenario definitions', () => {
     for (const phase of defaultScenario.phases) expect(phase.options.filter(option => option.quality === 'best')).toHaveLength(1);
   });
 
-  it('keeps the AI catalog in order, with the default scenario versioned after adding learning content', () => {
-    expect(catalogScenarios.map(scenario => scenario.id)).toEqual(['ia-buenas-practicas', 'ia-docencia', 'ia-atencion-estudiantes', 'supplier-negotiation']);
-    expect(defaultScenario.version).toBe(3);
-    // El smoke y Unity dependen de estos ids de opción del escenario por defecto.
-    expect(defaultScenario.phases.map(phase => phase.options[0].id)).toEqual(['anonimizar', 'contrastar', 'dialogar']);
+  it('keeps the catalog in order, with stable phase and option ids in the default scenario', () => {
+    expect(catalogScenarios.map(scenario => scenario.id)).toEqual(['ia-despacho']);
+    expect(defaultScenario.version).toBe(1);
+    // Unity, la vista móvil y las locuciones buscan los audios por id de fase y de opción.
+    expect(defaultScenario.phases.map(phase => phase.id)).toEqual(['secreto-profesional', 'jurisprudencia-inventada', 'proveedor-ia', 'transparencia-cliente']);
+    // El smoke depende de estos ids de opción del escenario por defecto.
+    expect(defaultScenario.phases.map(phase => phase.options[0].id)).toEqual(['anonimizar-herramienta', 'verificar-fuentes', 'contrato-garantias', 'explicar-minuta']);
   });
 
   it('gives every VictorIA scenario one best option per phase, a rationale per option and a takeaway per phase', () => {
     const victoria = catalogScenarios.filter(scenario => scenario.character.name === 'VictorIA');
-    expect(victoria.map(scenario => scenario.id)).toEqual(['ia-buenas-practicas', 'ia-docencia', 'ia-atencion-estudiantes']);
+    expect(victoria.map(scenario => scenario.id)).toEqual(['ia-despacho']);
     for (const scenario of victoria) {
-      expect(scenario.phases).toHaveLength(3);
+      expect(scenario.phases).toHaveLength(4);
       expect(scenario.meterLabels).toBeDefined();
       for (const phase of scenario.phases) {
         expect(phase.options.filter(option => option.quality === 'best')).toHaveLength(1);
+        expect(phase.options.some(option => option.quality === 'acceptable')).toBe(true);
+        expect(phase.options.some(option => option.quality === 'poor')).toBe(true);
         expect(phase.options.length).toBeGreaterThanOrEqual(3);
-        expect(phase.timeLimitSec).toBe(180);
+        expect(phase.timeLimitSec).toBeGreaterThanOrEqual(180);
+        expect(phase.timeLimitSec).toBeLessThanOrEqual(240);
+        // Se locuta: frase breve, sin comillas simples (el guion de TTS la extrae del código).
+        expect(phase.characterLine.split(/\s+/).length).toBeLessThanOrEqual(45);
+        expect(phase.characterLine).not.toContain("'");
         expect(phase.takeaway?.length).toBeGreaterThan(0);
         for (const option of phase.options) expect(option.rationale?.length).toBeGreaterThan(0);
         // La frase se locuta: los números van escritos con letra.

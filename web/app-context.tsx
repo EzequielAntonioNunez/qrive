@@ -76,7 +76,7 @@ export function slug(text: string): string {
 }
 
 /* «Demo rápida»: estado global (una sola demo a la vez, aunque haya varios botones montados). */
-export const QUICK_DEMO_SCENARIO = 'ia-buenas-practicas';
+export const QUICK_DEMO_SCENARIO = 'ia-despacho';
 export const QUICK_DEMO_CLASS = 20;
 export const QUICK_DEMO_STEPS = ['Creando la sesión', `Incorporando ${QUICK_DEMO_CLASS} participantes simulados`, 'Abriendo el proyector'] as const;
 export type QuickDemoState = { running: boolean; step: number };
@@ -151,7 +151,7 @@ export function useSessionActions() {
         setQuickDemo({ running: false, step: 0 });
         if (classError) {
           const status = (classError as ApiError).status;
-          toast(status === 404 || status === 405 || status === 501 ? 'No se ha podido añadir la clase simulada: este servidor aún no la admite. Añádela desde el panel de la sesión.' : `No se ha podido añadir la clase simulada: ${errorText(classError)}`, 'error');
+          toast(status === 404 || status === 405 || status === 501 ? 'No se ha podido añadir el equipo simulado: este servidor aún no lo admite. Añádela desde el panel de la sesión.' : `No se ha podido añadir el equipo simulado: ${errorText(classError)}`, 'error');
         } else toast(`Demo lista: ${QUICK_DEMO_CLASS} participantes simulados irán decidiendo en los próximos segundos.`);
         return id;
       },
@@ -175,7 +175,7 @@ export function useSessionActions() {
         return command(session.id, 'complete').catch(() => null);
       },
       async rename(session: SessionSummary) {
-        const value = await prompt({ title: 'Renombrar sesión', label: 'Nombre de la sesión', initial: session.name ?? '', placeholder: titleFor(session), maxLength: 80, hint: 'Visible solo para docentes. Ej.: «1.º Derecho · Grupo A».', confirmLabel: 'Guardar nombre' });
+        const value = await prompt({ title: 'Renombrar sesión', label: 'Nombre de la sesión', initial: session.name ?? '', placeholder: titleFor(session), maxLength: 80, hint: 'Visible solo para formadores. Ej.: «Área Mercantil · Grupo A».', confirmLabel: 'Guardar nombre' });
         if (value == null || value === (session.name ?? '')) return;
         const previous = session.name ?? null;
         appRef.current.updateSession(session.id, { name: value });
@@ -205,7 +205,7 @@ export function useSessionActions() {
           const data = await appRef.current.api<unknown>(`/sessions/${encodeURIComponent(session.id)}/export`);
           const day = new Date(session.createdAt);
           const date = Number.isNaN(day.getTime()) ? '' : `-${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
-          download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `simulador-ufv-${slug(titleFor(session))}${date}.json`);
+          download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `axyro-${slug(titleFor(session))}${date}.json`);
           toast('Exportación descargada');
         } catch (cause) { toast(`No se ha podido exportar: ${errorText(cause)}`, 'error'); }
       },

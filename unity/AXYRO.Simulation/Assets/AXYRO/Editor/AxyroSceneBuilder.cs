@@ -24,7 +24,7 @@ public static class AxyroSceneBuilder
     private static readonly Color Background = Hex("#001A33");
     private static readonly Color White = Hex("#FFFFFF");
     private static readonly Color Muted = Hex("#C9D6E6");
-    // Paleta UFV (plantilla UFV_Rockw_25_03): azul tinta #001A33, azul UFV #003865, acento #649EFF.
+    // Paleta de la marca: azul tinta #001A33, azul #003865, acento #649EFF.
     private static readonly Color Mint = Hex("#649EFF");
 
     private const string RenderingRoot = "Assets/AXYRO/Rendering";
@@ -70,13 +70,13 @@ public static class AxyroSceneBuilder
         PlayerSettings.runInBackground = true;
         PlayerSettings.visibleInBackground = true;
         PlayerSettings.colorSpace = ColorSpace.Linear;
-        // Lo que ve el participante (título de ventana, ejecutable) es solo de la UFV.
-        PlayerSettings.companyName = "Universidad Francisco de Vitoria";
-        PlayerSettings.productName = "Simulador UFV";
+        // Lo que ve el participante (título de ventana, ejecutable) lleva la marca AXYRO.
+        PlayerSettings.companyName = "AXYRO";
+        PlayerSettings.productName = "AXYRO";
         var options = new BuildPlayerOptions
         {
             scenes = new[] { ScenePath },
-            locationPathName = "Build/Simulador-UFV.exe",
+            locationPathName = "Build/AXYRO.exe",
             target = BuildTarget.StandaloneWindows64,
             options = BuildOptions.None
         };
@@ -102,8 +102,8 @@ public static class AxyroSceneBuilder
         ConfigureAudioForWebGL();
         ConfigureWebRendering();
 
-        PlayerSettings.companyName = "Universidad Francisco de Vitoria";
-        PlayerSettings.productName = "Simulador UFV";
+        PlayerSettings.companyName = "AXYRO";
+        PlayerSettings.productName = "AXYRO";
         PlayerSettings.colorSpace = ColorSpace.Linear;
         PlayerSettings.runInBackground = true;
         // Brotli con descompresión en JavaScript si hace falta: no depende de que el servidor envíe Content-Encoding.
@@ -112,7 +112,7 @@ public static class AxyroSceneBuilder
         // Nombres con hash: el Worker puede cachear Build/ sin caducidad y cada compilación invalida lo anterior.
         PlayerSettings.WebGL.nameFilesAsHashes = true;
         PlayerSettings.WebGL.dataCaching = true;
-        PlayerSettings.WebGL.template = "PROJECT:UFV";
+        PlayerSettings.WebGL.template = "PROJECT:AXYRO";
         PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
         // Sin pantalla de Unity si la licencia lo permite (en Unity 6 también con Personal); si no, Unity la mantiene.
         try
@@ -354,9 +354,9 @@ public static class AxyroSceneBuilder
     private const float WallZ = 3.2f;
 
     /// <summary>
-    /// Sala de seminario moderna construida con primitivas: pared de lamas de roble detrás de VictorIA, ventanal con
-    /// estores a la izquierda (luz de día suave, sin quemar), paño azul UFV con la pantalla de la situación y el rótulo
-    /// de la universidad, estantería y planta. Paleta sobria: azul marino, blanco cálido y madera.
+    /// Sala de reuniones de despacho moderna construida con primitivas: pared de lamas de roble detrás de VictorIA, ventanal con
+    /// estores a la izquierda (luz de día suave, sin quemar), paño azul marino con la pantalla de la situación,
+    /// estantería y planta. Paleta sobria: azul marino, blanco cálido y madera.
     /// </summary>
     private static AxyroSceneScreen BuildEnvironment(out Light screenGlow)
     {
@@ -397,7 +397,7 @@ public static class AxyroSceneBuilder
         for (var x = slatsLeft + 0.03f; x < slatsRight; x += 0.075f)
             Box("Lama", root, new Vector3(x, 1.4f, WallZ - 0.045f), new Vector3(0.045f, 2.8f, 0.05f), wood);
 
-        // Paño azul UFV con la pantalla de la situación y el rótulo de la universidad debajo.
+        // Paño azul marino con la pantalla de la situación.
         const float navyLeft = -0.06f, navyRight = 2.05f;
         Box("Paño azul", root, new Vector3((navyLeft + navyRight) / 2f, 1.4f, WallZ - 0.02f), new Vector3(navyRight - navyLeft, 2.8f, 0.04f), navy);
         var screenCenter = new Vector3(0.82f, 1.56f, WallZ - 0.09f);
@@ -519,7 +519,7 @@ public static class AxyroSceneBuilder
     }
 
     /// <summary>
-    /// Iluminación de estudio en tres puntos sobre VictorIA (principal cálida y suave, relleno frío tenue, contraluz azul UFV)
+    /// Iluminación de estudio en tres puntos sobre VictorIA (principal cálida y suave, relleno frío tenue, contraluz azul)
     /// más luz de ventana y bañados de pared que separan los planos del fondo. Ninguna luz quema el fondo.
     /// </summary>
     private static void BuildLighting(Transform tutor)
@@ -806,17 +806,17 @@ public static class AxyroSceneBuilder
         // Diseño minimalista: la escena 3D ocupa toda la pantalla y nada compite con VictorIA. Subtítulos abajo
         // mientras habla; las opciones (con un velo suave detrás) solo aparecen cuando termina de plantear la situación.
 
-        // Marca del cliente: logo UFV discreto arriba a la izquierda.
-        var logo = LoadSprite("Assets/AXYRO/Brand/ufv-logo-white.png");
+        // Marca AXYRO: logotipo discreto arriba a la izquierda.
+        var logo = LoadSprite("Assets/AXYRO/Brand/axyro-wordmark-white.png");
         if (logo != null)
         {
-            var logoImage = Image("Logo UFV", canvasObject.transform, Color.white, new Vector2(.025f, .905f), new Vector2(.135f, .965f));
+            var logoImage = Image("Logo AXYRO", canvasObject.transform, new Color(1f, 1f, 1f, .92f), new Vector2(.025f, .922f), new Vector2(.125f, .956f));
             logoImage.sprite = logo;
             logoImage.preserveAspect = true;
         }
         else
         {
-            Text("Logo UFV", canvasObject.transform, "UNIVERSIDAD FRANCISCO DE VITORIA", 16, White, new Vector2(.03f, .90f), new Vector2(.40f, .96f));
+            Text("Logo AXYRO", canvasObject.transform, "A X Y R O", 18, White, new Vector2(.03f, .90f), new Vector2(.40f, .96f));
         }
 
         var panelObject = new GameObject("Rive HUD", typeof(RectTransform));

@@ -49,7 +49,7 @@ export function PlayPage({ sessionId }: { sessionId: string }) {
   const [me, setMe] = useState<GuestMe | null>(null);
   const [authError, setAuthError] = useState<'expired' | 'network' | null>(null);
   const [gone, setGone] = useState(false);
-  const [started, setStarted] = useState(() => { try { return sessionStorage.getItem(`ufv-play-${sessionId}`) === '1'; } catch { return false; } });
+  const [started, setStarted] = useState(() => { try { return sessionStorage.getItem(`axyro-play-${sessionId}`) === '1'; } catch { return false; } });
 
   useEffect(() => { document.title = `Sesión en directo · ${brand.product} · ${brand.shortName}`; }, []);
   const loadMe = useCallback(() => {
@@ -64,11 +64,11 @@ export function PlayPage({ sessionId }: { sessionId: string }) {
   const onError = useCallback((cause: unknown) => { const status = (cause as GuestError).status; if (status === 401) setAuthError('expired'); else if (status === 404 || status === 403) setGone(true); }, []);
   const live = useLiveSession<SessionPayload>(userId && !gone ? sessionId : null, { fetchSession, socket: me?.flags?.realtime_websocket !== false, onError, onGone: () => setGone(true) });
 
-  if (authError === 'expired') return <Shell><Notice title="La sesión ha terminado" text="Tu acceso de invitado ha caducado. ¡Gracias por participar! Si hay una sesión nueva, únete con el código que aparece en la pantalla del aula." action={<button className="play-primary" onClick={() => navigate('/unirse')}>Unirme con un código</button>}/></Shell>;
-  if (gone) return <Shell><Notice title="Esta sesión ya no está disponible" text="Puede que el docente la haya cerrado o eliminado. Si hay una sesión nueva, únete con su código." action={<button className="play-primary" onClick={() => navigate('/unirse')}>Unirme a otra sesión</button>}/></Shell>;
+  if (authError === 'expired') return <Shell><Notice title="La sesión ha terminado" text="Tu acceso de invitado ha caducado. ¡Gracias por participar! Si hay una sesión nueva, únete con el código que aparece en la pantalla de la sala." action={<button className="play-primary" onClick={() => navigate('/unirse')}>Unirme con un código</button>}/></Shell>;
+  if (gone) return <Shell><Notice title="Esta sesión ya no está disponible" text="Puede que el formador la haya cerrado o eliminado. Si hay una sesión nueva, únete con su código." action={<button className="play-primary" onClick={() => navigate('/unirse')}>Unirme a otra sesión</button>}/></Shell>;
   if (!me || !live.data || !userId) return <Shell mode={live.mode}><div className="play-loading" aria-busy="true"><span className="play-spinner" aria-hidden="true"/><p role="status">{authError === 'network' ? 'Sin conexión. Reintentando…' : 'Conectando con la sesión…'}</p></div></Shell>;
 
-  const begin = () => { setStarted(true); try { sessionStorage.setItem(`ufv-play-${sessionId}`, '1'); } catch { /* sin almacenamiento */ } };
+  const begin = () => { setStarted(true); try { sessionStorage.setItem(`axyro-play-${sessionId}`, '1'); } catch { /* sin almacenamiento */ } };
   return <PlayView payload={live.data} userId={userId} alias={meName(me)} mode={live.mode} sessionId={sessionId} started={started} onStart={begin} onReplace={live.replace} onAuthLost={() => setAuthError('expired')}/>;
 }
 
@@ -163,7 +163,7 @@ function PlayView({ payload, userId, alias, mode, sessionId, started, onStart, o
     <div className="play-progress" aria-label={`Situación ${state.phaseIndex + 1} de ${scenario.phases.length}`}>
       {scenario.phases.map((item, i) => <span key={item.id} className={i < state.phaseIndex ? 'done' : i === state.phaseIndex ? 'current' : ''}/>)}
     </div>
-    {state.status === 'paused' && <div className="play-banner paused" role="status"><span className="pause-icon" aria-hidden="true"/>Sesión en pausa. Espera a que el docente la reanude.</div>}
+    {state.status === 'paused' && <div className="play-banner paused" role="status"><span className="pause-icon" aria-hidden="true"/>Sesión en pausa. Espera a que el formador la reanude.</div>}
 
     <section className="play-card play-situation enter" key={phase.id} aria-labelledby="situacion">
       <div className="play-situation-head">
@@ -206,7 +206,7 @@ function PlayView({ payload, userId, alias, mode, sessionId, started, onStart, o
 function AiNote({ state }: { state: SessionState }) {
   const name = state.scenario.character?.name || 'VictorIA';
   return <p className="play-ai-note" role="note">{state.scenario.origin?.kind === 'ai'
-    ? `Escenario redactado con IA a partir de documentos y revisado por un docente. ${name} es un personaje virtual.`
+    ? `Escenario redactado con IA a partir de documentos y revisado por un formador. ${name} es un personaje virtual.`
     : `${name} es un personaje virtual: su imagen y su voz son sintéticas.`}</p>;
 }
 
@@ -339,7 +339,7 @@ function Result({ phase, option, index, labels, last, name, reactionFor }: { pha
     </section>
     <section className="play-card play-wait" aria-live="polite">
       <h2>{last ? 'Espera al cierre de la sesión' : 'Espera a la siguiente situación'}</h2>
-      <p>Mira la pantalla del aula: allí se ven los resultados de toda la clase.</p>
+      <p>Mira la pantalla de la sala: allí se ven los resultados de todo el equipo.</p>
       <WaitDots/>
     </section>
   </>;
@@ -371,7 +371,7 @@ function Welcome({ state, alias, onStart, sessionId }: { state: SessionState; al
     <p className="play-brief">{scenario.summary}</p>
     <ul className="play-welcome-list">
       <li><strong>{scenario.phases.length} situaciones</strong> con {name}. En cada una eliges qué harías.</li>
-      <li>Tus votos se suman en directo a la pantalla del aula, sin tu alias.</li>
+      <li>Tus votos se suman en directo a la pantalla de la sala, sin tu alias.</li>
       <li>Al decidir verás qué ocurre y por qué. Se valora la decisión, no a la persona.</li>
     </ul>
     <button type="button" className="play-primary" onClick={() => { haptic(12); onStart(); }}>{state.phaseIndex > 0 ? `Ir a la situación ${state.phaseIndex + 1}` : 'Empezar'}</button>
@@ -421,7 +421,7 @@ function VoicePanel({ voice, optionCount }: { voice: Voice; optionCount: number 
   const on = voice.phase === 'listening' || voice.phase === 'thinking' || voice.phase === 'confirm' || voice.phase === 'starting';
   return <div className={`play-voice ${voice.phase}`}>
     {voice.phase === 'notice' ? <div className="play-voice-notice" role="alertdialog" aria-label="Aviso sobre la voz">
-      <p>Tu voz se transcribe en Soniox (EE. UU.) solo mientras la voz está activa; ni el simulador ni la UFV guardan el audio. Si prefieres no usarla, toca la opción en la pantalla.</p>
+      <p>Tu voz se transcribe en Soniox (EE. UU.) solo mientras la voz está activa; ni AXYRO ni tu organización guardan el audio. Si prefieres no usarla, toca la opción en la pantalla.</p>
       <div className="play-voice-row"><button type="button" className="play-secondary" onClick={voice.accept}>🎙 Aceptar y activar</button><button type="button" className="play-text-btn" onClick={voice.stop}>Ahora no</button></div>
     </div>
       : <button type="button" className={`play-secondary play-mic ${on ? 'on' : ''}`} aria-pressed={on} disabled={voice.phase === 'starting'} onClick={() => on ? voice.stop() : void voice.start()}>

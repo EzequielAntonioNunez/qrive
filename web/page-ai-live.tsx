@@ -237,7 +237,7 @@ export function AiLivePage({ runId }: { runId: string }) {
     navigate(collection ? `/escenarios/ia?coleccion=${encodeURIComponent(collection)}` : '/escenarios/ia');
   }, []);
 
-  /** «Convertir en escenario para clase»: abre el editor del borrador (la consola, fuera de la pantalla completa). */
+  /** «Convertir en escenario para sesiones»: abre el editor del borrador (la consola, fuera de la pantalla completa). */
   const convert = useCallback(() => {
     S.current.turn++;
     speaker.current?.stop();
@@ -458,7 +458,7 @@ function Summary({ summary, onBack, onRestart, onConvert }: { summary: AiSummary
     <p className="ai-sum-text">{summary.spoken}</p>
     {summary.takeaways?.length > 0 && <><h2>Ideas clave</h2><ul className="ai-takeaways">{summary.takeaways.map((item, i) => <li key={i}><Icon name="check" size={16}/>{item}</li>)}</ul></>}
     <div className="ai-convert">
-      <button className="ai-btn ai-primary ai-lg" onClick={onConvert}><Icon name="scenarios" size={18}/>Convertir en escenario para clase</button>
+      <button className="ai-btn ai-primary ai-lg" onClick={onConvert}><Icon name="scenarios" size={18}/>Convertir en escenario para sesiones</button>
       <small>Revisa y edita estas situaciones antes de publicarlas. Después podrás usarlas en sesiones con QR o PIN, proyector e informe.</small>
     </div>
     <form className="ai-restart" onSubmit={event => { event.preventDefault(); setBusy(true); onRestart(focus); }}>

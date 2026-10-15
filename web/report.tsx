@@ -43,7 +43,7 @@ export function ImpactReport({ state, report, results, simulatedCount, excludeSi
       </div>
       <p className="rs-lead">{executiveSentence(report, participants, state, phasesDone)}</p>
       <table className="rs-table rs-meters">
-        <thead><tr><th scope="col">Indicador de la clase</th><th scope="col">Inicial</th><th scope="col">Final</th><th scope="col">Variación</th></tr></thead>
+        <thead><tr><th scope="col">Indicador del equipo</th><th scope="col">Inicial</th><th scope="col">Final</th><th scope="col">Variación</th></tr></thead>
         <tbody>{METERS.map(name => {
           const delta = final[name] - initial[name];
           const good = name === 'risk' ? delta < 0 : delta > 0;
@@ -104,9 +104,9 @@ export function ImpactReport({ state, report, results, simulatedCount, excludeSi
     <section className="rs-section rs-method rs-avoid-break">
       <h2><span>{takeaways.length > 0 ? 6 : 5}</span>Nota metodológica</h2>
       <ul>
-        <li>Cada situación tiene opciones con efectos fijos definidos por el equipo docente en el diseño del escenario (versión {state.scenario.version}). Los resultados se obtienen con reglas deterministas: no interviene ningún modelo de inteligencia artificial en la valoración.</li>
+        <li>Cada situación tiene opciones con efectos fijos definidos por el equipo formador en el diseño del escenario (versión {state.scenario.version}). Los resultados se obtienen con reglas deterministas: no interviene ningún modelo de inteligencia artificial en la valoración.</li>
         <li>Las valoraciones («Mejor opción», «Aceptable», «Crítica») califican la decisión tomada, nunca a la persona. El simulador no infiere emociones ni estados psicológicos.</li>
-        <li>La puntuación resume los indicadores del escenario ({METERS.map(name => labels[name]).join(', ')}) en una escala de 0 a 100. Los indicadores de la clase son la media de los participantes.</li>
+        <li>La puntuación resume los indicadores del escenario ({METERS.map(name => labels[name]).join(', ')}) en una escala de 0 a 100. Los indicadores del equipo son la media de los participantes.</li>
         <li>{characterNote(state)}</li>
       </ul>
     </section>
@@ -128,7 +128,7 @@ function executiveSentence(report: Report, participants: number, state: SessionS
 function characterNote(state: SessionState): string {
   const name = state.scenario.character?.name || 'VictorIA';
   const origin = state.scenario.origin?.kind === 'ai'
-    ? 'el escenario se redactó con IA a partir de documentos y lo revisó un docente antes de publicarlo'
+    ? 'el escenario se redactó con IA a partir de documentos y lo revisó un formador antes de publicarlo'
     : 'sus intervenciones están guionizadas y grabadas de antemano';
   return `${name} es un personaje virtual con imagen y voz sintéticas; ${origin}. Los participantes aparecen con el nombre con el que figuran en la consola.`;
 }

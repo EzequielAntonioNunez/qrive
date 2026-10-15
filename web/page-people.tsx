@@ -76,14 +76,14 @@ export function PeoplePage() {
     {error && <div className="error" role="alert"><span>{error}</span><button className="text-button" onClick={() => void loadMembers()}>Reintentar</button></div>}
 
     {onlyMe ? <div className="card empty-hero">
-      <EmptyState icon="users" title="Da de alta a tu grupo" action={<button className="btn btn-primary btn-lg" onClick={() => setAdding(true)}><Icon name="plus" size={18}/>Dar de alta a la primera persona</button>}>Añade a cada participante con su nombre y su correo institucional. Después genera su código personal y entrégaselo por un canal privado.</EmptyState>
+      <EmptyState icon="users" title="Da de alta a tu grupo" action={<button className="btn btn-primary btn-lg" onClick={() => setAdding(true)}><Icon name="plus" size={18}/>Dar de alta a la primera persona</button>}>Añade a cada participante con su nombre y su correo profesional. Después genera su código personal y entrégaselo por un canal privado.</EmptyState>
       <ol className="path"><li><span className="path-icon"><Icon name="users" size={20}/></span><div><small>Paso 1</small><strong>Da de alta</strong><p>Nombre y correo de cada participante.</p></div></li><li><span className="path-icon"><Icon name="key" size={20}/></span><div><small>Paso 2</small><strong>Genera su código</strong><p>Seis cifras, personal. Solo se muestra una vez.</p></div></li><li><span className="path-icon"><Icon name="link" size={20}/></span><div><small>Paso 3</small><strong>Comparte el enlace</strong><p>Con el enlace de la sesión, entran con su correo y su código.</p></div></li></ol>
     </div>
     : <div className="people-layout">
       <div>
         <div className="toolbar">
           <SearchField value={query} onChange={setQuery} placeholder="Buscar por nombre o correo" label="Buscar personas"/>
-          <div className="chips" role="group" aria-label="Filtrar por rol">{([['all', 'Todas'], ['participant', 'Participantes'], ['instructor', 'Docentes']] as const).map(([key, label]) => <button key={key} type="button" className="chip" aria-pressed={roleFilter === key} onClick={() => setRoleFilter(key)}>{label}</button>)}</div>
+          <div className="chips" role="group" aria-label="Filtrar por rol">{([['all', 'Todas'], ['participant', 'Participantes'], ['instructor', 'Formadores']] as const).map(([key, label]) => <button key={key} type="button" className="chip" aria-pressed={roleFilter === key} onClick={() => setRoleFilter(key)}>{label}</button>)}</div>
         </div>
         <div className="card table-card">
           {members === null ? <div className="table-wrap" aria-busy="true"><table className="table"><tbody>{[0, 1, 2].map(i => <tr key={i} aria-hidden="true"><td><Sk w={200} h={13}/><Sk w={160} h={10} className="sk-gap-s"/></td><td><Sk w={80} h={12}/></td><td><Sk w={120} h={12}/></td><td/></tr>)}</tbody></table></div>
@@ -154,8 +154,8 @@ function AddMemberDialog({ canAssignInstructor, onClose, onAdded }: { canAssignI
   return <Modal title="Dar de alta" description="La persona podrá entrar con su correo y el código personal que le entregues." onClose={onClose}>
     <form className="form-stack" onSubmit={submit}>
       <label className="field" htmlFor={ids.name}><span>Nombre y apellidos</span><input id={ids.name} data-autofocus value={name} onChange={event => setName(event.target.value)} maxLength={100} required autoComplete="off"/></label>
-      <label className="field" htmlFor={ids.email}><span>Correo electrónico</span><input id={ids.email} type="email" placeholder="nombre@ufv.es" value={email} onChange={event => setEmail(event.target.value)} maxLength={254} required autoComplete="off"/></label>
-      {canAssignInstructor && <label className="field" htmlFor={ids.role}><span>Rol</span><select id={ids.role} value={role} onChange={event => setRole(event.target.value as Role)}><option value="participant">Participante</option><option value="instructor">Docente</option></select></label>}
+      <label className="field" htmlFor={ids.email}><span>Correo electrónico</span><input id={ids.email} type="email" placeholder="nombre@despacho.es" value={email} onChange={event => setEmail(event.target.value)} maxLength={254} required autoComplete="off"/></label>
+      {canAssignInstructor && <label className="field" htmlFor={ids.role}><span>Rol</span><select id={ids.role} value={role} onChange={event => setRole(event.target.value as Role)}><option value="participant">Participante</option><option value="instructor">Formador</option></select></label>}
       <label className="check"><input type="checkbox" checked={withCode} onChange={event => setWithCode(event.target.checked)}/>Generar su código de acceso ahora</label>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="modal-foot inline"><button type="button" className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={busy || !name.trim() || !email.trim()}>{busy ? 'Guardando…' : 'Dar de alta'}</button></div>

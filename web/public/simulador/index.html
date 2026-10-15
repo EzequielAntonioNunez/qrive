@@ -3,21 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Simulador UFV</title>
-  <link rel="icon" href="/brand/ufv-logo-navy.svg">
+  <title>AXYRO · Simulador</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23001A33'/%3E%3Ctext x='32' y='45' font-family='Segoe UI,Arial,sans-serif' font-size='38' font-weight='700' fill='%23649EFF' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
   <style>
-    html, body { margin: 0; height: 100%; background: #001A33; color: #fff; font-family: Arial, Helvetica, sans-serif; overflow: hidden; }
+    html, body { margin: 0; height: 100%; background: #001A33; color: #fff; font-family: "Segoe UI", system-ui, Arial, Helvetica, sans-serif; overflow: hidden; }
     #unity-canvas { display: block; width: 100vw; height: 100vh; background: #001A33; outline: none; }
     #carga { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; text-align: center; transition: opacity .5s ease, visibility .5s;
       background: radial-gradient(ellipse 70% 55% at 50% 42%, #0B3B6E 0%, #04264A 45%, #001A33 100%); }
     #carga.oculta { opacity: 0; visibility: hidden; pointer-events: none; }
     #carga .contenido { width: min(460px, 100%); display: flex; flex-direction: column; align-items: center; gap: 18px; }
-    #carga .logo { height: 50px; width: auto; }
+    #carga .logo { height: 34px; width: auto; }
+    #carga .marca { font: 600 26px/1 "Segoe UI", system-ui, Arial, sans-serif; letter-spacing: .42em; margin-right: -.42em; color: #fff; }
+    #carga .marca[hidden] { display: none; }
     .anillo { width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center; position: relative; margin-top: 8px; }
     .anillo::before { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 2px solid #649EFF55; animation: latido 2.4s ease-in-out infinite; }
-    .anillo span { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(145deg, #649EFF, #2D6BD9); color: #001A33; font: 700 30px/1 Rockwell, "Rockwell Nova", "Roboto Slab", Georgia, serif; box-shadow: 0 0 40px #649EFF66; }
+    .anillo span { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(145deg, #649EFF, #2D6BD9); color: #001A33; font: 700 30px/1 "Segoe UI", system-ui, Arial, sans-serif; box-shadow: 0 0 40px #649EFF66; }
     @keyframes latido { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.14); opacity: .35; } }
-    #carga h1 { font: 400 28px/1.2 Rockwell, "Rockwell Nova", "Roboto Slab", Georgia, serif; margin: 0; letter-spacing: .2px; }
+    #carga h1 { font: 400 28px/1.2 "Segoe UI", system-ui, Arial, sans-serif; margin: 0; letter-spacing: .2px; }
     #carga .sub { margin: -8px 0 0; color: #C9D6E6; font-size: 14px; }
     .barra { width: 100%; height: 6px; border-radius: 999px; background: #ffffff1f; overflow: hidden; margin-top: 6px; }
     .barra span { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #649EFF, #9CC2FF); transition: width .25s ease; }
@@ -56,13 +58,14 @@
   <div id="carga">
     <button id="volver" type="button">← Volver</button>
     <div class="contenido">
-      <img class="logo" src="/brand/ufv-logo-white.svg" alt="Universidad Francisco de Vitoria">
+      <img class="logo" src="/brand/axyro-logo-white.svg" alt="AXYRO" onerror="this.hidden=true;document.getElementById('marca').hidden=false">
+      <span id="marca" class="marca" hidden>AXYRO</span>
       <div class="anillo" aria-hidden="true"><span>V</span></div>
       <h1>Preparando a VictorIA…</h1>
-      <p class="sub">Simulador UFV · experiencia inmersiva</p>
+      <p class="sub">AXYRO · Simulador de decisiones</p>
       <div class="barra" role="progressbar" aria-label="Carga del simulador" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="progreso"></span></div>
       <div class="cifras"><strong id="porcentaje">0 %</strong><span id="megas" role="status" aria-live="polite">Conectando…</span></div>
-      <div class="consejo"><small>Mientras carga</small><p id="consejo">VictorIA te planteará situaciones reales sobre el uso de la IA en la universidad.</p></div>
+      <div class="consejo"><small>Mientras carga</small><p id="consejo">VictorIA te planteará situaciones reales sobre el uso de la IA en el despacho.</p></div>
       <p class="nota">Primera carga: puede tardar en redes lentas; las siguientes son instantáneas.</p>
       <p id="movil" hidden>En el móvil va mejor la vista ligera: <a id="enlace-movil" href="/unirse">usar la versión móvil</a>.</p>
       <div id="error" role="alert">
@@ -90,7 +93,7 @@
       };
     })();
   </script>
-  <script src="Build/401d2c236a1849ea9a0df76c18ed74df.loader.js"></script>
+  <script src="Build/ecd68b9f46af8c90b8373d9b0e3a2804.loader.js"></script>
   <script src="voice.js"></script>
   <script>
     (function () {
@@ -117,13 +120,14 @@
       }
 
       var consejos = [
-        'VictorIA te planteará situaciones reales sobre el uso de la IA en la universidad.',
+        'VictorIA te planteará situaciones reales sobre el uso de la IA en el despacho.',
         'Se valora la decisión, no a la persona: no hay respuestas trampa.',
         'Puedes elegir con el ratón, con las teclas 1 a 4 o, si está activada, con la voz.',
-        'Antes de pegar datos en una IA, pregúntate si son personales o confidenciales.',
-        'Una respuesta de IA puede sonar segura y ser falsa: contrasta siempre las fuentes.',
-        'Si usas IA en un trabajo, dilo: la transparencia forma parte del buen uso.',
-        'La IA ayuda; la responsabilidad de la decisión sigue siendo tuya.'
+        'Antes de pegar un expediente en una IA, piensa en el secreto profesional y en los datos del cliente.',
+        'Una IA puede citar sentencias que no existen: verifica cada cita antes de presentar un escrito.',
+        'Antes de contratar una herramienta de IA, revisa el encargo de tratamiento y dónde están los datos.',
+        'Con el cliente, transparencia: cuéntale si usas IA y cómo se refleja en los honorarios.',
+        'La IA ayuda; la firma y la responsabilidad siguen siendo del abogado.'
       ];
       var turno = 0;
       var rotacion = setInterval(function () {
@@ -147,7 +151,7 @@
         error('Tu navegador no admite WebGL 2. Abre el enlace en un ordenador con una versión reciente de Chrome, Edge, Firefox o Safari.', false);
         return;
       }
-      var FALLO = 'No se ha podido cargar el simulador. Comprueba la conexión y vuelve a intentarlo; si persiste, avisa a tu docente.';
+      var FALLO = 'No se ha podido cargar el simulador. Comprueba la conexión y vuelve a intentarlo; si persiste, avisa a tu formador.';
 
       // MB descargados: Unity informa de la fracción (0-0,9) sobre el total de bytes de Build/; el total sale de Content-Length.
       function totalBytes() {
@@ -162,12 +166,12 @@
 
       canvas.addEventListener('click', function () { canvas.focus(); });
       createUnityInstance(canvas, {
-        dataUrl: 'Build/93bd79e75df6db4f31e9679c0b1b4672.data.unityweb',
-        frameworkUrl: 'Build/5873932605e0b137516cefbd59977471.framework.js.unityweb',
-        codeUrl: 'Build/fc6d53402d12817c2b97e045f410575b.wasm.unityweb',
+        dataUrl: 'Build/bc1b007b89a0cb7862b26ad009e7d99e.data.unityweb',
+        frameworkUrl: 'Build/68282f7cd3ba1c39f113a03c85ed5f79.framework.js.unityweb',
+        codeUrl: 'Build/c731d3a40db757ee0891efa127b6e00b.wasm.unityweb',
         streamingAssetsUrl: 'StreamingAssets',
-        companyName: "Universidad Francisco de Vitoria",
-        productName: "Simulador UFV",
+        companyName: "AXYRO",
+        productName: "AXYRO",
         productVersion: "1.0",
         // Los nombres llevan hash: el fichero de datos se guarda en la caché de Unity sin revalidar. El resto lo
         // cachea el navegador (Cache-Control immutable desde el Worker).

@@ -266,7 +266,7 @@ export class SessionRoom extends DurableObject<Env> {
         } else if (body.op === 'demo-add' || body.op === 'demo-remove') {
           // El Worker ya lo comprueba; se repite aquí porque solo el instructor de la sesión gestiona la clase simulada.
           if (body.actor?.role !== 'instructor' || body.actor.id !== state.instructorId)
-            return Response.json({ error: 'Solo el instructor de la sesión puede gestionar la clase simulada.' }, { status: 403 });
+            return Response.json({ error: 'Solo el formador de la sesión puede gestionar el equipo simulado.' }, { status: 403 });
           if (body.op === 'demo-add') {
             const result = addSimulated(state, body.count ?? 0, new Date().toISOString());
             state = result.state;

@@ -34,7 +34,7 @@ export class HttpError extends Error {
 
 const INVALID_JSON = 'Cuerpo JSON no válido.';
 const MEMBER_UNAVAILABLE = 'Ese correo no se puede dar de alta en esta organización.';
-const LAST_INSTRUCTOR = 'Debe quedar al menos un instructor en la organización.';
+const LAST_INSTRUCTOR = 'Debe quedar al menos un formador en la organización.';
 const OWNER_PROTECTED = 'No se puede modificar al propietario de la organización.';
 /** IDs seudónimos de participante: usuario (UUID), invitado (`guest-…`), simulado (`sim-…`) o de la demo local. */
 const PARTICIPANT_ID = /^[\w-]{1,120}$/;
@@ -510,7 +510,7 @@ export function createApp(demo = false) {
         if (organization && organization !== tenantId) throw new HttpError(409, MEMBER_UNAVAILABLE);
       }
     }
-    if (role === 'instructor' && current?.role !== 'instructor' && !isOwnerEmail(c.env, identity.email)) throw new HttpError(403, 'Solo el propietario puede asignar el rol docente.');
+    if (role === 'instructor' && current?.role !== 'instructor' && !isOwnerEmail(c.env, identity.email)) throw new HttpError(403, 'Solo el propietario puede asignar el rol de formador.');
 
     let userId: string;
     if (!user) {
@@ -582,7 +582,7 @@ export function createApp(demo = false) {
     const member = await c.env.DB.prepare(`SELECT users.email, memberships.role FROM memberships JOIN users ON users.id = memberships.user_id
       WHERE memberships.tenant_id = ? AND memberships.user_id = ?`).bind(identity.tenantId, userId).first<{ email: string; role: string }>();
     if (!member) return c.json({ error: 'Miembro no encontrado.' }, 404);
-    if (member.role === 'instructor' && !isOwnerEmail(c.env, identity.email)) return c.json({ error: 'Solo el propietario puede crear códigos de docentes.' }, 403);
+    if (member.role === 'instructor' && !isOwnerEmail(c.env, identity.email)) return c.json({ error: 'Solo el propietario puede crear códigos de formadores.' }, 403);
     const { code, id } = await issueCode(c.env, identity.tenantId, userId);
     await audit(c.env, identity, null, 'access_code_issued', { userId, codeId: id });
     return c.json({ code, codeId: id }, 201);
@@ -594,7 +594,7 @@ export function createApp(demo = false) {
     const member = await c.env.DB.prepare(`SELECT users.email, memberships.role FROM memberships JOIN users ON users.id = memberships.user_id
       WHERE memberships.tenant_id = ? AND memberships.user_id = ?`).bind(identity.tenantId, userId).first<{ email: string; role: string }>();
     if (!member) return c.json({ error: 'Miembro no encontrado.' }, 404);
-    if (member.role === 'instructor' && !isOwnerEmail(c.env, identity.email)) return c.json({ error: 'Solo el propietario puede revocar códigos de docentes.' }, 403);
+    if (member.role === 'instructor' && !isOwnerEmail(c.env, identity.email)) return c.json({ error: 'Solo el propietario puede revocar códigos de formadores.' }, 403);
     if (userId === identity.id) return c.json({ error: 'No puedes revocar tu propio acceso.' }, 400);
     await revokeCodes(c.env, identity.tenantId, userId);
     await audit(c.env, identity, null, 'access_code_revoked', { userId });
@@ -659,7 +659,7 @@ export function createApp(demo = false) {
     if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
     const session = await sessionFor(c.env, identity.tenantId, id);
     if (!session) return c.json({ error: 'Sesión no encontrada.' }, 404);
-    if (!await canManage(c.env, identity, session)) return c.json({ error: 'Solo el instructor que creó la sesión puede renombrarla.' }, 403);
+    if (!await canManage(c.env, identity, session)) return c.json({ error: 'Solo el formador que creó la sesión puede renombrarla.' }, 403);
     const body = await readJson(c) as { name?: unknown } | null;
     const name = parseSessionName(body?.name, true);
     await c.env.DB.prepare('UPDATE sessions SET name = ? WHERE tenant_id = ? AND id = ?').bind(name, identity.tenantId, id).run();
@@ -726,14 +726,14 @@ export function createApp(demo = false) {
     const actor: RoomActor = { id: identity.id, name: identity.name, role: identity.role, tenantId: identity.tenantId };
     return stub.fetch('https://room.internal/live', { headers: { upgrade: 'websocket', [ROOM_ACTOR_HEADER]: JSON.stringify(actor) } });
   });
-  // Clase simulada para demostraciones (worker/demo-class.ts). Solo el instructor que creó la sesión.
+  // Equipo simulado (antes «clase simulada») para demostraciones (worker/demo-class.ts). Solo el formador que creó la sesión.
   app.post('/api/sessions/:id/demo-class', async c => {
     const identity = c.get('identity');
     const id = c.req.param('id');
     if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
     const session = await sessionFor(c.env, identity.tenantId, id);
     if (!session) return c.json({ error: 'Sesión no encontrada.' }, 404);
-    if (session.instructorId !== identity.id) return c.json({ error: 'Solo el instructor de la sesión puede añadir una clase simulada.' }, 403);
+    if (session.instructorId !== identity.id) return c.json({ error: 'Solo el formador de la sesión puede añadir un equipo simulado.' }, 403);
     const body = await readJson(c, true) as { count?: unknown } | null;
     const count = body?.count === undefined ? DEFAULT_SIMULATED : body.count;
     if (typeof count !== 'number' || !Number.isInteger(count) || count < 1 || count > MAX_SIMULATED)
@@ -750,7 +750,7 @@ export function createApp(demo = false) {
     if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
     const session = await sessionFor(c.env, identity.tenantId, id);
     if (!session) return c.json({ error: 'Sesión no encontrada.' }, 404);
-    if (session.instructorId !== identity.id) return c.json({ error: 'Solo el instructor de la sesión puede retirar la clase simulada.' }, 403);
+    if (session.instructorId !== identity.id) return c.json({ error: 'Solo el formador de la sesión puede retirar el equipo simulado.' }, 403);
     const response = await room(c.env, identity.tenantId, id, { op: 'demo-remove', tenantId: identity.tenantId, actor: identity });
     if (!response.ok) return response;
     const payload = await response.json() as { demoClass?: { removed?: number } };
@@ -782,7 +782,7 @@ export function createApp(demo = false) {
     if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
     const session = await sessionFor(c.env, identity.tenantId, id);
     if (!session) return c.json({ error: 'Sesión no encontrada.' }, 404);
-    if (!await canManage(c.env, identity, session)) return c.json({ error: 'Solo el instructor que creó la sesión puede exportar sus datos.' }, 403);
+    if (!await canManage(c.env, identity, session)) return c.json({ error: 'Solo el formador que creó la sesión puede exportar sus datos.' }, 403);
     if (!PARTICIPANT_ID.test(participantId)) return c.json({ error: 'Participante no encontrado.' }, 404);
     const current = await room(c.env, identity.tenantId, id, { op: 'state', tenantId: identity.tenantId, actor: identity });
     if (!current.ok) return current;
@@ -803,7 +803,7 @@ export function createApp(demo = false) {
     if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
     const session = await sessionFor(c.env, identity.tenantId, id);
     if (!session) return c.json({ error: 'Sesión no encontrada.' }, 404);
-    if (!await canManage(c.env, identity, session)) return c.json({ error: 'Solo el instructor que creó la sesión puede exportarla.' }, 403);
+    if (!await canManage(c.env, identity, session)) return c.json({ error: 'Solo el formador que creó la sesión puede exportarla.' }, 403);
     const current = await room(c.env, identity.tenantId, id, { op: 'state', tenantId: identity.tenantId, actor: identity });
     const data = await current.json() as Record<string, unknown>;
     await audit(c.env, identity, id, 'session_exported', {});
@@ -816,12 +816,12 @@ export function createApp(demo = false) {
     if (identity.role !== 'instructor') return c.json({ error: 'Acción reservada al instructor.' }, 403);
     const session = await sessionFor(c.env, identity.tenantId, id);
     if (!session) return c.json({ error: 'Sesión no encontrada.' }, 404);
-    if (!await canManage(c.env, identity, session)) return c.json({ error: 'Solo el instructor que creó la sesión puede borrarla.' }, 403);
+    if (!await canManage(c.env, identity, session)) return c.json({ error: 'Solo el formador que creó la sesión puede borrarla.' }, 403);
     await purgeSession(c.env, identity.tenantId, id);
     await audit(c.env, identity, id, 'session_deleted', {});
     return c.json({ deleted: true });
   });
-  // «Vuestra clase frente a la media» (worker/benchmark.ts): solo D1, cualquier instructor de la organización, solo
+  // «Vuestro equipo frente a la media» (worker/benchmark.ts): solo D1, cualquier instructor de la organización, solo
   // agregados de grupo. Los invitados no llegan aquí (lista cerrada de guests.ts).
   app.get('/api/sessions/:id/benchmark', async c => {
     const identity = c.get('identity');

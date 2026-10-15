@@ -123,7 +123,7 @@ export function AnalyticsPage() {
   }, [app.scenarios, data?.scenarios, scenarioId]);
 
   const header = <PageHeader eyebrow="Organización" title="Analítica"
-    description="Cómo decide la clase en conjunto: participación, decisiones óptimas y en qué situaciones conviene reforzar. Datos agregados; nunca valora a las personas."
+    description="Cómo decide el equipo en conjunto: participación, decisiones óptimas y en qué situaciones conviene reforzar. Datos agregados; nunca valora a las personas."
     actions={!orgEmpty ? <button className="btn btn-primary" onClick={() => navigate('/sesiones/nueva')}><Icon name="plus" size={16}/>Nueva sesión</button> : undefined}>
     {!orgEmpty && <Filters range={range} scenarioId={scenarioId} simulated={simulated} options={scenarioOptions}/>}
   </PageHeader>;
@@ -173,7 +173,7 @@ function Filters({ range, scenarioId, simulated, options }: { range: RangeKey; s
         {options.map(([id, title]) => <option key={id} value={id}>{title}</option>)}
       </select>
     </label>
-    <label className="toggle an-toggle"><input type="checkbox" checked={simulated} onChange={event => setQuery({ simuladas: event.target.checked ? '1' : null }, { replace: true })}/><span aria-hidden="true"/>Incluir clases simuladas</label>
+    <label className="toggle an-toggle"><input type="checkbox" checked={simulated} onChange={event => setQuery({ simuladas: event.target.checked ? '1' : null }, { replace: true })}/><span aria-hidden="true"/>Incluir equipos simulados</label>
   </div>;
 }
 
@@ -182,8 +182,8 @@ function Notices({ data, simulated }: { data: AnalyticsResponse; simulated: bool
   if (totals.decisions > 0) return null;
   if (!simulated && totals.simulatedParticipants > 0) return <div className="an-notice">
     <Icon name="sim" size={18}/>
-    <p>Las sesiones de este periodo solo tienen <strong>{plural(totals.simulatedParticipants, 'participante simulado', 'participantes simulados')}</strong>, que no cuentan por defecto. Actívalos para ver cómo se verá la analítica con una clase real.</p>
-    <button className="btn btn-sm" onClick={() => setQuery({ simuladas: '1' }, { replace: true })}>Incluir clases simuladas</button>
+    <p>Las sesiones de este periodo solo tienen <strong>{plural(totals.simulatedParticipants, 'participante simulado', 'participantes simulados')}</strong>, que no cuentan por defecto. Actívalos para ver cómo se verá la analítica con un equipo real.</p>
+    <button className="btn btn-sm" onClick={() => setQuery({ simuladas: '1' }, { replace: true })}>Incluir equipos simulados</button>
   </div>;
   return <div className="an-notice">
     <Icon name="clock" size={18}/>
@@ -325,17 +325,17 @@ function TrendCard({ data, range }: { data: AnalyticsResponse; range: RangeKey }
   </section>;
 }
 
-/* ---------- Dónde necesita refuerzo la clase ---------- */
+/* ---------- Dónde necesita refuerzo el equipo ---------- */
 
 function ReinforceCard({ data }: { data: AnalyticsResponse }) {
   const titleId = useId();
   const rated = data.phases.filter(phase => phase.optimalRate != null);
   const weak = rated.filter(phase => phase.optimalRate! < 1).slice(0, 4);
   return <section className="card an-card" aria-labelledby={titleId}>
-    <div className="an-card-head"><div><h2 id={titleId} className="an-card-title">Dónde necesita refuerzo la clase</h2><p className="an-card-sub">Situaciones con menor proporción de decisiones óptimas. Útil para preparar el debate.</p></div></div>
+    <div className="an-card-head"><div><h2 id={titleId} className="an-card-title">Dónde necesita refuerzo el equipo</h2><p className="an-card-sub">Situaciones con menor proporción de decisiones óptimas. Útil para preparar el debate.</p></div></div>
     <QualityLegend/>
     {!rated.length ? <p className="an-empty-line">Aparecerá cuando haya decisiones en situaciones con opciones valoradas.</p>
-    : !weak.length ? <div className="an-success"><Icon name="check" size={18}/><p>En todas las situaciones del periodo la clase eligió la mejor opción.</p></div>
+    : !weak.length ? <div className="an-success"><Icon name="check" size={18}/><p>En todas las situaciones del periodo el equipo eligió la mejor opción.</p></div>
     : <ol className="an-phases">{weak.map(phase => <PhaseRow key={`${phase.scenarioId}-${phase.phaseId}`} phase={phase}/>)}</ol>}
   </section>;
 }
@@ -384,7 +384,7 @@ function MetersCard({ data }: { data: AnalyticsResponse }) {
     return [...map].map(([id, rows]) => ({ id, title: data.scenarios.find(item => item.scenarioId === id)?.title ?? id, rows }));
   }, [data]);
   return <section className="card an-card" aria-labelledby={titleId}>
-    <div className="an-card-head"><div><h2 id={titleId} className="an-card-title">Impacto en los indicadores</h2><p className="an-card-sub">Media de la clase al empezar y al terminar, en sesiones finalizadas (escala 0–100).</p></div></div>
+    <div className="an-card-head"><div><h2 id={titleId} className="an-card-title">Impacto en los indicadores</h2><p className="an-card-sub">Media del equipo al empezar y al terminar, en sesiones finalizadas (escala 0–100).</p></div></div>
     <ul className="an-legend" aria-label="Leyenda"><li><i className="sw sw-start"/>Inicio</li><li><i className="sw sw-end"/>Final</li><li><span className="an-tone good">▲</span>Favorable</li><li><span className="an-tone bad">▼</span>Desfavorable</li></ul>
     {!groups.length ? <p className="an-empty-line">Aparecerá cuando finalice una sesión con participantes.</p>
     : <div className="an-meter-groups">{groups.map(group => <div key={group.id} className="an-meter-group">
@@ -453,7 +453,7 @@ function RecentSessions({ data }: { data: AnalyticsResponse }) {
 function Methodology() {
   return <aside className="an-method" aria-label="Metodología">
     <Icon name="report" size={16}/>
-    <p><strong>Cómo se calcula.</strong> Reglas fijas sobre las decisiones registradas, sin inteligencia artificial. Todos los datos son agregados: la analítica no identifica, ordena ni valora a las personas; la valoración de cada opción la define el diseño del escenario. % óptimas = decisiones con la mejor opción entre las decisiones con opción valorada. Finalización = participantes de sesiones finalizadas que decidieron en todas las situaciones. Tiempo de decisión = mediana. Las clases simuladas se excluyen salvo que se incluyan con el filtro.</p>
+    <p><strong>Cómo se calcula.</strong> Reglas fijas sobre las decisiones registradas, sin inteligencia artificial. Todos los datos son agregados: la analítica no identifica, ordena ni valora a las personas; la valoración de cada opción la define el diseño del escenario. % óptimas = decisiones con la mejor opción entre las decisiones con opción valorada. Finalización = participantes de sesiones finalizadas que decidieron en todas las situaciones. Tiempo de decisión = mediana. Los equipos simulados se excluyen salvo que se incluyan con el filtro.</p>
   </aside>;
 }
 
@@ -470,7 +470,7 @@ function AnalyticsSkeleton() {
 function EmptyAnalytics() {
   const items = [
     { icon: 'chart', title: 'Participación y decisiones', text: 'Sesiones, participantes, decisiones y porcentaje de decisiones óptimas, semana a semana.', art: 'bars' },
-    { icon: 'layers', title: 'Dónde necesita refuerzo la clase', text: 'Las situaciones con menos decisiones óptimas y la alternativa más elegida, para preparar el debate.', art: 'stack' },
+    { icon: 'layers', title: 'Dónde necesita refuerzo el equipo', text: 'Las situaciones con menos decisiones óptimas y la alternativa más elegida, para preparar el debate.', art: 'stack' },
     { icon: 'next', title: 'Impacto en los indicadores', text: 'Cómo evolucionan de media los indicadores del escenario entre el inicio y el final.', art: 'meters' },
     { icon: 'report', title: 'Informe por sesión', text: 'Acceso directo al informe de impacto de cada sesión finalizada.', art: 'list' }
   ];
@@ -479,7 +479,7 @@ function EmptyAnalytics() {
       <div className="an-empty-copy">
         <span className="eyebrow">Aún sin sesiones</span>
         <h2 id="an-empty-title">Tus datos aparecerán aquí después de la primera sesión</h2>
-        <p>Cuando tu grupo decida en una simulación, verás cómo decide la clase en conjunto y en qué situaciones conviene reforzar. Solo datos agregados: nunca se valora ni se compara a las personas.</p>
+        <p>Cuando tu grupo decida en una simulación, verás cómo decide el equipo en conjunto y en qué situaciones conviene reforzar. Solo datos agregados: nunca se valora ni se compara a las personas.</p>
         <div className="hero-actions"><button className="btn btn-light btn-lg" onClick={() => navigate('/sesiones/nueva')}><Icon name="plus" size={18}/>Crear sesión</button><button className="btn btn-ghost-light btn-lg" onClick={() => navigate('/escenarios')}>Explorar escenarios</button></div>
       </div>
       <svg className="an-empty-art" viewBox="0 0 240 160" aria-hidden="true" focusable="false">

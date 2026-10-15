@@ -1,5 +1,5 @@
 /* Simulador de decisiones · capa de pulido: movimiento, esqueletos, panel en directo, modo proyector e informe A4.
-   Usa los tokens de style.css (azul UFV y azul cielo como únicos acentos; carmesí solo para alertas). */
+   Usa los tokens de style.css (azul marino y azul cielo como únicos acentos; carmesí solo para alertas). */
 :root{--ease-out:cubic-bezier(.2,.8,.2,1);--sk-base:#E6EBF2;--sk-shine:#F4F7FB;color-scheme:light}
 :focus-visible{outline:2px solid var(--ufv-sky);outline-offset:2px}
 .sidebar :focus-visible,.experience :focus-visible,.projector :focus-visible{outline-color:#fff}

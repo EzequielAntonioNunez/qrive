@@ -27,16 +27,18 @@ async function oneRun() {
     if (!String(error).includes('404')) throw error;
   }
   await command(id, 'participant', 'join');
-  // Escenario por defecto: «Uso responsable de la IA en la universidad».
-  await command(id, 'participant', 'decide', { optionId: 'anonimizar' });
+  // Escenario por defecto: «Uso responsable de la IA en el despacho» (cuatro fases).
+  await command(id, 'participant', 'decide', { optionId: 'anonimizar-herramienta' });
   await command(id, 'instructor', 'advance');
-  await command(id, 'participant', 'decide', { optionId: 'contrastar' });
+  await command(id, 'participant', 'decide', { optionId: 'verificar-fuentes' });
   await command(id, 'instructor', 'advance');
-  await command(id, 'participant', 'decide', { optionId: 'dialogar' });
+  await command(id, 'participant', 'decide', { optionId: 'contrato-garantias' });
+  await command(id, 'instructor', 'advance');
+  await command(id, 'participant', 'decide', { optionId: 'explicar-minuta' });
   const completed = await command(id, 'instructor', 'complete');
-  if (completed.state.status !== 'complete' || completed.report.decisions !== 3 || completed.report.score < 60) throw new Error(`Resultado incorrecto en ${id}`);
+  if (completed.state.status !== 'complete' || completed.report.decisions !== 4 || completed.report.score < 60) throw new Error(`Resultado incorrecto en ${id}`);
   const readBack = await api(`/sessions/${id}`);
-  if (readBack.state.events.length !== 8) throw new Error(`Eventos incompletos en ${id}: ${readBack.state.events.length}`);
+  if (readBack.state.events.length !== 10) throw new Error(`Eventos incompletos en ${id}: ${readBack.state.events.length}`);
   return id;
 }
 
@@ -63,7 +65,7 @@ await command(paused.state.id, 'instructor', 'resume');
 await listedStatus(paused.state.id, 'active');
 console.log('OK: el listado refleja pausa y reanudación');
 
-const { scenario: catalog } = await api('/scenarios/supplier-negotiation');
+const { scenario: catalog } = await api('/scenarios/ia-despacho');
 const customId = `smoke-${Date.now()}`;
 const custom = { ...catalog, id: customId, version: 1, title: 'Escenario de prueba', phases: [catalog.phases[0], catalog.phases[2]] };
 await api('/scenarios', 'instructor', custom);

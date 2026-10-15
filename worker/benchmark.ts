@@ -3,7 +3,7 @@ import { ANALYTICS_MAX_SESSIONS, isSimulatedActor } from './analytics';
 import type { Env } from './types';
 
 /**
- * «Vuestra clase frente a la media» (GET /api/sessions/:id/benchmark). Solo D1, sin Durable Objects: dos consultas
+ * «Vuestro equipo frente a la media» (GET /api/sessions/:id/benchmark). Solo D1, sin Durable Objects: dos consultas
  * (decisiones con su escenario y versiones de escenario) y la agregación en TypeScript.
  *
  * - Solo agregados de grupo: decisiones y tasa de opción óptima de la sesión y del resto de la organización.

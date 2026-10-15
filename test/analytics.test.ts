@@ -205,7 +205,7 @@ describe('GET /api/analytics', () => {
     const june = await data('from=2026-06-01&to=2026-06-07');
     expect(june.totals.sessions).toBe(1);
     expect(june.trend.map(week => week.week)).toEqual(['2026-06-01']);
-    expect((await data('from=2026-05-01&to=2026-10-31&scenarioId=supplier-negotiation')).totals.sessions).toBe(0);
+    expect((await data('from=2026-05-01&to=2026-10-31&scenarioId=escenario-sin-sesiones')).totals.sessions).toBe(0);
   });
 
   it('parseAnalyticsQuery y isoWeekStart', () => {

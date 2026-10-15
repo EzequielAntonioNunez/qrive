@@ -2,7 +2,7 @@ import { applyCommand, DomainError, type Actor } from '../shared/engine';
 import { classMeters, normalizeState, type Choice, type ChoiceQuality, type Phase, type SessionState, type SimEvent } from '../shared/simulation';
 
 /**
- * Clase simulada para demostraciones: participantes ficticios que deciden solos en cada fase.
+ * Equipo simulado (antes «clase simulada») para demostraciones: participantes ficticios que deciden solos en cada fase.
  * - No son usuarios ni membresías: solo existen en el estado del Durable Object, con IDs seudónimos
  *   `sim-<8 primeros caracteres de la sesión>-NN` y el nombre «Participante simulado NN».
  * - Se marcan con `simulated: true` en `participants` y en `participantReports` para etiquetarlos o excluirlos.

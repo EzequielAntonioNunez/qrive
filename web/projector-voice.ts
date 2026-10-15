@@ -1,5 +1,5 @@
 /**
- * VictorIA comenta en el proyector: frases de PLANTILLA (sin IA generativa) con los agregados reales de la clase,
+ * VictorIA comenta en el proyector: frases de PLANTILLA (sin IA generativa) con los agregados reales del equipo,
  * leídas con la voz en tiempo real (Soniox, tts-stream.ts) y mostradas como subtítulo.
  *
  * - Solo datos de grupo («la clase», «un 20 %»): nunca personas. `quality` valora la opción, no a quien la elige.
@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Phase } from '../shared/simulation';
 import { SonioxSpeaker, splitSentences, type SpeakResult, type TtsGrant } from './tts-stream';
 
-export const VOICE_PREF_KEY = 'ufv.projector.voice';
+export const VOICE_PREF_KEY = 'axyro.projector.voice';
 export const MAX_WORDS = 35;
 
 /** Acorta una etiqueta en un límite de palabra, con «…» (≤ max caracteres) y sin el punto final. */
@@ -32,19 +32,19 @@ type Template = { lead: (f: Facts) => string; other: (f: Facts) => string };
 
 /** Tres variantes por tono; se elige por el índice de la situación (determinista). */
 const MAJORITY: Template[] = [
-  { lead: f => `El ${f.p} % de la clase ha elegido «${f.best}». Bien visto: es la opción más acertada.`, other: f => `Ojo: un ${f.q} % se ha inclinado por «${f.other}».` },
+  { lead: f => `El ${f.p} % del equipo ha elegido «${f.best}». Bien visto: es la opción más acertada.`, other: f => `Ojo: un ${f.q} % se ha inclinado por «${f.other}».` },
   { lead: f => `Mayoría clara: un ${f.p} % ha optado por «${f.best}», la mejor decisión en esta situación.`, other: f => `Aun así, un ${f.q} % eligió «${f.other}».` },
   { lead: f => `Buena lectura de la situación: el ${f.p} % ha ido a «${f.best}».`, other: f => `Un ${f.q} % prefirió «${f.other}»; merece la pena comentar por qué.` }
 ];
 const SPLIT: Template[] = [
-  { lead: f => `La clase está dividida: un ${f.p} % ha elegido «${f.best}», que es la opción más acertada.`, other: f => `Un ${f.q} % se ha decantado por «${f.other}».` },
-  { lead: f => `Resultado repartido: un ${f.p} % de la clase ha acertado con «${f.best}».`, other: f => `El ${f.q} % ha preferido «${f.other}»: buen momento para debatirlo.` },
+  { lead: f => `El equipo está dividido: un ${f.p} % ha elegido «${f.best}», que es la opción más acertada.`, other: f => `Un ${f.q} % se ha decantado por «${f.other}».` },
+  { lead: f => `Resultado repartido: un ${f.p} % del equipo ha acertado con «${f.best}».`, other: f => `El ${f.q} % ha preferido «${f.other}»: buen momento para debatirlo.` },
   { lead: f => `Un ${f.p} % ha optado por «${f.best}», la mejor opción aquí.`, other: f => `Pero un ${f.q} % eligió «${f.other}»; conviene revisar el matiz.` }
 ];
 const MINORITY: Template[] = [
   { lead: f => `Esta situación tenía trampa: un ${f.p} % ha elegido «${f.best}», que era la opción más acertada.`, other: f => `La más votada fue «${f.other}», con un ${f.q} %.` },
-  { lead: f => `Situación exigente: la mejor opción era «${f.best}» y la ha elegido un ${f.p} % de la clase.`, other: f => `Un ${f.q} % se ha inclinado por «${f.other}».` },
-  { lead: f => `Aquí la clase ha dudado: solo un ${f.p} % fue a «${f.best}», la decisión más sólida.`, other: f => `Un ${f.q} % eligió «${f.other}»; veamos qué riesgo tiene.` }
+  { lead: f => `Situación exigente: la mejor opción era «${f.best}» y la ha elegido un ${f.p} % del equipo.`, other: f => `Un ${f.q} % se ha inclinado por «${f.other}».` },
+  { lead: f => `Aquí el equipo ha dudado: solo un ${f.p} % fue a «${f.best}», la decisión más sólida.`, other: f => `Un ${f.q} % eligió «${f.other}»; veamos qué riesgo tiene.` }
 ];
 const NONE: Template[] = [
   { lead: f => `Esta situación tenía trampa: la opción más acertada era «${f.best}» y nadie la ha elegido.`, other: f => `La más votada fue «${f.other}», con un ${f.q} %.` }
@@ -91,16 +91,16 @@ export function benchmarkSentence(sessionRate: number | null, orgRate: number | 
   if (sessionRate === null) return 'Aún no hay decisiones valoradas en esta sesión para comparar.';
   if (orgRate === null) return 'Primera sesión de la organización: aún no hay media con la que comparar.';
   const diff = Math.round(sessionRate * 100) - Math.round(orgRate * 100);
-  if (diff >= 5) return 'La clase queda por encima de la media de la organización.';
-  if (diff <= -5) return 'La clase queda por debajo de la media: buen punto de partida para repasar las situaciones más difíciles.';
-  return 'La clase está en línea con la media de la organización.';
+  if (diff >= 5) return 'El equipo queda por encima de la media de la organización.';
+  if (diff <= -5) return 'El equipo queda por debajo de la media: buen punto de partida para repasar las situaciones más difíciles.';
+  return 'El equipo está en línea con la media de la organización.';
 }
 
 /** Lo que dice VictorIA al abrir la comparación. */
 export function benchmarkComment(sessionRate: number | null, orgRate: number | null): string {
   if (sessionRate === null) return benchmarkSentence(sessionRate, orgRate);
-  if (orgRate === null) return `Vuestra clase ha tomado un ${Math.round(sessionRate * 100)} % de decisiones óptimas. Es la primera sesión con datos de la organización: con las próximas podréis compararla con la media.`;
-  return `Vuestra clase ha tomado un ${Math.round(sessionRate * 100)} % de decisiones óptimas, frente a un ${Math.round(orgRate * 100)} % de media en la organización. ${benchmarkSentence(sessionRate, orgRate)}`;
+  if (orgRate === null) return `Vuestro equipo ha tomado un ${Math.round(sessionRate * 100)} % de decisiones óptimas. Es la primera sesión con datos de la organización: con las próximas podréis compararla con la media.`;
+  return `Vuestro equipo ha tomado un ${Math.round(sessionRate * 100)} % de decisiones óptimas, frente a un ${Math.round(orgRate * 100)} % de media en la organización. ${benchmarkSentence(sessionRate, orgRate)}`;
 }
 
 function readPref(): boolean {

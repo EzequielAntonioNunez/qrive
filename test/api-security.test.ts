@@ -237,7 +237,7 @@ describe('micrófono WebGL con Soniox UE', () => {
     const sessionId = 'clef-12345678';
     context.db.prepare("INSERT INTO sessions (id,tenant_id,instructor_id,scenario_id,scenario_version,status,created_at) VALUES (?,?,?,'x',1,'active',?)")
       .run(sessionId, 'ufv', 'u-prof', NEWER);
-    const phrase = 'Quitaría los datos personales y usaría la herramienta de la universidad';
+    const phrase = 'Quitaría los datos personales y usaría la herramienta del despacho';
     expect((await context.call('POST', '/api/voice/interpret', { as: ALUMNA, body: { sessionId, phrase } })).status).toBe(503);
     const inputs: { model: string; input: any }[] = [];
     (context.env as Record<string, unknown>).AI = {
@@ -399,7 +399,7 @@ describe('membresías', () => {
     const { call, db } = setup();
     const last = await call('POST', '/api/memberships', { as: OTRO, body: { email: OTRO, name: 'Otro', role: 'participant' } });
     expect(last.status).toBe(409);
-    expect((await last.json() as { error: string }).error).toBe('Debe quedar al menos un instructor en la organización.');
+    expect((await last.json() as { error: string }).error).toBe('Debe quedar al menos un formador en la organización.');
     const owner = await call('POST', '/api/memberships', { as: PROF, body: { email: OWNER, name: 'Propietario', role: 'participant' } });
     expect(owner.status).toBe(409);
     expect(db.prepare("SELECT role FROM memberships WHERE user_id = 'u-owner'").get()).toEqual({ role: 'instructor' });

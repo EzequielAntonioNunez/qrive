@@ -16,7 +16,7 @@ export function ScenariosPage() {
   const { scenarios } = app;
   useEffect(() => { if (scenarios?.length) for (const item of scenarios) void app.loadScenario(item.id); }, [scenarios?.length]);
   return <div className="page">
-    <PageHeader title="Escenarios" description="Situaciones de aprendizaje listas para usar. Revisa cada una antes de clase y crea una sesión con ella."/>
+    <PageHeader title="Escenarios" description="Situaciones de aprendizaje listas para usar. Revisa cada una antes de la sesión y crea una sesión con ella."/>
     {aiLiveFlag.enabled && <ScenarioTabs current="catalog"/>}
     {scenarios === null ? <div className="scenario-grid">{[0, 1, 2].map(i => <div className="scenario-card" key={i} aria-hidden="true"><Sk w={120} h={10}/><Sk w="80%" h={20} className="sk-gap"/><Sk w="100%" h={12} className="sk-gap"/><Sk w="90%" h={12} className="sk-gap-s"/></div>)}</div>
     : scenarios.length === 0 ? <div className="card"><EmptyState icon="scenarios" title="No hay escenarios publicados">Tu organización aún no tiene escenarios disponibles.</EmptyState></div>
@@ -35,7 +35,7 @@ export function ScenariosPage() {
 /** «Creado con IA · revisado por <docente>»: procedencia de los escenarios publicados desde el modo IA en vivo. */
 export function AiOriginBadge({ item }: { item: Pick<ScenarioSummary, 'origin' | 'publishedBy'> | undefined }) {
   if (item?.origin !== 'ai') return null;
-  return <span className="ai-origin" title="Generado con IA a partir de documentos de la organización y revisado por un docente antes de publicarse."><Icon name="sparkles" size={13}/>Creado con IA{item.publishedBy ? ` · revisado por ${item.publishedBy}` : ' · revisado por un docente'}</span>;
+  return <span className="ai-origin" title="Generado con IA a partir de documentos de la organización y revisado por un formador antes de publicarse."><Icon name="sparkles" size={13}/>Creado con IA{item.publishedBy ? ` · revisado por ${item.publishedBy}` : ' · revisado por un formador'}</span>;
 }
 
 function ScenarioCard({ item, detail, instructor }: { item: ScenarioSummary; detail: Scenario | undefined; instructor: boolean }) {
@@ -69,9 +69,9 @@ export function ScenarioPage({ id }: { id: string }) {
       actions={instructor ? <button className="btn btn-primary" onClick={() => navigate(`/sesiones/nueva?escenario=${encodeURIComponent(scenario.id)}`)}><Icon name="plus" size={18}/>Crear sesión con este escenario</button> : undefined}>
       <div className="fact-row"><span><Icon name="layers" size={16}/>{plural(scenario.phases.length, 'situación', 'situaciones')}</span>{minutes && <span><Icon name="clock" size={16}/>Unos {minutes} min</span>}<span><Icon name="users" size={16}/>Con {scenario.character?.name || 'VictorIA'}, personaje virtual</span><span>Versión {scenario.version}</span>{fromAi && <AiOriginBadge item={{ origin: 'ai', publishedBy: summary?.publishedBy ?? null }}/>}</div>
     </PageHeader>
-    {published && instructor && <div className="notice-inline se-restored" role="status"><span><strong>Escenario publicado.</strong> Ya está disponible para tus clases: crea una sesión y comparte el QR o el PIN con el grupo.</span><button className="text-button" onClick={() => setQuery({ publicado: null }, { replace: true })}>Cerrar</button></div>}
-    {instructor && fromAi && <p className="notice-inline">Generado con IA a partir de documentos de la organización y revisado por un docente antes de publicarse. Sin locución grabada: VictorIA se muestra como texto en el móvil y en el simulador.</p>}
-    {instructor && <p className="notice-inline">Preparación de la clase: aquí ves la valoración de cada opción, el porqué y la idea clave. Los participantes no los ven hasta que deciden.</p>}
+    {published && instructor && <div className="notice-inline se-restored" role="status"><span><strong>Escenario publicado.</strong> Ya está disponible para tus sesiones: crea una sesión y comparte el QR o el PIN con el grupo.</span><button className="text-button" onClick={() => setQuery({ publicado: null }, { replace: true })}>Cerrar</button></div>}
+    {instructor && fromAi && <p className="notice-inline">Generado con IA a partir de documentos de la organización y revisado por un formador antes de publicarse. Sin locución grabada: VictorIA se muestra como texto en el móvil y en el simulador.</p>}
+    {instructor && <p className="notice-inline">Preparación de la sesión: aquí ves la valoración de cada opción, el porqué y la idea clave. Los participantes no los ven hasta que deciden.</p>}
     <ol className="phase-list">{scenario.phases.map((phase, i) => <li key={phase.id} className="card phase-card">
       <div className="phase-card-head"><span className="phase-num">{i + 1}</span><div><span className="eyebrow">Situación {i + 1}{phase.timeLimitSec ? ` · ${Math.round(phase.timeLimitSec / 60)} min` : ''}</span><h2>{phase.title}</h2></div></div>
       <p className="briefing">{phase.briefing}</p>

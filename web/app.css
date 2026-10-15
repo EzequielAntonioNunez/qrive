@@ -1,5 +1,5 @@
 /* Simulador de decisiones · estructura de la consola (navegación, páginas, tablas, diálogos y menús).
-   Mantiene la identidad UFV de style.css (azul UFV, azul cielo, Rockwell para titulares) con menos ruido visual. */
+   Mantiene la identidad AXYRO de style.css (azul marino, azul cielo, Rockwell para titulares) con menos ruido visual. */
 :root{--radius:8px;--radius-s:6px;--shadow-s:0 1px 2px #001A330d;--shadow-m:0 10px 30px #001A331f;--nav-w:248px;--header-h:56px}
 
 /* ---------- Botones ---------- */

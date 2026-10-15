@@ -8,7 +8,7 @@ import type { DraftInput } from '../shared/ai-draft';
 import type { ChoiceQuality } from '../shared/simulation';
 
 type Store = { collections: KnowledgeCollection[]; documents: Record<string, KnowledgeDocument[]>; runs: Record<string, { collectionId: string; total: number; index: number; answers: number[]; pending: number | null; focus: string | null; done: boolean; createdAt?: string }> };
-const KEY = 'ufv-ia-en-vivo-demo-v1';
+const KEY = 'axyro-ia-en-vivo-demo-v1';
 
 function load(): Store {
   try { const raw = localStorage.getItem(KEY); if (raw) return JSON.parse(raw) as Store; } catch { /* vacío */ }
@@ -21,37 +21,37 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const SITUATIONS: Omit<AiSituation, 'index'>[] = [
   {
-    id: 'demo-1', title: 'Un trabajo con ayuda de la IA',
-    narration: 'Una alumna te entrega un trabajo excelente. Al revisarlo, sospechas que gran parte del texto lo ha generado una IA, aunque la guía de la asignatura permite usarla si se declara. Ella no lo ha declarado. ¿Qué harías?',
+    id: 'demo-1', title: 'Un escrito redactado con IA',
+    narration: 'Un asociado junior te entrega un recurso muy bien escrito. Al revisarlo, sospechas que buena parte lo ha redactado una IA, aunque la política del despacho permite usarla si se declara y se revisa. Él no lo ha declarado. ¿Qué haces?',
     options: [
-      { label: 'Hablar con ella, preguntarle cómo ha trabajado y recordarle la obligación de declararlo', quality: 'best', consequence: 'La alumna explica su proceso, reconoce el olvido y declara el uso. Aprende la norma sin sentirse acusada.', rationale: 'La guía pide transparencia y proporcionalidad.' },
-      { label: 'Suspender el trabajo directamente por plagio', quality: 'poor', consequence: 'La alumna recurre: la guía no considera plagio el uso declarado y no hay pruebas concluyentes.', rationale: 'Los detectores no son prueba suficiente.' },
+      { label: 'Hablar con él, preguntarle cómo lo ha preparado y recordarle la obligación de declararlo y revisarlo', quality: 'best', consequence: 'Explica su proceso, reconoce el olvido y revisáis juntos las citas antes de presentar el recurso.', rationale: 'La política pide transparencia y revisión humana.' },
+      { label: 'Rechazar el escrito y abrirle un expediente', quality: 'poor', consequence: 'La política no prohíbe el uso declarado y no hay pruebas concluyentes. El equipo pierde confianza.', rationale: 'Respuesta desproporcionada y sin fundamento.' },
       { label: 'Pasar un detector de IA y decidir según el porcentaje', quality: 'poor', consequence: 'El detector da un 62 %. No sabes qué significa ese número y la decisión queda sin fundamento.', rationale: 'Los detectores tienen falsos positivos.' },
-      { label: 'Aceptar el trabajo y comentar en clase, en general, la norma de declaración', quality: 'acceptable', consequence: 'El grupo recuerda la norma, pero la alumna no recibe una respuesta a su caso.', rationale: 'Útil, aunque insuficiente para el caso concreto.' }
+      { label: 'Presentar el recurso y recordar en la próxima reunión, en general, la norma de declaración', quality: 'acceptable', consequence: 'El equipo recuerda la norma, pero el escrito sale sin una revisión específica.', rationale: 'Útil, aunque insuficiente para el caso concreto.' }
     ],
-    sources: [{ id: 's1', document: 'Guía de uso de IA en la docencia.pdf', excerpt: 'El uso de herramientas de IA generativa está permitido siempre que el estudiante declare qué herramienta ha usado y para qué.' }, { id: 's2', document: 'Normativa de evaluación.docx', excerpt: 'Los resultados de detectores automáticos no constituyen por sí solos prueba de fraude académico.' }]
+    sources: [{ id: 's1', document: 'Política de uso de IA del despacho.pdf', excerpt: 'El uso de herramientas de IA generativa está permitido siempre que se declare y que un abogado revise el resultado antes de enviarlo.' }, { id: 's2', document: 'Protocolo de calidad.docx', excerpt: 'Los resultados de detectores automáticos no constituyen por sí solos prueba de un uso indebido.' }]
   },
   {
-    id: 'demo-2', title: 'Datos personales en un chat de IA',
-    narration: 'Un compañero del departamento quiere pegar en un chatbot público las notas y los comentarios de sus estudiantes, con nombres y apellidos, para que le redacte los informes de evaluación. Te pide opinión. ¿Qué le dices?',
+    id: 'demo-2', title: 'Datos de clientes en un chat de IA',
+    narration: 'Una compañera quiere pegar en un chatbot público el expediente completo de un cliente, con nombres y datos de salud, para que le resuma los hechos. Te pide opinión. ¿Qué le dices?',
     options: [
-      { label: 'Que adelante, así ahorra tiempo', quality: 'poor', consequence: 'Los datos personales salen a un proveedor sin contrato ni base jurídica. Es un incidente de protección de datos.', rationale: 'RGPD: no se comparten datos personales con servicios no autorizados.' },
-      { label: 'Que anonimice los datos y use solo las herramientas autorizadas por la universidad', quality: 'best', consequence: 'Prepara plantillas sin nombres y usa la herramienta institucional. Ahorra tiempo sin exponer a nadie.', rationale: 'Minimización de datos y herramientas con contrato.' },
-      { label: 'Que lo consulte antes con el delegado de protección de datos', quality: 'acceptable', consequence: 'El DPO le orienta, aunque el informe se retrasa una semana.', rationale: 'Prudente, pero la respuesta ya estaba en la guía.' },
-      { label: 'Que use solo las iniciales de cada estudiante', quality: 'acceptable', consequence: 'Reduce el riesgo, pero las iniciales y las notas siguen permitiendo identificar a algunos estudiantes.', rationale: 'La seudonimización parcial no basta.' }
+      { label: 'Que adelante, así ahorra tiempo', quality: 'poor', consequence: 'Los datos del cliente salen a un proveedor sin contrato ni base jurídica. Es una brecha del secreto profesional y de protección de datos.', rationale: 'Secreto profesional y RGPD: no se comparten datos con servicios no autorizados.' },
+      { label: 'Que anonimice los datos y use solo las herramientas autorizadas por el despacho', quality: 'best', consequence: 'Prepara un resumen sin datos identificativos con la herramienta contratada. Ahorra tiempo sin exponer al cliente.', rationale: 'Minimización de datos y herramientas con contrato.' },
+      { label: 'Que lo consulte antes con el delegado de protección de datos', quality: 'acceptable', consequence: 'El DPD le orienta, aunque el resumen se retrasa varios días.', rationale: 'Prudente, pero la respuesta ya estaba en la política.' },
+      { label: 'Que use solo las iniciales del cliente', quality: 'acceptable', consequence: 'Reduce el riesgo, pero las iniciales y los hechos siguen permitiendo identificar al cliente.', rationale: 'La seudonimización parcial no basta.' }
     ],
-    sources: [{ id: 's3', document: 'Guía de uso de IA en la docencia.pdf', excerpt: 'No introduzcas datos personales de estudiantes en herramientas de IA que no hayan sido aprobadas por la universidad.' }]
+    sources: [{ id: 's3', document: 'Política de uso de IA del despacho.pdf', excerpt: 'No introduzcas datos de clientes en herramientas de IA que no hayan sido aprobadas por el despacho.' }]
   },
   {
-    id: 'demo-3', title: 'Una respuesta inventada',
-    narration: 'Preparando una clase, la IA te da una cita textual de un autor con su referencia completa. Suena perfecta, pero no encuentras la obra en la biblioteca. La clase es mañana. ¿Qué haces?',
+    id: 'demo-3', title: 'Una sentencia inventada',
+    narration: 'Preparando una demanda, la IA te da una sentencia del Tribunal Supremo con número y fecha que encaja perfectamente con tu argumento. No la encuentras en ninguna base de datos. El plazo vence mañana. ¿Qué haces?',
     options: [
-      { label: 'Usarla igualmente: la IA suele acertar', quality: 'poor', consequence: 'Un estudiante busca la cita y no existe. Tu credibilidad se resiente.', rationale: 'Las IA generativas pueden inventar referencias.' },
-      { label: 'Descartar la cita y buscar una fuente verificada', quality: 'best', consequence: 'Encuentras una cita real del mismo autor. La clase gana rigor.', rationale: 'Verificar siempre las fuentes primarias.' },
-      { label: 'Usarla advirtiendo que no está verificada', quality: 'acceptable', consequence: 'Eres transparente, pero transmites un contenido dudoso.', rationale: 'Mejor no usar lo que no se puede verificar.' },
-      { label: 'Pedirle a la IA que confirme que la cita es real', quality: 'poor', consequence: 'La IA confirma con seguridad. Sigue siendo falsa.', rationale: 'La IA no es una fuente de verificación.' }
+      { label: 'Citarla igualmente: la IA suele acertar', quality: 'poor', consequence: 'La parte contraria señala que la sentencia no existe. Tu credibilidad ante el tribunal se resiente.', rationale: 'Las IA generativas pueden inventar jurisprudencia.' },
+      { label: 'Descartarla y buscar jurisprudencia verificada en una base de datos oficial', quality: 'best', consequence: 'Encuentras una sentencia real con la misma doctrina. El escrito gana solidez.', rationale: 'Verificar siempre las fuentes primarias.' },
+      { label: 'Citarla advirtiendo que no está verificada', quality: 'acceptable', consequence: 'Eres transparente, pero presentas un argumento dudoso.', rationale: 'Mejor no usar lo que no se puede verificar.' },
+      { label: 'Pedirle a la IA que confirme que la sentencia es real', quality: 'poor', consequence: 'La IA confirma con seguridad. Sigue sin existir.', rationale: 'La IA no es una fuente de verificación.' }
     ],
-    sources: [{ id: 's4', document: 'Guía de uso de IA en la docencia.pdf', excerpt: 'Verifica siempre la exactitud de los contenidos generados: las herramientas pueden producir información falsa con apariencia verosímil.' }]
+    sources: [{ id: 's4', document: 'Política de uso de IA del despacho.pdf', excerpt: 'Verifica siempre la exactitud de los contenidos generados: las herramientas pueden producir citas y referencias falsas con apariencia verosímil.' }]
   }
 ];
 
@@ -62,7 +62,7 @@ const REACTIONS: Record<string, string> = {
 };
 
 /**
- * Datos de la partida para «Convertir en escenario para clase» (los usa standalone.ts, que guarda los escenarios
+ * Datos de la partida para «Convertir en escenario para sesiones» (los usa standalone.ts, que guarda los escenarios
  * publicados): solo las situaciones ya mostradas, como el Worker, que usa solo las generadas.
  */
 export function fakeDraftInput(runId: string): DraftInput | null {
@@ -85,7 +85,7 @@ export async function handleAiLive(path: string, init: RequestInit | undefined, 
   if (!isOurs) return null;
   // Borrador y publicación los atiende standalone.ts (allí viven los escenarios publicados).
   if (/^\/ai-runs\/[^/]+\/(draft|publish)$/.test(path)) return null;
-  if (role !== 'instructor') return json({ error: 'Acción reservada al docente.' }, 403);
+  if (role !== 'instructor') return json({ error: 'Acción reservada al formador.' }, 403);
   if (path === '/voice/tts-key') return json({ error: 'La voz en tiempo real no está disponible en la demo sin conexión.' }, 503);
   const method = (init?.method ?? 'GET').toUpperCase();
   const body = init?.body ? JSON.parse(String(init.body)) : {};
@@ -171,7 +171,7 @@ export async function handleAiLive(path: string, init: RequestInit | undefined, 
     const runInfo = { id: runId, collectionId: run.collectionId, situationsTotal: run.total, index: run.index, status: run.done ? 'complete' : 'active', focus: run.focus };
     const summary = (): AiSummary => {
       const optimal = run.answers.filter((answer, i) => SITUATIONS[i]?.options[answer]?.quality === 'best').length;
-      return { spoken: `Hemos terminado. Has elegido la mejor opción en ${optimal} de ${run.total} situaciones. Recuerda: transparencia al usar la IA, nada de datos personales en herramientas no autorizadas y verificar siempre las fuentes.`, takeaways: ['Declara siempre el uso de IA y pide lo mismo a tus estudiantes.', 'No introduzcas datos personales en herramientas no autorizadas.', 'Verifica las referencias: la IA puede inventarlas.'], optimalCount: optimal, total: run.total };
+      return { spoken: `Hemos terminado. Has elegido la mejor opción en ${optimal} de ${run.total} situaciones. Recuerda: transparencia al usar la IA, nada de datos de clientes en herramientas no autorizadas y verificar siempre las fuentes.`, takeaways: ['Declara siempre el uso de IA y revisa lo que genera antes de enviarlo.', 'No introduzcas datos de clientes en herramientas no autorizadas.', 'Verifica la jurisprudencia: la IA puede inventarla.'], optimalCount: optimal, total: run.total };
     };
     if (!runMatch[2]) {
       const current = run.index >= 0 && run.index < run.total && run.answers.length <= run.index ? { ...SITUATIONS[run.index], index: run.index } : null;

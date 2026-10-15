@@ -1,5 +1,5 @@
 /**
- * Respuesta por voz en el móvil. Mismo protocolo que el simulador web (plantilla UFV de Unity, voice.js):
+ * Respuesta por voz en el móvil. Mismo protocolo que el simulador web (plantilla AXYRO de Unity, voice.js):
  * /api/voice/config → /api/voice/temporary-key → WebSocket de Soniox con el subprotocolo «soniox-api-key»,
  * PCM 16 bits a 16 kHz desde un AudioWorklet y detección de fin de frase (`<end>`).
  * Las órdenes cortas («la dos», «opción B») deciden directamente; las frases libres se interpretan en el servidor

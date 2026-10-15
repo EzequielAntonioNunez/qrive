@@ -1,7 +1,7 @@
 /**
  * Modo demo en navegador: emula la API del simulador con el mismo motor (shared/engine) y guarda el estado
  * en el navegador. Solo se incluye al compilar con VITE_STANDALONE=1; el build normal no lo contiene.
- * Emula también «Simular clase» (participantes simulados que deciden solos) y `liveTally` del docente.
+ * Emula también «Simular equipo» (participantes simulados que deciden solos) y `liveTally` del docente.
  */
 import { applyCommand, createSession, DomainError, expireTimer, type Actor, type Command } from '../shared/engine';
 import { catalogScenarios, classMeters, defaultScenario, participantReport, participantView, performanceReport, type Meters, type Scenario, type SessionState } from '../shared/simulation';
@@ -27,11 +27,11 @@ function findScenario(store: Store, id: string): Scenario | undefined {
 }
 const latestOwn = (store: Store, id: string) => ownScenarios(store).find(item => item.scenario.id === id)?.scenario.version ?? null;
 
-/** «Convertir en escenario para clase» en la demo: misma conversión y mismas reglas que /api/ai-runs/:id/draft y /publish. */
+/** «Convertir en escenario para sesiones» en la demo: misma conversión y mismas reglas que /api/ai-runs/:id/draft y /publish. */
 function handleAiScenario(store: Store, path: string, body: Record<string, unknown>, role: 'instructor' | 'participant'): Response | null {
   const match = path.match(/^\/ai-runs\/([^/]+)\/(draft|publish)$/);
   if (!match) return null;
-  if (role !== 'instructor') return json({ error: 'Acción reservada al docente.' }, 403);
+  if (role !== 'instructor') return json({ error: 'Acción reservada al formador.' }, 403);
   const runId = decodeURIComponent(match[1]);
   const input = fakeDraftInput(runId);
   if (!input) return json({ error: 'Partida no encontrada.' }, 404);
@@ -56,9 +56,9 @@ function handleAiScenario(store: Store, path: string, body: Record<string, unkno
   return json({ scenario }, 201);
 }
 
-const KEY = 'ufv-simulador-v4';
+const KEY = 'axyro-simulador-v5';
 const actors: Record<'instructor' | 'participant', Actor & { email: string; tenantId: string }> = {
-  instructor: { id: 'demo-instructor', name: 'Docente demo', role: 'instructor', email: 'instructor@demo.local', tenantId: 'demo' },
+  instructor: { id: 'demo-instructor', name: 'Formador demo', role: 'instructor', email: 'instructor@demo.local', tenantId: 'demo' },
   participant: { id: 'demo-participant', name: 'Participante demo', role: 'participant', email: 'participante@demo.local', tenantId: 'demo' }
 };
 
@@ -130,25 +130,27 @@ function seed(): Store {
   const members = [actors.instructor, actors.participant].map(({ id, email, name, role }) => ({ id, email, name, role }));
   const wantsExample = (() => { try { return new URLSearchParams(window.location.search).get('ejemplo') === '1'; } catch { return false; } })();
   if (!wantsExample) return { sessions: [], members: [members[0]], simulated: {}, names: {}, codes: [] };
-  // Una sesión de ejemplo ya terminada, con una clase simulada, para que el debate y el informe tengan contenido.
+  // Una sesión de ejemplo ya terminada, con un equipo simulado, para que el debate y el informe tengan contenido.
   const t = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60000).toISOString();
   let state = createSession(crypto.randomUUID(), 'demo', actors.instructor, t(30), defaultScenario);
   const run = (command: Command, actor: Actor, at: string) => { state = applyCommand(state, command, actor, at).state; };
+  // Opción del participante de ejemplo en la situación actual (sin depender de los IDs del escenario por defecto).
+  const pick = (prefer: 'best' | 'acceptable') => { const options = state.scenario.phases[state.phaseIndex].options; return (options.find(option => option.quality === prefer) ?? options[0]).id; };
   run({ id: 'seed-join', type: 'join' }, actors.participant, t(29));
   const sim = addSimulated(state, 18, t(29), []);
   state = sim.state;
   const decideAll = (minutesAgo: number) => { state = stepSimulated(state, sim.ids, Date.parse(t(minutesAgo))); };
-  run({ id: 'seed-d1', type: 'decide', optionId: 'anonimizar' }, actors.participant, t(27));
+  run({ id: 'seed-d1', type: 'decide', optionId: pick('best') }, actors.participant, t(27));
   decideAll(26);
   run({ id: 'seed-a1', type: 'advance' }, actors.instructor, t(25));
-  run({ id: 'seed-d2', type: 'decide', optionId: 'borrador' }, actors.participant, t(22));
+  run({ id: 'seed-d2', type: 'decide', optionId: pick('acceptable') }, actors.participant, t(22));
   decideAll(21.5);
-  run({ id: 'seed-i1', type: 'incident', note: 'Un alumno pregunta si puede usar IA en el trabajo final', riskDelta: 5 }, actors.instructor, t(21));
+  run({ id: 'seed-i1', type: 'incident', note: 'Un cliente pregunta si su expediente se ha tratado con IA', riskDelta: 5 }, actors.instructor, t(21));
   run({ id: 'seed-a2', type: 'advance' }, actors.instructor, t(20));
-  run({ id: 'seed-d3', type: 'decide', optionId: 'dialogar' }, actors.participant, t(18));
+  run({ id: 'seed-d3', type: 'decide', optionId: pick('best') }, actors.participant, t(18));
   decideAll(17.5);
   run({ id: 'seed-end', type: 'complete' }, actors.instructor, t(17));
-  return { sessions: [state], members, simulated: { [state.id]: sim.ids }, names: { [state.id]: 'Ejemplo · 1.º Derecho A' }, codes: [] };
+  return { sessions: [state], members, simulated: { [state.id]: sim.ids }, names: { [state.id]: 'Ejemplo · Área Procesal' }, codes: [] };
 }
 
 /** Fila del listado con los mismos campos que GET /api/sessions del Worker. */
@@ -200,7 +202,7 @@ async function handle(path: string, init: RequestInit | undefined, role: 'instru
   const now = new Date().toISOString();
   // Los simulados deciden y los temporizadores vencen al consultar, igual que haría la alarma del Durable Object.
   store.sessions = store.sessions.map(state => expireTimer(stepSimulated(state, store.simulated[state.id] ?? [], Date.now()), now).state);
-  const reserved = () => json({ error: 'Acción reservada al docente.' }, 403);
+  const reserved = () => json({ error: 'Acción reservada al formador.' }, 403);
   if (path === '/me') return json({ identity: { id: actor.id, name: actor.name, email: actor.email, role, tenantId: 'demo' }, demo: true, standalone: true, flags: { phase_timers: true, ai_live_demo: true }, permissions: { assignInstructor: role === 'instructor' } });
   const aiScenario = handleAiScenario(store, path, body, role);
   if (aiScenario) return aiScenario;
@@ -525,7 +527,7 @@ export function installStandaloneApi() {
 }
 
 /* ---- Unión por código (PIN) e invitados: emula GET/POST /api/sessions/:id/pin, /api/join y la cookie de invitado. ---- */
-const GUEST_KEY = 'ufv-guest';
+const GUEST_KEY = 'axyro-guest';
 function guestOf(store: Store): { id: string; alias: string; sessionId: string } | null {
   try {
     const id = sessionStorage.getItem(GUEST_KEY);
@@ -557,7 +559,7 @@ function handleJoin(path: string, init: RequestInit | undefined, anonymous: bool
   const body = init?.body ? JSON.parse(String(init.body)) : {};
 
   if (pinRoute) {
-    if (role !== 'instructor' || anonymous) return json({ error: 'Acción reservada al docente.' }, 403);
+    if (role !== 'instructor' || anonymous) return json({ error: 'Acción reservada al formador.' }, 403);
     const id = decodeURIComponent(pinRoute[1]);
     const target = store.sessions.find(state => state.id === id);
     if (!target) return json({ error: 'Sesión no encontrada.' }, 404);
@@ -606,7 +608,7 @@ function handleJoin(path: string, init: RequestInit | undefined, anonymous: bool
   if (index < 0) return json({ error: 'Sesión no encontrada.' }, 404);
   if (match[2] && method === 'POST') {
     const command = body as Command;
-    if (command.type !== 'join' && command.type !== 'decide') return json({ error: 'Acción reservada al docente.' }, 403);
+    if (command.type !== 'join' && command.type !== 'decide') return json({ error: 'Acción reservada al formador.' }, 403);
     store.sessions[index] = applyCommand(store.sessions[index], command, { id: guest.id, name: guest.alias, role: 'participant' }, new Date().toISOString()).state;
   }
   save(store);

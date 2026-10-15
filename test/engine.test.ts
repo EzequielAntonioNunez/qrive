@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyCommand, createSession, expireTimer, type Actor } from '../shared/engine';
+import { negotiationScenario } from './fixtures/negotiation-scenario';
 
 const instructor: Actor = { id: 'teacher', name: 'Instructor', role: 'instructor' };
 const participant: Actor = { id: 'learner', name: 'Participante', role: 'participant' };
@@ -7,13 +8,13 @@ const start = '2026-10-05T10:00:00.000Z';
 
 describe('session authorization and command behavior', () => {
   it('rejects participant control and invalid phase progression', () => {
-    const state = createSession('session', 'tenant', instructor, start);
+    const state = createSession('session', 'tenant', instructor, start, negotiationScenario);
     expect(() => applyCommand(state, { id: 'advance-1', type: 'advance' }, participant, start)).toThrow('reservada');
     expect(() => applyCommand(state, { id: 'advance-2', type: 'advance' }, instructor, start)).toThrow('al menos una decisión');
   });
 
   it('records one decision per participant and phase, and replays command IDs safely', () => {
-    const state = createSession('session', 'tenant', instructor, start);
+    const state = createSession('session', 'tenant', instructor, start, negotiationScenario);
     const joined = applyCommand(state, { id: 'join-0001', type: 'join' }, participant, start).state;
     const decided = applyCommand(joined, { id: 'decide-0001', type: 'decide', optionId: 'ask-data' }, participant, '2026-10-05T10:00:05.000Z').state;
     expect(decided.decisions[0].durationMs).toBe(5000);
@@ -24,7 +25,7 @@ describe('session authorization and command behavior', () => {
 
   it('records instructor meter adjustments as their own auditable event', () => {
     // Modo individual: el ajuste se aplica a los participantes y `meters` es su media; sin nadie unido no cambiaría nada.
-    const state = applyCommand(createSession('session', 'tenant', instructor, start), { id: 'join-0001', type: 'join' }, participant, start).state;
+    const state = applyCommand(createSession('session', 'tenant', instructor, start, negotiationScenario), { id: 'join-0001', type: 'join' }, participant, start).state;
     const result = applyCommand(state, { id: 'meter-0001', type: 'set-meter', meter: 'risk', value: 35 }, instructor, start);
     expect(result.state.meters.risk).toBe(35);
     expect(result.state.participantMeters[participant.id].risk).toBe(35);
@@ -34,7 +35,7 @@ describe('session authorization and command behavior', () => {
   });
 
   it('starts the phase timer with the first participant and freezes it while paused', () => {
-    const state = createSession('session', 'tenant', instructor, start);
+    const state = createSession('session', 'tenant', instructor, start, negotiationScenario);
     expect(state.phaseDeadline).toBeNull();
     const joined = applyCommand(state, { id: 'join-0001', type: 'join' }, participant, '2026-10-05T10:01:00.000Z').state;
     expect(joined.phaseDeadline).toBe('2026-10-05T10:09:00.000Z');
@@ -47,7 +48,7 @@ describe('session authorization and command behavior', () => {
   });
 
   it('expires the timer once, as a system event with a risk consequence', () => {
-    const joined = applyCommand(createSession('session', 'tenant', instructor, start), { id: 'join-0001', type: 'join' }, participant, start).state;
+    const joined = applyCommand(createSession('session', 'tenant', instructor, start, negotiationScenario), { id: 'join-0001', type: 'join' }, participant, start).state;
     expect(expireTimer(joined, '2026-10-05T10:07:59.000Z').events).toEqual([]);
     const expired = expireTimer(joined, '2026-10-05T10:08:00.000Z');
     expect(expired.events).toMatchObject([{ type: 'timer_expired', actorId: 'system', detail: { phaseId: 'prepare', riskDelta: 8 } }]);

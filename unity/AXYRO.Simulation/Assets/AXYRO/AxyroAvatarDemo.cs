@@ -21,13 +21,14 @@ namespace Axyro
         [SerializeField] private Button playButton;
         [SerializeField] private Text inputHint;
 
-        // Demo autónoma (sin sesión): escenario por defecto «Uso responsable de la IA en la universidad».
-        private string[] titles = { "Datos personales", "Verificación", "Evaluación justa" };
-        private string[] phaseIds = { "datos-personales", "verificacion", "evaluacion" };
+        // Demo autónoma (sin sesión): escenario por defecto «Uso responsable de la IA en el despacho».
+        private string[] titles = { "Secreto profesional", "Jurisprudencia inventada", "Contratar un proveedor de IA", "Transparencia con el cliente" };
+        private string[] phaseIds = { "secreto-profesional", "jurisprudencia-inventada", "proveedor-ia", "transparencia-cliente" };
         private string[] scripts = {
-            "Tengo las notas y los comentarios de todos los alumnos en una hoja de cálculo. Si la pego en un chat de inteligencia artificial, nos redacta los informes en un momento. ¿Lo hacemos así?",
-            "La inteligencia artificial me ha preparado un resumen de la nueva normativa con tres referencias legales. Suena muy convincente. ¿Lo enviamos tal cual al claustro?",
-            "Un detector dice que este trabajo tiene un ochenta por ciento de probabilidad de estar hecho con inteligencia artificial. ¿Lo suspendemos directamente?"
+            "Nuestra compañera quiere pegar el expediente entero del cliente, con su historia clínica, en un chat de inteligencia artificial gratuito para que le escriba la demanda. Así terminaría en una hora. ¿Le decimos que adelante?",
+            "El escrito cita tres sentencias del Supremo que vienen como anillo al dedo, pero una no aparece en la base de datos. El plazo vence hoy. ¿Lo presentamos así y luego lo miramos?",
+            "El proveedor nos deja usar su herramienta hoy mismo si aceptamos sus condiciones generales. No dice dónde guarda los datos ni si entrena con ellos. ¿Firmamos y empezamos a trabajar?",
+            "La clienta pregunta si hemos usado inteligencia artificial en su recurso y por qué le cobramos esas horas. Es una pregunta incómoda. ¿Qué le contestamos?"
         };
 
         private SMIBool hudSpeaking;
@@ -36,7 +37,7 @@ namespace Axyro
         private int phase;
         private bool speaking;
         private bool linkedSession;
-        private int phaseCount = 3;
+        private int phaseCount = 4;
         private string sessionStatus = "active";
         private Coroutine autoSpeak;
         private float speechStartedAt;
@@ -59,7 +60,7 @@ namespace Axyro
         /// <summary>Título de la fase visible.</summary>
         public string CurrentPhaseTitle => phase >= 0 && phase < titles.Length ? titles[phase] : null;
 
-        /// <summary>Número de fases del escenario (tres en la demo sin sesión).</summary>
+        /// <summary>Número de fases del escenario (cuatro en la demo sin sesión).</summary>
         public int PhaseCount => phaseCount;
 
         // Plazo máximo para que la situación quede planteada: aunque el audio no cargue, no suene, el dispositivo
@@ -120,7 +121,7 @@ namespace Axyro
             if (playLabel != null && !speaking) playLabel.text = LineFinished ? "↻  Repetir voz" : "▶  Escuchar";
         }
 
-        /// <summary>Número de fases del escenario de la sesión; por defecto, las tres de la demo autónoma.</summary>
+        /// <summary>Número de fases del escenario de la sesión; por defecto, las cuatro de la demo autónoma.</summary>
         public void SetPhaseCount(int count)
         {
             if (count > 0) phaseCount = count;
@@ -180,6 +181,7 @@ namespace Axyro
             if (!linkedSession && keyboard != null && keyboard.digit1Key.wasPressedThisFrame) SetPhase(0);
             if (!linkedSession && keyboard != null && keyboard.digit2Key.wasPressedThisFrame) SetPhase(1);
             if (!linkedSession && keyboard != null && keyboard.digit3Key.wasPressedThisFrame) SetPhase(2);
+            if (!linkedSession && keyboard != null && keyboard.digit4Key.wasPressedThisFrame) SetPhase(3);
             if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame) ToggleVoice();
 #if !UNITY_WEBGL || UNITY_EDITOR
             // En el navegador Esc solo sale de pantalla completa: no hay aplicación que cerrar.
@@ -422,11 +424,11 @@ namespace Axyro
 #if UNITY_WEBGL && !UNITY_EDITOR
             if (inputHint != null) inputHint.text = linked
                 ? "Elige con voz, ratón o número  ·  Espacio: repetir  ·  F11: pantalla completa"
-                : "1, 2 y 3: cambiar de situación  ·  Espacio: escuchar  ·  F11: pantalla completa";
+                : "1 a 4: cambiar de situación  ·  Espacio: escuchar  ·  F11: pantalla completa";
 #else
             if (inputHint != null) inputHint.text = linked
                 ? "Elige con el ratón o en voz alta  ·  Espacio: repetir  ·  F11: pantalla completa  ·  Esc: salir"
-                : "1, 2 y 3: cambiar de situación  ·  Espacio: escuchar  ·  F11: pantalla completa  ·  Esc: salir";
+                : "1 a 4: cambiar de situación  ·  Espacio: escuchar  ·  F11: pantalla completa  ·  Esc: salir";
 #endif
         }
 

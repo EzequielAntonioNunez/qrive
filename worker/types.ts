@@ -11,7 +11,7 @@ export interface Env {
   ACCESS_AUD?: string;
   /** Propietario inicial: su primer acceso crea la organización (o se une a DEFAULT_TENANT_ID). Debería ser un secreto. */
   BOOTSTRAP_OWNER_EMAIL?: string;
-  /** Dominios con autoalta como participante, separados por comas (p. ej. "ufv.es"). Vacío: sin autoalta. */
+  /** Dominios con autoalta como participante, separados por comas (p. ej. "despacho.es"). Vacío: sin autoalta. */
   ALLOWED_EMAIL_DOMAINS?: string;
   /** Organización de la autoalta. Si falta, la del propietario inicial (ver `organizationTenant` en auth.ts). */
   DEFAULT_TENANT_ID?: string;

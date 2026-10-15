@@ -12,16 +12,16 @@ namespace Axyro
     // Dos modos, sin ningún token en la build:
     // - WebGL (servido en /simulador/ del mismo dominio): la API es <origen>/api y la identidad la pone
     //   Cloudflare Access con su cookie, que el navegador envía solo en las peticiones al mismo origen.
-    //   La sesión llega en el parámetro ?sesion=<id> del enlace que comparte el docente.
+    //   La sesión llega en el parámetro ?sesion=<id> del enlace que comparte el formador.
     // - Windows y editor: API local de desarrollo con la identidad demo «participante».
     public sealed class AxyroSessionClient : MonoBehaviour
     {
         private const string LocalApi = "http://127.0.0.1:8787/api";
         private const string DemoUserId = "demo-participant";
-        private const string NoLinkText = "Abre el simulador desde el enlace que te comparta tu docente.";
-        private const string NoAccessText = "No tienes acceso a esta sesión o tu acceso ha caducado. Vuelve a entrar con el código de la pantalla del aula o pide acceso a tu docente.";
-        private const string NotFoundText = "No encuentro esta sesión. Comprueba el enlace o el código de la pantalla del aula; si la sesión ha terminado, pide uno nuevo a tu docente.";
-        private const string ObserverText = "Estás viendo la sesión como docente.\n\nSolo los participantes pueden elegir opciones.";
+        private const string NoLinkText = "Abre el simulador desde el enlace que te comparta tu formador.";
+        private const string NoAccessText = "No tienes acceso a esta sesión o tu acceso ha caducado. Vuelve a entrar con el código que aparece en la pantalla de la sala o pide acceso a tu formador.";
+        private const string NotFoundText = "No encuentro esta sesión. Comprueba el enlace o el código de la pantalla de la sala; si la sesión ha terminado, pide uno nuevo a tu formador.";
+        private const string ObserverText = "Estás viendo la sesión como formador.\n\nSolo los participantes pueden elegir opciones.";
 
 #if UNITY_WEBGL && !UNITY_EDITOR
         private static readonly bool WebClient = true;
@@ -84,7 +84,7 @@ namespace Axyro
         }
 
         // Demo sin sesión (Windows y editor, sin --axyro-session): opciones de la fase visible tomadas del guion de
-        // reacciones (Resources/Reacciones/reacciones.json). Se elige con el ratón; 1, 2 y 3 siguen cambiando de
+        // reacciones (Resources/Reacciones/reacciones.json). Se elige con el ratón; del 1 al 4 se cambia de
         // situación. Nada se envía a la API. En cuanto aparece una sesión, Show() desactiva la demo.
         private bool demoMode;
         private int demoPhaseVersion = -1;
@@ -111,7 +111,7 @@ namespace Axyro
             currentOptions = null;
             RefreshCards();
             var why = !string.IsNullOrEmpty(chosen.rationale) ? $"\n\n<color=#9FB8DA>{chosen.rationale}</color>" : "";
-            if (choiceList != null) choiceList.text = $"<b>{chosen.label}</b>\n\n{chosen.consequence}{why}\n\n<color=#649EFF>Modo demostración · 1, 2 y 3: cambiar de situación.</color>";
+            if (choiceList != null) choiceList.text = $"<b>{chosen.label}</b>\n\n{chosen.consequence}{why}\n\n<color=#649EFF>Modo demostración · 1 a 4: cambiar de situación.</color>";
             if (choicePanel != null) choicePanel.SetActive(true);
             // La valoración es de la decisión según el escenario, no de la persona (AI Act).
             feedback?.Show(chosen.quality);
@@ -445,10 +445,10 @@ namespace Axyro
             }
 
             string message;
-            if (next.status == "complete") message = "Simulación completada.\n\nGracias por participar. Tu docente comentará contigo las decisiones y sus consecuencias.";
-            else if (next.status == "paused") message = "Sesión en pausa.\n\nTu docente la reanudará en unos instantes.";
+            if (next.status == "complete") message = "Simulación completada.\n\nGracias por participar. Tu formador comentará contigo las decisiones y sus consecuencias.";
+            else if (next.status == "paused") message = "Sesión en pausa.\n\nTu formador la reanudará en unos instantes.";
             else if (observer) message = ObserverText;
-            else if (!joined && joinError != null) message = $"No puedes unirte a esta sesión: {joinError}\n\nPide a tu docente que abra una sesión nueva y te comparta el enlace.";
+            else if (!joined && joinError != null) message = $"No puedes unirte a esta sesión: {joinError}\n\nPide a tu formador que abra una sesión nueva y te comparta el enlace.";
             else if (!joined) message = "Conectando con la sesión…";
             else if (decided)
             {

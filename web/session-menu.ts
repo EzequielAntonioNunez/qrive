@@ -9,7 +9,7 @@ export function sessionMenu(session: SessionSummary, actions: SessionActions, op
   const items: (MenuItem & { key?: string })[] = [];
   const add = (key: string, item: Exclude<MenuItem, 'separator'>) => { if (!omit.includes(key)) items.push(item); };
   add('open', { label: 'Abrir', icon: 'next', onSelect: () => actions.open(session.id) });
-  add('project', { label: 'Proyectar en clase', icon: 'project', onSelect: () => actions.project(session.id) });
+  add('project', { label: 'Proyectar en la sala', icon: 'project', onSelect: () => actions.project(session.id) });
   if (open) add('copy', { label: 'Copiar enlace para participantes', icon: 'link', onSelect: () => void actions.copyLink(session.id) });
   if (mine && session.status === 'active') add('pause', { label: 'Pausar', icon: 'pause', onSelect: () => void actions.pause(session.id) });
   if (mine && session.status === 'paused') add('resume', { label: 'Reanudar', icon: 'play', onSelect: () => void actions.resume(session.id) });

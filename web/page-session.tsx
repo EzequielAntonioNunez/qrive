@@ -107,7 +107,7 @@ export function SessionPage({ id }: { id: string }) {
       const result = await app.api<SessionPayload>(`/sessions/${encodeURIComponent(id)}/commands`, { method: 'POST', body: JSON.stringify({ id: crypto.randomUUID(), type, ...extra }) });
       live.replace(result);
       if (type === 'incident') setIncident('');
-      const messages: Record<string, string> = { advance: 'Nueva situación abierta', pause: 'Sesión en pausa', resume: 'Sesión reanudada', complete: 'Sesión finalizada. El informe ya está disponible.', incident: 'Incidente lanzado a la clase', 'set-meter': 'Indicador ajustado', join: 'Te has unido a la sesión', decide: 'Decisión registrada', 'remove-participant': 'Participante retirado de la sesión' };
+      const messages: Record<string, string> = { advance: 'Nueva situación abierta', pause: 'Sesión en pausa', resume: 'Sesión reanudada', complete: 'Sesión finalizada. El informe ya está disponible.', incident: 'Incidente lanzado al equipo', 'set-meter': 'Indicador ajustado', join: 'Te has unido a la sesión', decide: 'Decisión registrada', 'remove-participant': 'Participante retirado de la sesión' };
       if (messages[type]) toast(messages[type]);
       if (['advance', 'pause', 'resume', 'complete', 'remove-participant'].includes(type)) void app.reloadSessions();
     } catch (cause) { toast(errorText(cause), 'error'); } finally { setBusy(false); }
@@ -126,7 +126,7 @@ export function SessionPage({ id }: { id: string }) {
       void app.reloadSessions();
     } catch (cause) {
       const status = (cause as ApiError).status;
-      toast(status === 404 || status === 405 || status === 501 ? '«Simular clase» aún no está disponible en este servidor.' : `No se ha podido ${add ? 'simular la clase' : 'retirar la clase simulada'}: ${errorText(cause)}`, status === 404 ? 'info' : 'error');
+      toast(status === 404 || status === 405 || status === 501 ? '«Simular equipo» aún no está disponible en este servidor.' : `No se ha podido ${add ? 'simular el equipo' : 'retirar el equipo simulado'}: ${errorText(cause)}`, status === 404 ? 'info' : 'error');
     } finally { setDemoClassBusy(false); }
   }
   function project() {
@@ -147,7 +147,7 @@ export function SessionPage({ id }: { id: string }) {
   async function exportParticipant(person: Person) {
     try {
       const data = await app.api<unknown>(`/sessions/${encodeURIComponent(id)}/participants/${encodeURIComponent(person.userId)}/export`);
-      download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `simulador-ufv-participante-${slug(person.name)}.json`);
+      download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `axyro-participante-${slug(person.name)}.json`);
       toast(`Datos de ${person.name} descargados`);
     } catch (cause) {
       const status = (cause as ApiError).status;
@@ -159,7 +159,7 @@ export function SessionPage({ id }: { id: string }) {
     const ok = await confirm({
       title: `¿Retirar a ${person.name} de la sesión?`,
       tone: 'danger',
-      body: <><p>Se borrarán su unión, sus decisiones y sus indicadores en esta sesión, también del registro guardado. Los resultados de la clase se recalcularán sin esa persona.</p>
+      body: <><p>Se borrarán su unión, sus decisiones y sus indicadores en esta sesión, también del registro guardado. Los resultados del equipo se recalcularán sin esa persona.</p>
         {guest && <p>Su acceso de invitado dejará de funcionar en su dispositivo.</p>}
         <p className="modal-warn">No se puede deshacer. Si la persona ha pedido una copia de sus datos, expórtala antes.</p></>,
       confirmLabel: 'Retirar de la sesión'
@@ -174,9 +174,9 @@ export function SessionPage({ id }: { id: string }) {
   /* ---------- Docente ---------- */
   const status = state.status;
   const moreItems: MenuItem[] = [
-    { label: 'Proyectar en clase', icon: 'project', onSelect: project, className: 'show-sm-flex' },
+    { label: 'Proyectar en la sala', icon: 'project', onSelect: project, className: 'show-sm-flex' },
     ...(status !== 'complete' ? [{ label: 'Copiar enlace para participantes', icon: 'link', onSelect: () => void actions.copyLink(id), className: 'show-sm-flex' } as MenuItem] : []),
-    ...(canControl && status !== 'complete' ? [{ label: simCount > 0 ? 'Quitar simulados' : `Simular clase (${DEMO_CLASS_SIZE})`, icon: 'sim', onSelect: () => void demoClass(simCount === 0), disabled: demoClassBusy, className: 'show-sm-flex' } as MenuItem] : []),
+    ...(canControl && status !== 'complete' ? [{ label: simCount > 0 ? 'Quitar simulados' : `Simular equipo (${DEMO_CLASS_SIZE})`, icon: 'sim', onSelect: () => void demoClass(simCount === 0), disabled: demoClassBusy, className: 'show-sm-flex' } as MenuItem] : []),
     ...sessionMenu(summary, actions, { mine, standalone: app.standalone, omit: ['open', 'project', 'copy', 'pause', 'resume', 'finish', 'report'], afterDelete: () => navigate('/sesiones') })
   ];
   const headerActions = <div className="action-bar" role="toolbar" aria-label="Acciones de la sesión">
@@ -190,7 +190,7 @@ export function SessionPage({ id }: { id: string }) {
     <span className="action-sep hide-sm" aria-hidden="true"/>
     <button className="btn btn-quiet hide-sm" onClick={project}><Icon name="project" size={16}/>Proyectar</button>
     {status !== 'complete' && <button className="btn btn-quiet hide-sm" onClick={() => void actions.copyLink(id)}><Icon name="link" size={16}/>Copiar enlace</button>}
-    {canControl && status !== 'complete' && <button className="btn btn-quiet hide-sm" onClick={() => void demoClass(simCount === 0)} disabled={demoClassBusy}><Icon name="sim" size={16}/>{demoClassBusy ? 'Un momento…' : simCount > 0 ? 'Quitar simulados' : 'Simular clase'}</button>}
+    {canControl && status !== 'complete' && <button className="btn btn-quiet hide-sm" onClick={() => void demoClass(simCount === 0)} disabled={demoClassBusy}><Icon name="sim" size={16}/>{demoClassBusy ? 'Un momento…' : simCount > 0 ? 'Quitar simulados' : 'Simular equipo'}</button>}
     <ActionMenu items={moreItems} buttonLabel="Más" label="Más acciones de la sesión" className="btn-quiet"/>
   </div>;
 
@@ -205,7 +205,7 @@ export function SessionPage({ id }: { id: string }) {
           <Link key={key} to={`/sesiones/${id}${key === 'directo' ? '' : `?vista=${key}`}`} className="tab" aria-current={tab === key ? 'page' : undefined} onClick={event => { event.preventDefault(); setQuery({ vista: key === 'directo' ? null : key }, { replace: true }); }}>{label}{key === 'participantes' && <span className="tab-count">{state.participants.length}</span>}</Link>)}
       </nav>
     </div>
-    {!canControl &&<p className="notice-inline">Esta sesión la conduce {summary.instructorName ?? 'otro docente'}. Puedes seguirla y consultar su informe, pero no controlarla.</p>}
+    {!canControl &&<p className="notice-inline">Esta sesión la conduce {summary.instructorName ?? 'otro formador'}. Puedes seguirla y consultar su informe, pero no controlarla.</p>}
 
     {tab === 'directo' && <div className="tab-panel">
       <KpiStrip state={state} report={report} tally={tally} remainingMs={remainingMs} phaseExpired={phaseExpired} timersOn={app.timersOn} simCount={excluded ? 0 : simCount}/>
@@ -222,21 +222,21 @@ export function SessionPage({ id }: { id: string }) {
             {status !== 'complete' && <div className="session-join"><JoinShare api={app.api} sessionId={id} variant="card" canRegenerate={canControl}/></div>}
           </div>
           {phase && <LiveDistribution phase={phase} tally={tally} closed={status === 'complete'}/>}
-          {canControl && status !== 'complete' && <details className="advanced"><summary>Herramientas del docente</summary>
+          {canControl && status !== 'complete' && <details className="advanced"><summary>Herramientas del formador</summary>
             <label className="field-label" htmlFor="incident-text">Lanzar un incidente</label>
-            <div className="incident"><input id="incident-text" value={incident} onChange={event => setIncident(event.target.value)} maxLength={200} aria-describedby="incident-hint" placeholder="Ej.: Un estudiante pregunta si puede usar IA en el examen"/><select value={incidentDelta} onChange={event => setIncidentDelta(Number(event.target.value))} aria-label={`Efecto en ${labels.risk}`}>{INCIDENT_DELTAS.map(delta => <option key={delta} value={delta}>{labels.risk} {signed(delta)}</option>)}</select><button onClick={() => void command('incident', { note: incident.trim(), riskDelta: incidentDelta })} disabled={busy || !incident.trim()}>Lanzar</button></div>
-            <small className="field-hint" id="incident-hint">Afecta a toda la clase. No incluyas nombres ni datos personales.</small>
-            <label className="field-label" htmlFor="meter-select">Ajustar un indicador de la clase</label>
+            <div className="incident"><input id="incident-text" value={incident} onChange={event => setIncident(event.target.value)} maxLength={200} aria-describedby="incident-hint" placeholder="Ej.: El cliente pide que el escrito se presente mañana"/><select value={incidentDelta} onChange={event => setIncidentDelta(Number(event.target.value))} aria-label={`Efecto en ${labels.risk}`}>{INCIDENT_DELTAS.map(delta => <option key={delta} value={delta}>{labels.risk} {signed(delta)}</option>)}</select><button onClick={() => void command('incident', { note: incident.trim(), riskDelta: incidentDelta })} disabled={busy || !incident.trim()}>Lanzar</button></div>
+            <small className="field-hint" id="incident-hint">Afecta a todo el equipo. No incluyas nombres ni datos personales.</small>
+            <label className="field-label" htmlFor="meter-select">Ajustar un indicador del equipo</label>
             <div className="meter-control"><select id="meter-select" value={meter} onChange={event => { const next = event.target.value as MeterName; setMeter(next); setMeterValue(state.meters[next]); }}>{METERS.map(name => <option key={name} value={name}>{labels[name]}</option>)}</select><input type="number" min="0" max="100" step="1" aria-label="Nuevo valor" value={meterValue} onChange={event => setMeterValue(Number(event.target.value))}/><button onClick={() => void command('set-meter', { meter, value: meterValue })} disabled={busy || !Number.isInteger(meterValue) || meterValue < 0 || meterValue > 100 || meterValue === state.meters[meter]}>Aplicar</button></div>
           </details>}
         </section>
         <aside className="right-column">
-          <section className="panel metrics"><div className="section-heading"><span className="eyebrow">Indicadores de la clase</span><small className="muted">Media</small></div>
+          <section className="panel metrics"><div className="section-heading"><span className="eyebrow">Indicadores del equipo</span><small className="muted">Media</small></div>
             {METERS.map(name => <Meter key={name} label={labels[name]} value={(report.meters ?? state.meters)[name]} initial={state.scenario.initialMeters[name]} danger={name === 'risk'}/>)}</section>
-          <section className="panel report"><span className="eyebrow">Resultados de la clase</span><div className="score">{report.decisions > 0 ? <><CountUp value={report.score}/><small>/100</small></> : <span className="score-empty">Sin decisiones todavía</span>}</div>
+          <section className="panel report"><span className="eyebrow">Resultados del equipo</span><div className="score">{report.decisions > 0 ? <><CountUp value={report.score}/><small>/100</small></> : <span className="score-empty">Sin decisiones todavía</span>}</div>
             <div className="report-grid"><div><strong>{pct(report.correctDecisionsPct)}</strong><span>Decisiones óptimas</span></div><div><strong>{report.criticalDecisions ?? 0}</strong><span>Decisiones críticas</span></div><div><strong>{report.objectivesMet}/{report.objectivesTotal}</strong><span>Objetivos alcanzados</span></div><div><strong>{report.decisions}</strong><span>Decisiones</span></div></div>
             <p>Puntuación de 0 a 100 con los indicadores del escenario. Valora decisiones, no personas.</p></section>
-          <p className="ai-notice" role="note"><span aria-hidden="true">i</span><span><strong>{characterName} es un personaje virtual.</strong> {state.scenario.origin?.kind === 'ai' ? 'Escenario redactado con IA a partir de documentos y revisado por un docente antes de publicarse.' : 'Imagen y voz sintéticas, intervenciones guionizadas.'} No se infieren emociones ni estados psicológicos.</span></p>
+          <p className="ai-notice" role="note"><span aria-hidden="true">i</span><span><strong>{characterName} es un personaje virtual.</strong> {state.scenario.origin?.kind === 'ai' ? 'Escenario redactado con IA a partir de documentos y revisado por un formador antes de publicarse.' : 'Imagen y voz sintéticas, intervenciones guionizadas.'} No se infieren emociones ni estados psicológicos.</span></p>
         </aside>
       </div>
       {report.timeline.length > 0 && <Debrief state={state} report={report} instructor onCsv={() => downloadCsv(state, report)} participantName={userId => state.participants.find(person => person.userId === userId)?.name ?? 'Participante'}/>}
@@ -310,8 +310,8 @@ function ParticipantSession({ state, report, title, busy, link, standalone, char
         <div className="experience"><div className="experience-head"><span className="eyebrow">{characterName}</span></div>{phase?.characterLine && <blockquote>«{phase.characterLine}»</blockquote>}</div>
         {state.status !== 'complete' && !hasJoined && <div className="join-box"><p>Únete para ver las opciones y decidir. Tu progreso es individual: tus compañeros no ven tus respuestas.</p><button className="btn btn-primary" onClick={() => void onCommand('join')} disabled={busy}>{busy ? 'Uniéndote…' : 'Unirme a la sesión'}</button></div>}
         {hasJoined && !myDecision && state.status === 'active' && <div className="options" role="group" aria-label="Opciones de esta situación">{phase?.options.map((option, i) => <button key={option.id} onClick={() => void onCommand('decide', { optionId: option.id })} disabled={busy}><span className="option-letter" aria-hidden="true">{optionLetter(i)}</span><strong>{option.label}</strong><span>Elegir</span></button>)}</div>}
-        {hasJoined && !myDecision && state.status === 'paused' && <div className="notice">La sesión está en pausa. Podrás decidir en cuanto tu docente la reanude.</div>}
-        {myDecision && state.status !== 'complete' && <div className="notice" role="status"><strong>Decisión registrada.</strong> {phase?.options.find(option => option.id === myDecision.optionId)?.consequence} La siguiente situación aparecerá aquí cuando tu docente la abra.</div>}
+        {hasJoined && !myDecision && state.status === 'paused' && <div className="notice">La sesión está en pausa. Podrás decidir en cuanto tu formador la reanude.</div>}
+        {myDecision && state.status !== 'complete' && <div className="notice" role="status"><strong>Decisión registrada.</strong> {phase?.options.find(option => option.id === myDecision.optionId)?.consequence} La siguiente situación aparecerá aquí cuando tu formador la abra.</div>}
         {state.status === 'complete' && <div className="notice success">Sesión finalizada. Abajo tienes tus resultados y las ideas clave de cada situación.</div>}
       </section>
       <aside className="right-column">
@@ -319,7 +319,7 @@ function ParticipantSession({ state, report, title, busy, link, standalone, char
         <section className="panel report"><span className="eyebrow">Tus resultados</span><div className="score">{report.decisions > 0 ? <><CountUp value={report.score}/><small>/100</small></> : <span className="score-empty">Aún no has decidido</span>}</div>
           <div className="report-grid"><div><strong>{pct(report.correctDecisionsPct)}</strong><span>Decisiones óptimas</span></div><div><strong>{report.decisions}</strong><span>Decisiones</span></div></div>
           <p>Valora tus decisiones en el escenario, nunca a ti como persona.</p></section>
-        <p className="ai-notice" role="note"><span aria-hidden="true">i</span><span><strong>{characterName} es un personaje virtual.</strong> {state.scenario.origin?.kind === 'ai' ? 'Su imagen y su voz son sintéticas. Escenario redactado con IA a partir de documentos y revisado por un docente.' : 'Su imagen y su voz son sintéticas y sus intervenciones están guionizadas.'}</span></p>
+        <p className="ai-notice" role="note"><span aria-hidden="true">i</span><span><strong>{characterName} es un personaje virtual.</strong> {state.scenario.origin?.kind === 'ai' ? 'Su imagen y su voz son sintéticas. Escenario redactado con IA a partir de documentos y revisado por un formador.' : 'Su imagen y su voz son sintéticas y sus intervenciones están guionizadas.'}</span></p>
       </aside>
     </div>
     {state.status === 'complete' && report.timeline.length > 0 && <Debrief state={state} report={report} instructor={false} participantName={() => 'Tú'}/>}

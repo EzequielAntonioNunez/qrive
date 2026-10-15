@@ -66,7 +66,7 @@ export function SessionsPage() {
 
     {sessions?.length === 0 ? <EmptyForFilter filter="todas" search="" total={0} onClear={() => undefined}/> : <>
     <div className="toolbar">
-      <SearchField value={search} onChange={setSearch} placeholder="Buscar por nombre, escenario o docente" label="Buscar sesiones"/>
+      <SearchField value={search} onChange={setSearch} placeholder="Buscar por nombre, escenario o formador" label="Buscar sesiones"/>
       <div className="chips" role="group" aria-label="Filtrar por estado">{FILTERS.map(([key, label]) => <button key={key} type="button" className="chip" aria-pressed={filter === key} onClick={() => setQuery({ estado: key === 'todas' ? null : key }, { replace: true })}>{label}<span className="chip-count">{sessions ? counts[key] : ''}</span></button>)}
         {filter === 'abiertas' && <button type="button" className="chip" aria-pressed="true" onClick={() => setQuery({ estado: null }, { replace: true })}>Abiertas<span className="chip-count">{counts.abiertas}</span></button>}</div>
       <label className="select-inline"><span>Ordenar</span><select value={sort} onChange={event => setSort(event.target.value as Sort)}><option value="recientes">Más recientes</option><option value="antiguas">Más antiguas</option><option value="nombre">Nombre (A-Z)</option><option value="estado">Estado</option></select></label>
@@ -86,7 +86,7 @@ export function SessionsPage() {
         <caption className="sr-only">Sesiones ({rows.length})</caption>
         <thead><tr>
           <th scope="col" className="check-cell"><input type="checkbox" aria-label="Seleccionar todas las sesiones visibles" checked={allSelected} disabled={!selectable.length} onChange={() => setSelected(current => { const next = new Set(current); if (allSelected) selectable.forEach(item => next.delete(item.id)); else selectable.forEach(item => next.add(item.id)); return next; })}/></th>
-          <th scope="col">Sesión</th><th scope="col">Estado</th><th scope="col" className="hide-sm">Progreso</th><th scope="col" className="hide-md">Participantes</th><th scope="col" className="hide-md">Creada</th><th scope="col" className="hide-lg">Docente</th><th scope="col"><span className="sr-only">Acciones</span></th>
+          <th scope="col">Sesión</th><th scope="col">Estado</th><th scope="col" className="hide-sm">Progreso</th><th scope="col" className="hide-md">Participantes</th><th scope="col" className="hide-md">Creada</th><th scope="col" className="hide-lg">Formador</th><th scope="col"><span className="sr-only">Acciones</span></th>
         </tr></thead>
         <tbody>{shown.map(item => {
           const mine = isMine(item, identity);
@@ -116,7 +116,7 @@ function EmptyForFilter({ filter, search, total, onClear }: { filter: Filter; se
   const text: Record<Filter, [string, string]> = {
     todas: ['Sin sesiones', ''],
     abiertas: ['No hay sesiones abiertas', 'Todas las sesiones están finalizadas.'],
-    'en-curso': ['No hay sesiones en curso', 'Las sesiones activas aparecerán aquí mientras tu grupo decide.'],
+    'en-curso': ['No hay sesiones en curso', 'Las sesiones activas aparecerán aquí mientras tu equipo decide.'],
     'en-pausa': ['No hay sesiones en pausa', 'Cuando pauses una sesión, la encontrarás aquí para reanudarla.'],
     finalizadas: ['Aún no hay sesiones finalizadas', 'Al finalizar una sesión, su informe de impacto queda disponible aquí.'],
     mias: ['No has creado ninguna sesión', 'Las sesiones que crees aparecerán en este filtro.']

@@ -44,7 +44,7 @@ export function allowedDomain(email: string, env: Pick<Env, 'ALLOWED_EMAIL_DOMAI
   return domains.includes('*') || domains.includes(domain);
 }
 
-/** Nombre visible provisional a partir del correo (ana.garcia@ufv.es → «Ana Garcia»). El instructor puede corregirlo. */
+/** Nombre visible provisional a partir del correo (ana.garcia@despacho.es → «Ana Garcia»). El instructor puede corregirlo. */
 export function displayNameFromEmail(email: string): string {
   const local = email.slice(0, email.indexOf('@'));
   const words = local.split(/[._-]+/).filter(Boolean).map(word => word.charAt(0).toUpperCase() + word.slice(1));
@@ -93,7 +93,7 @@ async function bootstrapOwner(env: Env, email: string): Promise<MembershipRow | 
   const statements: D1PreparedStatement[] = [];
   if (!tenantId) {
     tenantId = crypto.randomUUID();
-    statements.push(env.DB.prepare('INSERT INTO tenants (id,name,created_at) VALUES (?,?,?)').bind(tenantId, 'Universidad Francisco de Vitoria', now));
+    statements.push(env.DB.prepare('INSERT INTO tenants (id,name,created_at) VALUES (?,?,?)').bind(tenantId, 'AXYRO', now));
   }
   statements.push(
     env.DB.prepare('INSERT OR IGNORE INTO users (id,email,display_name,created_at) VALUES (?,?,?,?)').bind(crypto.randomUUID(), email, displayNameFromEmail(email), now),
@@ -141,7 +141,7 @@ export async function identityFor(c: Context<AuthContext>, demo: boolean): Promi
     const participant = c.req.header('x-demo-user') === 'participant';
     const id = `${tenantId}-${participant ? 'participant' : 'instructor'}`;
     const email = `${participant ? 'participant' : 'instructor'}@${tenantId}.local`;
-    const name = participant ? 'Participante demo' : 'Instructor demo';
+    const name = participant ? 'Participante demo' : 'Formador demo';
     const now = new Date().toISOString();
     await c.env.DB.prepare('INSERT OR IGNORE INTO tenants (id,name,created_at) VALUES (?,?,?)').bind(tenantId, other ? 'Otra organización demo' : 'Organización demo', now).run();
     await c.env.DB.prepare('INSERT OR IGNORE INTO users (id,email,display_name,created_at) VALUES (?,?,?,?)').bind(id, email, name, now).run();

@@ -35,7 +35,7 @@ export function peopleText(session: SessionSummary): string | null {
 
 export const QUICK_DEMO_HINT = `Crea una sesión con ${QUICK_DEMO_CLASS} participantes simulados y abre el proyector`;
 
-/** Botón «Demo rápida» (solo docentes): sesión nueva + clase simulada + proyector, con un clic. */
+/** Botón «Demo rápida» (solo docentes): sesión nueva + equipo simulado + proyector, con un clic. */
 export function QuickDemoButton({ className = 'btn', size = 18, label = 'Demo rápida' }: { className?: string; size?: number; label?: React.ReactNode }) {
   const app = useApp();
   const actions = useSessionActions();
@@ -140,10 +140,10 @@ function FirstRun() {
   return <section className="first-run" aria-labelledby="first-title">
     <div className="first-run-hero">
       <span className="eyebrow">Empieza aquí</span>
-      <h2 id="first-title">Entrena la toma de decisiones con situaciones reales del aula</h2>
-      <p>Tu grupo decide en cada situación desde su navegador; tú sigues las respuestas en directo y cierras con un informe de impacto listo para el debate.</p>
+      <h2 id="first-title">Entrena la toma de decisiones con situaciones reales del despacho</h2>
+      <p>Tu equipo decide en cada situación desde su navegador; tú sigues las respuestas en directo y cierras con un informe de impacto listo para el debate.</p>
       <div className="hero-actions"><button className="btn btn-light btn-lg" onClick={() => navigate('/sesiones/nueva')}><Icon name="plus" size={18}/>Crear tu primera sesión</button><button className="btn btn-ghost-light btn-lg" onClick={() => navigate('/escenarios')}>Explorar escenarios</button></div>
-      <p className="hero-demo">o <QuickDemoButton className="link-light" size={16} label="prueba una demo rápida con una clase simulada"/></p>
+      <p className="hero-demo">o <QuickDemoButton className="link-light" size={16} label="prueba una demo rápida con un equipo simulado"/></p>
     </div>
     <FirstRunPath/>
   </section>;
@@ -152,9 +152,9 @@ function FirstRun() {
 /** Camino de tres pasos del primer uso (Inicio y estados vacíos). */
 export function FirstRunPath() {
   return <ol className="path">
-    <li><span className="path-icon"><Icon name="plus" size={20}/></span><div><small>Paso 1</small><strong>Crea la sesión</strong><p>Elige un escenario del catálogo y ponle el nombre de tu grupo. Menos de un minuto.</p></div></li>
-    <li><span className="path-icon"><Icon name="link" size={20}/></span><div><small>Paso 2</small><strong>Invita a la clase</strong><p>Proyecta el QR o el código de seis cifras: cada participante entra desde su móvil u ordenador con un alias, sin cuenta ni instalaciones.</p></div></li>
-    <li><span className="path-icon"><Icon name="project" size={20}/></span><div><small>Paso 3</small><strong>Proyecta en clase</strong><p>Sigue la votación en directo, revela la mejor opción y descarga el informe al terminar.</p></div></li>
+    <li><span className="path-icon"><Icon name="plus" size={20}/></span><div><small>Paso 1</small><strong>Crea la sesión</strong><p>Elige un escenario del catálogo y ponle el nombre de tu equipo o área. Menos de un minuto.</p></div></li>
+    <li><span className="path-icon"><Icon name="link" size={20}/></span><div><small>Paso 2</small><strong>Invita al equipo</strong><p>Proyecta el QR o el código de seis cifras: cada participante entra desde su móvil u ordenador con un alias, sin cuenta ni instalaciones.</p></div></li>
+    <li><span className="path-icon"><Icon name="project" size={20}/></span><div><small>Paso 3</small><strong>Proyecta en la sala</strong><p>Sigue la votación en directo, revela la mejor opción y descarga el informe al terminar.</p></div></li>
   </ol>;
 }
 
@@ -167,7 +167,7 @@ function ParticipantHome() {
       <section className="section" aria-labelledby="mine-title">
         <div className="section-title"><h2 id="mine-title">Mis sesiones</h2></div>
         {sessions === null ? <ul className="list-card">{[0, 1].map(i => <li key={i} aria-hidden="true"><div className="list-main"><Sk w={220} h={14}/><Sk w={160} h={10} className="sk-gap-s"/></div><Sk w={120} h={34}/></li>)}</ul>
-        : sessions.length === 0 ? <div className="card"><EmptyState icon="sessions" title="Todavía no participas en ninguna sesión">Cuando abras el enlace que te comparta tu docente y te unas, la sesión aparecerá aquí con tus resultados.</EmptyState></div>
+        : sessions.length === 0 ? <div className="card"><EmptyState icon="sessions" title="Todavía no participas en ninguna sesión">Cuando abras el enlace que te comparta tu formador y te unas, la sesión aparecerá aquí con tus resultados.</EmptyState></div>
         : <ul className="list-card">{sessions.map(item => <li key={item.id}>
             <Link to={`/sesiones/${item.id}`} className="list-main"><strong>{scenarioTitleOf(item, scenarios)}</strong><small><StatusPill status={item.status} className="pill-inline"/> {relativeDate(item.createdAt)}</small></Link>
             <div className="row-actions">{item.status !== 'complete' && !app.standalone && <a className="btn btn-primary btn-sm" href={simulatorUrl(item.id, app.demo)}><Icon name="external" size={16}/>Abrir simulador</a>}<Link className="btn btn-sm" to={`/sesiones/${item.id}`}>{item.status === 'complete' ? 'Ver mis resultados' : 'Ver en la consola'}</Link></div>
@@ -176,8 +176,8 @@ function ParticipantHome() {
       <aside className="card help-card" aria-labelledby="how-title">
         <h2 id="how-title" className="card-title">Cómo participar</h2>
         <ol className="steps-list compact">
-          <li><span>1</span><div><strong>Abre el enlace de tu docente</strong><p>Te lo compartirá en clase o por el campus virtual. Funciona en el navegador, sin instalar nada.</p></div></li>
-          <li><span>2</span><div><strong>Entra con tu correo y tu código</strong><p>El código de seis cifras es personal. Si lo has perdido, pide uno nuevo a tu docente.</p></div></li>
+          <li><span>1</span><div><strong>Abre el enlace de tu formador</strong><p>Te lo compartirá en la sesión, por correo o por la intranet. Funciona en el navegador, sin instalar nada.</p></div></li>
+          <li><span>2</span><div><strong>Entra con tu correo y tu código</strong><p>El código de seis cifras es personal. Si lo has perdido, pide uno nuevo a tu formador.</p></div></li>
           <li><span>3</span><div><strong>Decide en cada situación</strong><p>Elige la opción que te parezca mejor. Al final verás tus resultados y las ideas clave.</p></div></li>
         </ol>
         <p className="fine-print">Las valoraciones se refieren a las decisiones, nunca a las personas. El personaje es virtual y sus intervenciones están guionizadas.</p>
